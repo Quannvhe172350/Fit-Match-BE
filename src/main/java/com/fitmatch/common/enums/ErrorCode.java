@@ -11,7 +11,12 @@ public enum ErrorCode {
     BUSINESS_ERROR(HttpStatus.BAD_REQUEST, "Business error"),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "Resource not found"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized"),
-    FORBIDDEN(HttpStatus.FORBIDDEN, "Forbidden");
+    FORBIDDEN(HttpStatus.FORBIDDEN, "Forbidden"),
+    USERNAME_EXISTS(HttpStatus.CONFLICT, "Username already exists"),
+    EMAIL_EXISTS(HttpStatus.CONFLICT, "Email already exists"),
+    INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid username or password"),
+    TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Invalid token"),
+    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token has expired");
 
     private final HttpStatus status;
     private final String defaultMessage;
