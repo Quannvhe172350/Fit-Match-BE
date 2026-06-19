@@ -1,9 +1,7 @@
 package com.fitmatch.dto.auth;
 
-import com.fitmatch.common.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -35,6 +33,6 @@ public class RegisterRequest {
     @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
     private String phone;
 
-    @NotNull(message = "Role is required")
-    private Role role;
+    // KHÔNG nhận role từ client: self-register luôn là ROLE_CUSTOMER (fix B-01 privilege escalation).
+    // PT/Gym nâng cấp qua onboarding (UC-23/41); Admin gán role (UC-12).
 }

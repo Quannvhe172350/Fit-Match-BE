@@ -48,7 +48,7 @@ public class AuthServiceImpl implements AuthService {
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
-                .role(request.getRole())
+                .role(com.fitmatch.common.enums.Role.ROLE_CUSTOMER)
                 .status(com.fitmatch.common.enums.UserStatus.ACTIVE)
                 .build();
 
