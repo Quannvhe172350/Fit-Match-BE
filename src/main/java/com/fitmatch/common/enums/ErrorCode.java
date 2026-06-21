@@ -16,7 +16,10 @@ public enum ErrorCode {
     EMAIL_EXISTS(HttpStatus.CONFLICT, "Email already exists"),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Invalid username or password"),
     TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Invalid token"),
-    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token has expired");
+    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token has expired"),
+    VERIFICATION_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "Verification token is invalid or has expired"),
+    EMAIL_ALREADY_VERIFIED(HttpStatus.CONFLICT, "Email is already verified"),
+    EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email address has not been verified");
 
     private final HttpStatus status;
     private final String defaultMessage;
