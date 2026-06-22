@@ -5,9 +5,11 @@ import com.fitmatch.common.enums.TokenType;
 import com.fitmatch.dto.auth.AuthResponse;
 import com.fitmatch.dto.auth.ChangePasswordRequest;
 import com.fitmatch.dto.auth.LoginRequest;
+import com.fitmatch.dto.auth.ForgotPasswordRequest;
 import com.fitmatch.dto.auth.RefreshTokenRequest;
 import com.fitmatch.dto.auth.RegisterRequest;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
+import com.fitmatch.dto.auth.ResetPasswordRequest;
 import com.fitmatch.dto.auth.VerifyEmailRequest;
 import com.fitmatch.entity.User;
 import com.fitmatch.entity.VerificationToken;
@@ -36,6 +38,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private static final long EMAIL_VERIFICATION_TTL_HOURS = 24;
+    private static final long PASSWORD_RESET_TTL_MINUTES = 60;
 
     private final UserRepository userRepository;
     private final VerificationTokenRepository verificationTokenRepository;
@@ -176,6 +179,44 @@ public class AuthServiceImpl implements AuthService {
 
         issueVerificationToken(user);
         log.info("Verification email re-sent to: {}", request.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        // Không tiết lộ email có tồn tại hay không (chống account enumeration): luôn trả về thành công.
+        userRepository.findByEmail(request.getEmail()).ifPresentOrElse(user -> {
+            verificationTokenRepository.invalidateExisting(user, TokenType.PASSWORD_RESET);
+            VerificationToken token = VerificationToken.builder()
+                    .token(UUID.randomUUID().toString())
+                    .user(user)
+                    .type(TokenType.PASSWORD_RESET)
+                    .expiresAt(LocalDateTime.now().plusMinutes(PASSWORD_RESET_TTL_MINUTES))
+                    .used(false)
+                    .build();
+            verificationTokenRepository.save(token);
+            emailService.sendPasswordResetEmail(user.getEmail(), token.getToken());
+            log.info("Password reset token issued for: {}", request.getEmail());
+        }, () -> log.debug("Password reset requested for unknown email: {}", request.getEmail()));
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        VerificationToken token = verificationTokenRepository
+                .findByTokenAndType(request.getToken(), TokenType.PASSWORD_RESET)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VERIFICATION_TOKEN_INVALID));
+
+        if (!token.isValid()) {
+            throw new BusinessException(ErrorCode.VERIFICATION_TOKEN_INVALID);
+        }
+
+        User user = token.getUser();
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        token.setUsed(true);
+        userRepository.save(user);
+        verificationTokenRepository.save(token);
+        log.info("Password reset completed for user: {}", user.getUsername());
     }
 
     /** Vô hiệu hoá token cũ, tạo token mới và gửi email xác minh. */

@@ -4,9 +4,11 @@ import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.auth.AuthResponse;
 import com.fitmatch.dto.auth.ChangePasswordRequest;
 import com.fitmatch.dto.auth.LoginRequest;
+import com.fitmatch.dto.auth.ForgotPasswordRequest;
 import com.fitmatch.dto.auth.RefreshTokenRequest;
 import com.fitmatch.dto.auth.RegisterRequest;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
+import com.fitmatch.dto.auth.ResetPasswordRequest;
 import com.fitmatch.dto.auth.VerifyEmailRequest;
 import com.fitmatch.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,6 +68,26 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
         authService.resendVerification(request);
         return ResponseEntity.ok(ApiResponse.success("Verification email sent", null));
+    }
+
+    @Operation(
+            summary = "UC-04 — Quên mật khẩu",
+            description = "Actor: **All**. Gửi token đặt lại mật khẩu qua email (TTL 60 phút). Luôn trả 200 dù email không tồn tại (chống account enumeration).")
+    @SecurityRequirements // public
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("If the email exists, a reset link has been sent", null));
+    }
+
+    @Operation(
+            summary = "UC-04 — Đặt lại mật khẩu",
+            description = "Actor: **All**. Đặt lại mật khẩu bằng token reset. Lỗi: 400 token không hợp lệ/hết hạn.")
+    @SecurityRequirements // public
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Password has been reset successfully", null));
     }
 
     @Operation(

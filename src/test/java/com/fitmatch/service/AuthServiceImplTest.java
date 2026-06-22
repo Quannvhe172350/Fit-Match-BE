@@ -2,6 +2,7 @@ package com.fitmatch.service;
 
 import com.fitmatch.common.enums.TokenType;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
+import com.fitmatch.dto.auth.ResetPasswordRequest;
 import com.fitmatch.dto.auth.VerifyEmailRequest;
 import com.fitmatch.entity.User;
 import com.fitmatch.entity.VerificationToken;
@@ -84,6 +85,38 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.verifyEmail(VerifyEmailRequest.builder().token("nope").build()))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void resetPassword_validToken_updatesPasswordAndConsumesToken() {
+        User user = User.builder().username("john").passwordHash("old").build();
+        VerificationToken token = VerificationToken.builder()
+                .token("rst-1").user(user).type(TokenType.PASSWORD_RESET)
+                .expiresAt(LocalDateTime.now().plusMinutes(10)).used(false).build();
+        when(verificationTokenRepository.findByTokenAndType("rst-1", TokenType.PASSWORD_RESET))
+                .thenReturn(Optional.of(token));
+        when(passwordEncoder.encode("newpass")).thenReturn("hashed");
+
+        authService.resetPassword(ResetPasswordRequest.builder().token("rst-1").newPassword("newpass").build());
+
+        assertThat(user.getPasswordHash()).isEqualTo("hashed");
+        assertThat(token.isUsed()).isTrue();
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void resetPassword_usedToken_throws() {
+        User user = User.builder().username("john").build();
+        VerificationToken token = VerificationToken.builder()
+                .token("rst-2").user(user).type(TokenType.PASSWORD_RESET)
+                .expiresAt(LocalDateTime.now().plusMinutes(10)).used(true).build();
+        when(verificationTokenRepository.findByTokenAndType("rst-2", TokenType.PASSWORD_RESET))
+                .thenReturn(Optional.of(token));
+
+        assertThatThrownBy(() -> authService.resetPassword(
+                ResetPasswordRequest.builder().token("rst-2").newPassword("newpass").build()))
+                .isInstanceOf(BusinessException.class);
+        verify(userRepository, never()).save(any());
     }
 
     @Test
