@@ -1,0 +1,100 @@
+name: CD
+
+on:
+  push:
+    branches: [develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to GCE
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: dev
+
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Write env file and copy to VM
+        run: |
+          cat > /tmp/fitmatch.env << EOF
+          SPRING_PROFILES_ACTIVE=dev
+          DB_URL=${{ secrets.DB_URL }}
+          DB_USERNAME=${{ secrets.DB_USERNAME }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          EOF
+
+          gcloud compute scp /tmp/fitmatch.env ${{ secrets.GCE_INSTANCE }}:/tmp/fitmatch.env \
+            --zone=${{ secrets.GCE_ZONE }} \
+            --project=${{ secrets.GCE_PROJECT }} \
+            --quiet
+
+      - name: Deploy via gcloud SSH
+        run: |
+          gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
+            --zone=${{ secrets.GCE_ZONE }} \
+            --project=${{ secrets.GCE_PROJECT }} \
+            --quiet \
+            --command="
+              echo '${{ secrets.GHCR_PAT }}' | docker login ghcr.io -u ${{ secrets.GHCR_USERNAME }} --password-stdin &&
+              docker pull ghcr.io/${{ github.repository }}:latest &&
+              docker stop fitmatch || true &&
+              docker rm fitmatch || true &&
+              docker run -d \
+                --name fitmatch \
+                --restart unless-stopped \
+                -p 8080:8080 \
+                --env-file /tmp/fitmatch.env \
+                ghcr.io/${{ github.repository }}:latest &&
+              docker image prune -f &&
+              rm /tmp/fitmatch.env
+            "

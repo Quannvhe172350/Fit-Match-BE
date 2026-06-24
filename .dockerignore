@@ -1,0 +1,7 @@
+.git
+.github
+target/
+*.md
+.mvn/
+mvnw
+mvnw.cmd
