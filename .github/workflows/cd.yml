@@ -111,6 +111,15 @@ jobs:
           DB_USERNAME=${{ secrets.DB_USERNAME }}
           DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           JWT_SECRET=${{ secrets.JWT_SECRET }}
+          APP_BASE_URL=${{ secrets.APP_BASE_URL }}
+          FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          GCS_BUCKET=${{ secrets.GCS_BUCKET }}
+          GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          MAIL_HOST=smtp.gmail.com
+          MAIL_PORT=587
+          MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM=${{ secrets.MAIL_FROM }}
           EOF
 
           gcloud compute scp /tmp/fitmatch.env ${{ secrets.GCE_INSTANCE }}:/tmp/fitmatch.env \

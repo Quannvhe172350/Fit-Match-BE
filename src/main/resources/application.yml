@@ -32,3 +32,14 @@ jwt:
 
 cors:
   allowed-origins: "*"
+
+app:
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  mail:
+    from: ${MAIL_FROM:noreply@fitmatch.app}
+  gcs:
+    enabled: ${GCS_ENABLED:false}
+    bucket: ${GCS_BUCKET:fit-match}
+    project-id: ${GCP_PROJECT_ID:}
+    credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}

@@ -72,7 +72,7 @@ public class AuthController {
 
     @Operation(
             summary = "UC-04 — Quên mật khẩu",
-            description = "Actor: **All**. Gửi token đặt lại mật khẩu qua email (TTL 60 phút). Luôn trả 200 dù email không tồn tại (chống account enumeration).")
+            description = "Actor: **All**. Gửi token đặt lại mật khẩu qua email (TTL 30 phút). Luôn trả 200 dù email không tồn tại (chống account enumeration).")
     @SecurityRequirements // public
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {

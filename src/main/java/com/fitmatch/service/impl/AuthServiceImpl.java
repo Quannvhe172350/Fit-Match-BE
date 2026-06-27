@@ -38,7 +38,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private static final long EMAIL_VERIFICATION_TTL_HOURS = 24;
-    private static final long PASSWORD_RESET_TTL_MINUTES = 60;
+    private static final long PASSWORD_RESET_TTL_MINUTES = 30;
 
     private final UserRepository userRepository;
     private final VerificationTokenRepository verificationTokenRepository;
@@ -170,15 +170,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void resendVerification(ResendVerificationRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new ResourceNotFoundException("User", request.getEmail()));
-
-        if (user.isEmailVerified()) {
-            throw new BusinessException(ErrorCode.EMAIL_ALREADY_VERIFIED);
-        }
-
-        issueVerificationToken(user);
-        log.info("Verification email re-sent to: {}", request.getEmail());
+        // Không tiết lộ email có tồn tại hay không: luôn trả về thành công.
+        userRepository.findByEmail(request.getEmail()).ifPresentOrElse(user -> {
+            if (!user.isEmailVerified()) {
+                issueVerificationToken(user);
+                log.info("Verification email re-sent to: {}", request.getEmail());
+            }
+        }, () -> log.debug("Resend verification requested for unknown email: {}", request.getEmail()));
     }
 
     @Override
