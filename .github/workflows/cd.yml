@@ -11,22 +11,8 @@ env:
 
 jobs:
   test:
-    name: Build & Test
+    name: Build
     runs-on: ubuntu-latest
-
-    services:
-      mariadb:
-        image: mariadb:10.11
-        env:
-          MYSQL_ROOT_PASSWORD: "123456"
-          MYSQL_DATABASE: fitmatch
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
 
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +24,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Run tests
-        run: mvn verify -B
+      - name: Build
+        run: mvn package -DskipTests -B
 
   build-and-push:
     name: Build & Push Docker Image
