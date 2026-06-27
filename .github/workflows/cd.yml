@@ -128,7 +128,7 @@ jobs:
               sudo docker run -d \
                 --name fitmatch \
                 --restart unless-stopped \
-                -p 8080:8080 \
+                --network=host \
                 --env-file /tmp/fitmatch.env \
                 ${IMAGE} &&
               sudo docker image prune -f &&
