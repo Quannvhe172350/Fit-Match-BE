@@ -29,3 +29,6 @@ jwt:
   secret: c29tZS1zZWN1cmUta2V5LWZvci1qd3Qtc2lnbmluZy1pbi1maXQtbWF0Y2gtYXBwbGljYXRpb24tdGhhdC1pcy0zMi1ieXRlcw==
   access-token-expiration: 3600000
   refresh-token-expiration: 604800000
+
+cors:
+  allowed-origins: "*"
