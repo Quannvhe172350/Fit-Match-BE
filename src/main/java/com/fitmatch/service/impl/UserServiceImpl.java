@@ -2,9 +2,13 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.dto.user.EmergencyContactDto;
 import com.fitmatch.dto.user.FitnessPreferencesDto;
+import com.fitmatch.common.enums.ErrorCode;
+import com.fitmatch.common.enums.UserStatus;
+import com.fitmatch.dto.user.DeactivateAccountRequest;
 import com.fitmatch.dto.user.UpdateProfileRequest;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.entity.User;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.mapper.UserMapper;
 import com.fitmatch.repository.UserRepository;
@@ -12,6 +16,7 @@ import com.fitmatch.service.StorageService;
 import com.fitmatch.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,6 +30,7 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public UserResponse getProfile(String username) {
@@ -93,5 +99,25 @@ public class UserServiceImpl implements UserService {
 
         log.info("Avatar uploaded for user: {}", username);
         return UserMapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public void deactivateAccount(String username, DeactivateAccountRequest request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("User", username));
+
+        // Xác nhận mật khẩu trước khi vô hiệu hoá (bảo vệ thao tác nhạy cảm).
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS, "Password is incorrect");
+        }
+
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "Account is already deactivated");
+        }
+
+        user.setStatus(UserStatus.INACTIVE);
+        userRepository.save(user);
+        log.info("Account deactivated by owner: {}", username);
     }
 }

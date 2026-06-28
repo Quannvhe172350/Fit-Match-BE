@@ -1,6 +1,7 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.user.DeactivateAccountRequest;
 import com.fitmatch.dto.user.UpdateProfileRequest;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.service.UserService;
@@ -13,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -62,5 +64,20 @@ public class UserController {
             @RequestPart("file") MultipartFile file) {
         UserResponse response = userService.uploadAvatar(userDetails.getUsername(), file);
         return ResponseEntity.ok(ApiResponse.success("Avatar updated", response));
+    }
+
+    @Operation(
+            summary = "UC-09 — Vô hiệu hoá tài khoản",
+            description = """
+                    Actor: **Authenticated**. Người dùng tự vô hiệu hoá tài khoản của mình (status → INACTIVE),
+                    yêu cầu xác nhận mật khẩu. Sau đó không thể đăng nhập. Dữ liệu/lịch sử được giữ lại (audit).
+                    Lỗi: 401 sai mật khẩu; 400 tài khoản đã bị vô hiệu hoá.
+                    """)
+    @PostMapping("/deactivate")
+    public ResponseEntity<ApiResponse<Void>> deactivate(@AuthenticationPrincipal UserDetails userDetails,
+                                                        @Valid @RequestBody DeactivateAccountRequest request) {
+        userService.deactivateAccount(userDetails.getUsername(), request);
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(ApiResponse.success("Account deactivated successfully", null));
     }
 }
