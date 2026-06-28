@@ -19,7 +19,9 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token has expired"),
     VERIFICATION_TOKEN_INVALID(HttpStatus.BAD_REQUEST, "Verification token is invalid or has expired"),
     EMAIL_ALREADY_VERIFIED(HttpStatus.CONFLICT, "Email is already verified"),
-    EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email address has not been verified");
+    EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email address has not been verified"),
+    PROFILE_EXISTS(HttpStatus.CONFLICT, "Profile already exists for this user"),
+    INVALID_STATE(HttpStatus.CONFLICT, "Operation not allowed in the current state");
 
     private final HttpStatus status;
     private final String defaultMessage;
