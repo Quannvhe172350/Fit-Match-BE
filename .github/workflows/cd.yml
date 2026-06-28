@@ -106,9 +106,19 @@ jobs:
           MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
           MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
           MAIL_FROM=${{ secrets.MAIL_FROM }}
+          GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-sa.json
           EOF
 
+          cat > /tmp/gcp-sa.json << 'SAEOF'
+          ${{ secrets.GCP_SA_KEY }}
+          SAEOF
+
           gcloud compute scp /tmp/fitmatch.env ${{ secrets.GCE_INSTANCE }}:/tmp/fitmatch.env \
+            --zone=${{ secrets.GCE_ZONE }} \
+            --project=${{ secrets.GCE_PROJECT }} \
+            --quiet
+
+          gcloud compute scp /tmp/gcp-sa.json ${{ secrets.GCE_INSTANCE }}:/tmp/gcp-sa.json \
             --zone=${{ secrets.GCE_ZONE }} \
             --project=${{ secrets.GCE_PROJECT }} \
             --quiet
@@ -125,11 +135,15 @@ jobs:
               sudo docker pull ${IMAGE} &&
               sudo docker stop fitmatch || true &&
               sudo docker rm fitmatch || true &&
+              sudo mkdir -p /opt/fitmatch &&
+              sudo mv /tmp/gcp-sa.json /opt/fitmatch/gcp-sa.json &&
+              sudo chmod 600 /opt/fitmatch/gcp-sa.json &&
               sudo docker run -d \
                 --name fitmatch \
                 --restart unless-stopped \
                 --network=host \
                 --env-file /tmp/fitmatch.env \
+                -v /opt/fitmatch/gcp-sa.json:/app/gcp-sa.json:ro \
                 ${IMAGE} &&
               sudo docker image prune -f &&
               rm /tmp/fitmatch.env
