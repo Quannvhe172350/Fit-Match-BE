@@ -4,6 +4,9 @@ import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.user.UpdateProfileRequest;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -22,16 +25,25 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
+@Tag(name = "B. User", description = "Xem và cập nhật hồ sơ người dùng (UC-05)")
 public class UserController {
 
     private final UserService userService;
 
+    @Operation(
+            summary = "UC-05 — Xem hồ sơ",
+            description = "Actor: **Authenticated**. Trả về toàn bộ thông tin hồ sơ của người dùng hiện tại. Yêu cầu Bearer token.",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<UserResponse>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
         UserResponse response = userService.getProfile(userDetails.getUsername());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @Operation(
+            summary = "UC-05 — Cập nhật hồ sơ",
+            description = "Actor: **Authenticated**. Cập nhật thông tin hồ sơ (tên, giới tính, vị trí, chiều cao, cân nặng, mục tiêu, liên hệ khẩn cấp, sở thích tập luyện). Chỉ cần gửi các trường muốn thay đổi. Yêu cầu Bearer token.",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -40,6 +52,10 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Profile updated", response));
     }
 
+    @Operation(
+            summary = "UC-05 — Tải lên avatar",
+            description = "Actor: **Authenticated**. Upload ảnh đại diện (JPEG/PNG/GIF/WebP, tối đa 5 MB). Lưu lên GCS và cập nhật `avatarUrl` trong hồ sơ. Yêu cầu Bearer token.",
+            security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping(value = "/profile/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<UserResponse>> uploadAvatar(
             @AuthenticationPrincipal UserDetails userDetails,
