@@ -68,4 +68,31 @@ class AdminUserServiceImplTest {
         assertThatThrownBy(() -> service.updateUserStatus(1L, UserStatus.BANNED, "admin"))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void assignRole_changesRoleAndAudits() {
+        User user = User.builder().id(3L).username("carl")
+                .role(com.fitmatch.common.enums.Role.ROLE_CUSTOMER).build();
+        when(userRepository.findById(3L)).thenReturn(Optional.of(user));
+        when(userRepository.save(user)).thenReturn(user);
+
+        service.assignRole(3L, com.fitmatch.common.enums.Role.ROLE_ADMIN, "admin");
+
+        assertThat(user.getRole()).isEqualTo(com.fitmatch.common.enums.Role.ROLE_ADMIN);
+        org.mockito.Mockito.verify(auditService)
+                .record(org.mockito.ArgumentMatchers.eq("USER_ROLE_ASSIGN"),
+                        org.mockito.ArgumentMatchers.eq("User"),
+                        org.mockito.ArgumentMatchers.eq(3L),
+                        org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void assignRole_onSelf_throws() {
+        User admin = User.builder().id(1L).username("admin")
+                .role(com.fitmatch.common.enums.Role.ROLE_ADMIN).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> service.assignRole(1L, com.fitmatch.common.enums.Role.ROLE_CUSTOMER, "admin"))
+                .isInstanceOf(BusinessException.class);
+    }
 }

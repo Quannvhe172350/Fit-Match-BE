@@ -16,4 +16,7 @@ public interface AdminUserService {
 
     /** UC-11: khoá/mở khoá (đổi trạng thái) tài khoản. actorUsername để chặn tự tác động lên chính mình. */
     UserResponse updateUserStatus(Long id, UserStatus status, String actorUsername);
+
+    /** UC-12: gán role cho user. actorUsername để chặn admin tự đổi role chính mình. */
+    UserResponse assignRole(Long id, Role role, String actorUsername);
 }

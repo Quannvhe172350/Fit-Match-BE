@@ -72,4 +72,28 @@ public class AdminUserServiceImpl implements AdminUserService {
         log.info("User {} status changed {} -> {} by {}", id, previous, status, actorUsername);
         return UserMapper.toResponse(user);
     }
+
+    @Override
+    @Transactional
+    public UserResponse assignRole(Long id, Role role, String actorUsername) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        // Chặn admin tự thay đổi role của chính mình (tránh tự hạ quyền / khoá quản trị).
+        if (user.getUsername().equals(actorUsername)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "You cannot change your own role");
+        }
+        if (user.getRole() == role) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "User already has role " + role);
+        }
+
+        Role previous = user.getRole();
+        user.setRole(role);
+        user = userRepository.save(user);
+
+        auditService.record(AuditActions.USER_ROLE_ASSIGN, "User", id,
+                String.format("Role %s -> %s by %s", previous, role, actorUsername));
+        log.info("User {} role changed {} -> {} by {}", id, previous, role, actorUsername);
+        return UserMapper.toResponse(user);
+    }
 }

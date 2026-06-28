@@ -4,6 +4,7 @@ import com.fitmatch.common.enums.Role;
 import com.fitmatch.common.enums.UserStatus;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.admin.AssignRoleRequest;
 import com.fitmatch.dto.admin.UpdateUserStatusRequest;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.service.AdminUserService;
@@ -75,5 +76,21 @@ public class AdminUserController {
             @AuthenticationPrincipal UserDetails actor) {
         UserResponse response = adminUserService.updateUserStatus(id, request.getStatus(), actor.getUsername());
         return ResponseEntity.ok(ApiResponse.success("User status updated", response));
+    }
+
+    @Operation(
+            summary = "UC-12 — Gán role cho user",
+            description = """
+                    Actor: **Admin**. Gán role (ROLE_CUSTOMER/ROLE_PT/ROLE_GYM_OPERATOR/ROLE_ADMIN).
+                    Không thể đổi role chính tài khoản của mình. Hành động được ghi audit log.
+                    Lỗi: 400 trùng role/tự tác động; 404 không tồn tại; 403 không phải Admin.
+                    """)
+    @PatchMapping("/{id}/role")
+    public ResponseEntity<ApiResponse<UserResponse>> assignRole(
+            @PathVariable Long id,
+            @Valid @RequestBody AssignRoleRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        UserResponse response = adminUserService.assignRole(id, request.getRole(), actor.getUsername());
+        return ResponseEntity.ok(ApiResponse.success("User role updated", response));
     }
 }
