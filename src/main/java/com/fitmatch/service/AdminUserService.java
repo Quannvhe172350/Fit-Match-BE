@@ -13,4 +13,7 @@ public interface AdminUserService {
 
     /** UC-10: xem chi tiết một user theo id. */
     UserResponse getUserDetail(Long id);
+
+    /** UC-11: khoá/mở khoá (đổi trạng thái) tài khoản. actorUsername để chặn tự tác động lên chính mình. */
+    UserResponse updateUserStatus(Long id, UserStatus status, String actorUsername);
 }

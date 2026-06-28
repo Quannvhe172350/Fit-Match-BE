@@ -1,26 +1,33 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.AuditActions;
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.Role;
 import com.fitmatch.common.enums.UserStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.entity.User;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.mapper.UserMapper;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.repository.spec.UserSpecifications;
 import com.fitmatch.service.AdminUserService;
+import com.fitmatch.service.AuditService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -37,6 +44,32 @@ public class AdminUserServiceImpl implements AdminUserService {
     public UserResponse getUserDetail(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", id));
+        return UserMapper.toResponse(user);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse updateUserStatus(Long id, UserStatus status, String actorUsername) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", id));
+
+        // Chặn admin tự khoá/đổi trạng thái chính tài khoản của mình.
+        if (user.getUsername().equals(actorUsername)) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "You cannot change your own account status");
+        }
+        if (user.getStatus() == status) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR, "User is already " + status);
+        }
+
+        UserStatus previous = user.getStatus();
+        user.setStatus(status);
+        user = userRepository.save(user);
+
+        String action = status == UserStatus.BANNED ? AuditActions.USER_LOCK
+                : (status == UserStatus.ACTIVE ? AuditActions.USER_UNLOCK : AuditActions.USER_STATUS_CHANGE);
+        auditService.record(action, "User", id,
+                String.format("Status %s -> %s by %s", previous, status, actorUsername));
+        log.info("User {} status changed {} -> {} by {}", id, previous, status, actorUsername);
         return UserMapper.toResponse(user);
     }
 }

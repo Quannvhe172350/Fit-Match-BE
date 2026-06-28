@@ -4,19 +4,25 @@ import com.fitmatch.common.enums.Role;
 import com.fitmatch.common.enums.UserStatus;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.admin.UpdateUserStatusRequest;
 import com.fitmatch.dto.user.UserResponse;
 import com.fitmatch.service.AdminUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -53,5 +59,21 @@ public class AdminUserController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserResponse>> detail(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(adminUserService.getUserDetail(id)));
+    }
+
+    @Operation(
+            summary = "UC-11 — Khoá / mở khoá tài khoản",
+            description = """
+                    Actor: **Admin**. Đổi trạng thái tài khoản: BANNED (khoá) hoặc ACTIVE (mở khoá).
+                    Không thể đổi trạng thái chính tài khoản của mình. Hành động được ghi audit log.
+                    Lỗi: 400 trùng trạng thái/tự tác động; 404 không tồn tại; 403 không phải Admin.
+                    """)
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<UserResponse>> updateStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserStatusRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        UserResponse response = adminUserService.updateUserStatus(id, request.getStatus(), actor.getUsername());
+        return ResponseEntity.ok(ApiResponse.success("User status updated", response));
     }
 }
