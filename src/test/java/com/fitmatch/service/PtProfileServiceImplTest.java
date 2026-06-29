@@ -32,6 +32,7 @@ class PtProfileServiceImplTest {
 
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private PtDocumentRepository ptDocumentRepository;
+    @Mock private com.fitmatch.repository.PtCertificationRepository ptCertificationRepository;
     @Mock private UserRepository userRepository;
     @InjectMocks private PtProfileServiceImpl service;
 

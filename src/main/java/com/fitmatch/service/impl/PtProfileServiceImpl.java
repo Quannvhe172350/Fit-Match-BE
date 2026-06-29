@@ -2,8 +2,10 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.VerificationStatus;
+import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.PtDocumentDto;
 import com.fitmatch.dto.pt.PtProfileResponse;
+import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
 import com.fitmatch.entity.PtDocument;
@@ -11,6 +13,7 @@ import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.repository.PtCertificationRepository;
 import com.fitmatch.repository.PtDocumentRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.UserRepository;
@@ -29,6 +32,7 @@ public class PtProfileServiceImpl implements PtProfileService {
 
     private final PtProfileRepository ptProfileRepository;
     private final PtDocumentRepository ptDocumentRepository;
+    private final PtCertificationRepository ptCertificationRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -128,6 +132,18 @@ public class PtProfileServiceImpl implements PtProfileService {
 
         log.info("PT registration resubmitted by {} (profile {})", username, profile.getId());
         return PtProfileResponse.of(profile, documents.stream().map(PtDocumentDto::of).toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PtPublicProfileResponse getOwnPublicPreview(String username) {
+        PtProfile profile = requireOwnProfile(username);
+        return PtPublicProfileResponse.of(profile, certificationsOf(profile.getId()));
+    }
+
+    private List<CertificationResponse> certificationsOf(Long profileId) {
+        return ptCertificationRepository.findByPtProfile_Id(profileId).stream()
+                .map(CertificationResponse::of).toList();
     }
 
     /** Lấy hồ sơ PT của chính user, ném 404 nếu chưa nộp. */

@@ -1,6 +1,7 @@
 package com.fitmatch.service;
 
 import com.fitmatch.dto.pt.PtProfileResponse;
+import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
 
@@ -17,4 +18,7 @@ public interface PtProfileService {
 
     /** UC-26: cập nhật một phần hồ sơ & khu vực phục vụ (không đổi trạng thái xác minh). */
     PtProfileResponse updateProfile(String username, UpdatePtProfileRequest request);
+
+    /** UC-28: xem trước hồ sơ PT theo góc nhìn công khai (kèm chứng chỉ). */
+    PtPublicProfileResponse getOwnPublicPreview(String username);
 }

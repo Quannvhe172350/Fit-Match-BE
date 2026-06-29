@@ -2,6 +2,7 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.pt.PtProfileResponse;
+import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
 import com.fitmatch.service.PtProfileService;
@@ -78,5 +79,15 @@ public class PtController {
             @Valid @RequestBody UpdatePtProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT profile updated",
                 ptProfileService.updateProfile(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-28 — Xem trước hồ sơ PT công khai",
+            description = "Actor: **PT**. Xem hồ sơ của mình theo góc nhìn công khai (kèm chứng chỉ, không gồm tài liệu nội bộ). Lỗi: 404 chưa có hồ sơ.")
+    @GetMapping("/profile/preview")
+    public ResponseEntity<ApiResponse<PtPublicProfileResponse>> publicPreview(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(
+                ptProfileService.getOwnPublicPreview(userDetails.getUsername())));
     }
 }
