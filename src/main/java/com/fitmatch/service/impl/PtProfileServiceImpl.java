@@ -63,4 +63,23 @@ public class PtProfileServiceImpl implements PtProfileService {
         log.info("PT registration submitted by {} (profile {})", username, profile.getId());
         return PtProfileResponse.of(profile, documents.stream().map(PtDocumentDto::of).toList());
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PtProfileResponse getOwnProfile(String username) {
+        PtProfile profile = requireOwnProfile(username);
+        return toResponse(profile);
+    }
+
+    /** Lấy hồ sơ PT của chính user, ném 404 nếu chưa nộp. */
+    private PtProfile requireOwnProfile(String username) {
+        return ptProfileRepository.findByUser_Username(username)
+                .orElseThrow(() -> new ResourceNotFoundException("PT profile for user", username));
+    }
+
+    private PtProfileResponse toResponse(PtProfile profile) {
+        List<PtDocumentDto> docs = ptDocumentRepository.findByPtProfile_Id(profile.getId()).stream()
+                .map(PtDocumentDto::of).toList();
+        return PtProfileResponse.of(profile, docs);
+    }
 }
