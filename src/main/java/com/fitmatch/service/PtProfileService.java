@@ -10,4 +10,7 @@ public interface PtProfileService {
 
     /** UC-24: xem hồ sơ + trạng thái xác minh của chính PT. */
     PtProfileResponse getOwnProfile(String username);
+
+    /** UC-25: nộp lại hồ sơ xác minh (chỉ khi đang REJECTED) -> PENDING. */
+    PtProfileResponse resubmitRegistration(String username, SubmitPtRegistrationRequest request);
 }

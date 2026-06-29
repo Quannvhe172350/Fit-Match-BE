@@ -69,4 +69,28 @@ class PtProfileServiceImplTest {
                 .isInstanceOf(BusinessException.class);
         verify(ptProfileRepository, never()).save(any());
     }
+
+    @Test
+    void resubmit_whenRejected_setsPending() {
+        PtProfile profile = PtProfile.builder().id(10L).user(User.builder().username("john").build())
+                .verificationStatus(VerificationStatus.REJECTED).rejectionReason("bad docs").build();
+        when(ptProfileRepository.findByUser_Username("john")).thenReturn(Optional.of(profile));
+
+        PtProfileResponse res = service.resubmitRegistration("john", request());
+
+        assertThat(res.getVerificationStatus()).isEqualTo(VerificationStatus.PENDING);
+        assertThat(profile.getRejectionReason()).isNull();
+        verify(ptDocumentRepository).deleteByPtProfile_Id(10L);
+        verify(ptDocumentRepository).saveAll(any());
+    }
+
+    @Test
+    void resubmit_whenPending_throws() {
+        PtProfile profile = PtProfile.builder().id(10L).user(User.builder().username("john").build())
+                .verificationStatus(VerificationStatus.PENDING).build();
+        when(ptProfileRepository.findByUser_Username("john")).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> service.resubmitRegistration("john", request()))
+                .isInstanceOf(BusinessException.class);
+    }
 }

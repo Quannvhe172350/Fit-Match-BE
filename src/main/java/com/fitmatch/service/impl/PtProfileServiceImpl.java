@@ -71,6 +71,40 @@ public class PtProfileServiceImpl implements PtProfileService {
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional
+    public PtProfileResponse resubmitRegistration(String username, SubmitPtRegistrationRequest request) {
+        PtProfile profile = requireOwnProfile(username);
+
+        if (profile.getVerificationStatus() != VerificationStatus.REJECTED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only a REJECTED application can be resubmitted (current: " + profile.getVerificationStatus() + ")");
+        }
+
+        profile.setDisplayName(request.getDisplayName());
+        profile.setBio(request.getBio());
+        profile.setServiceArea(request.getServiceArea());
+        profile.setSpecialization(request.getSpecialization());
+        profile.setExperienceYears(request.getExperienceYears());
+        profile.setVerificationStatus(VerificationStatus.PENDING);
+        profile.setRejectionReason(null);
+        ptProfileRepository.save(profile);
+
+        // Thay thế toàn bộ tài liệu cũ bằng bộ mới.
+        ptDocumentRepository.deleteByPtProfile_Id(profile.getId());
+        List<PtDocument> documents = request.getDocuments().stream()
+                .map(d -> PtDocument.builder()
+                        .ptProfile(profile)
+                        .documentType(d.getDocumentType())
+                        .fileUrl(d.getFileUrl())
+                        .build())
+                .toList();
+        ptDocumentRepository.saveAll(documents);
+
+        log.info("PT registration resubmitted by {} (profile {})", username, profile.getId());
+        return PtProfileResponse.of(profile, documents.stream().map(PtDocumentDto::of).toList());
+    }
+
     /** Lấy hồ sơ PT của chính user, ném 404 nếu chưa nộp. */
     private PtProfile requireOwnProfile(String username) {
         return ptProfileRepository.findByUser_Username(username)

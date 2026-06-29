@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,5 +52,19 @@ public class PtController {
     public ResponseEntity<ApiResponse<PtProfileResponse>> getVerificationStatus(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(ptProfileService.getOwnProfile(userDetails.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-25 — Nộp lại hồ sơ xác minh PT",
+            description = """
+                    Actor: **PT applicant**. Cập nhật thông tin + tài liệu và nộp lại; chỉ áp dụng khi hồ sơ đang REJECTED.
+                    Đặt lại status -> PENDING và xoá lý do từ chối. Lỗi: 409 nếu không ở trạng thái REJECTED; 404 chưa có hồ sơ.
+                    """)
+    @PutMapping("/registration/resubmit")
+    public ResponseEntity<ApiResponse<PtProfileResponse>> resubmit(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody SubmitPtRegistrationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("PT registration resubmitted for verification",
+                ptProfileService.resubmitRegistration(userDetails.getUsername(), request)));
     }
 }
