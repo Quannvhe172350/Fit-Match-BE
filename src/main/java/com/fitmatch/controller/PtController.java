@@ -3,6 +3,7 @@ package com.fitmatch.controller;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.pt.PtProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
+import com.fitmatch.dto.pt.UpdatePtProfileRequest;
 import com.fitmatch.service.PtProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -66,5 +67,16 @@ public class PtController {
             @Valid @RequestBody SubmitPtRegistrationRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT registration resubmitted for verification",
                 ptProfileService.resubmitRegistration(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-26 — Cập nhật hồ sơ & khu vực phục vụ PT",
+            description = "Actor: **PT**. Cập nhật một phần hồ sơ (displayName/bio/serviceArea/specialization/experienceYears). Không đổi trạng thái xác minh. Lỗi: 404 chưa có hồ sơ.")
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<PtProfileResponse>> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdatePtProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("PT profile updated",
+                ptProfileService.updateProfile(userDetails.getUsername(), request)));
     }
 }

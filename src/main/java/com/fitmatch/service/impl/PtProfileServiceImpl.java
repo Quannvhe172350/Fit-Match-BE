@@ -5,6 +5,7 @@ import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.dto.pt.PtDocumentDto;
 import com.fitmatch.dto.pt.PtProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
+import com.fitmatch.dto.pt.UpdatePtProfileRequest;
 import com.fitmatch.entity.PtDocument;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.User;
@@ -62,6 +63,30 @@ public class PtProfileServiceImpl implements PtProfileService {
 
         log.info("PT registration submitted by {} (profile {})", username, profile.getId());
         return PtProfileResponse.of(profile, documents.stream().map(PtDocumentDto::of).toList());
+    }
+
+    @Override
+    @Transactional
+    public PtProfileResponse updateProfile(String username, UpdatePtProfileRequest request) {
+        PtProfile profile = requireOwnProfile(username);
+        if (request.getDisplayName() != null) {
+            profile.setDisplayName(request.getDisplayName());
+        }
+        if (request.getBio() != null) {
+            profile.setBio(request.getBio());
+        }
+        if (request.getServiceArea() != null) {
+            profile.setServiceArea(request.getServiceArea());
+        }
+        if (request.getSpecialization() != null) {
+            profile.setSpecialization(request.getSpecialization());
+        }
+        if (request.getExperienceYears() != null) {
+            profile.setExperienceYears(request.getExperienceYears());
+        }
+        ptProfileRepository.save(profile);
+        log.info("PT profile updated by {}", username);
+        return toResponse(profile);
     }
 
     @Override
