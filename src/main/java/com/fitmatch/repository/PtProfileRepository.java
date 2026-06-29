@@ -2,6 +2,8 @@ package com.fitmatch.repository;
 
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.entity.PtProfile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
@@ -16,4 +18,6 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
     boolean existsByUser_Username(String username);
 
     Optional<PtProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);
+
+    Page<PtProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable);
 }
