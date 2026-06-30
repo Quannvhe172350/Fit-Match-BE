@@ -45,4 +45,13 @@ public class GymController {
                 .body(ApiResponse.success("Gym registration submitted for verification",
                         gymProfileService.submitRegistration(userDetails.getUsername(), request)));
     }
+
+    @Operation(
+            summary = "UC-42 — Xem trạng thái xác minh Gym",
+            description = "Actor: **Gym applicant**. Xem hồ sơ Gym của mình kèm verificationStatus và lý do từ chối. Lỗi: 404 chưa nộp hồ sơ.")
+    @GetMapping("/verification-status")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> getVerificationStatus(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(gymProfileService.getOwnProfile(userDetails.getUsername())));
+    }
 }
