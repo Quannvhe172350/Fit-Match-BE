@@ -12,4 +12,10 @@ public interface AdminPtVerificationService {
 
     /** UC-29: xem chi tiết một yêu cầu xác minh PT (kèm tài liệu). */
     PtProfileResponse detail(Long profileId);
+
+    /** UC-30: duyệt — chỉ khi PENDING -> APPROVED + active + nâng role ROLE_PT. */
+    PtProfileResponse approve(Long profileId, String actorUsername);
+
+    /** UC-30: từ chối — chỉ khi PENDING -> REJECTED + lý do. */
+    PtProfileResponse reject(Long profileId, String reason, String actorUsername);
 }
