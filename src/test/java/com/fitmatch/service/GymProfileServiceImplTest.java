@@ -69,4 +69,28 @@ class GymProfileServiceImplTest {
                 .isInstanceOf(BusinessException.class);
         verify(gymProfileRepository, never()).save(any());
     }
+
+    @Test
+    void resubmit_whenRejected_setsPending() {
+        GymProfile profile = GymProfile.builder().id(20L).user(User.builder().username("ops").build())
+                .verificationStatus(VerificationStatus.REJECTED).rejectionReason("bad").build();
+        when(gymProfileRepository.findByUser_Username("ops")).thenReturn(Optional.of(profile));
+        when(gymDocumentRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GymProfileResponse res = service.resubmitRegistration("ops", request());
+
+        assertThat(res.getVerificationStatus()).isEqualTo(VerificationStatus.PENDING);
+        assertThat(profile.getRejectionReason()).isNull();
+        verify(gymDocumentRepository).deleteByGymProfile_Id(20L);
+    }
+
+    @Test
+    void resubmit_whenPending_throws() {
+        GymProfile profile = GymProfile.builder().id(20L).user(User.builder().username("ops").build())
+                .verificationStatus(VerificationStatus.PENDING).build();
+        when(gymProfileRepository.findByUser_Username("ops")).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> service.resubmitRegistration("ops", request()))
+                .isInstanceOf(BusinessException.class);
+    }
 }

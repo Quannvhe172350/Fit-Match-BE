@@ -54,4 +54,15 @@ public class GymController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(gymProfileService.getOwnProfile(userDetails.getUsername())));
     }
+
+    @Operation(
+            summary = "UC-43 — Nộp lại hồ sơ xác minh Gym",
+            description = "Actor: **Gym applicant**. Chỉ khi đang REJECTED; cập nhật + nộp lại -> PENDING. Lỗi: 409 không ở REJECTED; 404 chưa có hồ sơ.")
+    @PutMapping("/registration/resubmit")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> resubmit(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody SubmitGymRegistrationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Gym registration resubmitted for verification",
+                gymProfileService.resubmitRegistration(userDetails.getUsername(), request)));
+    }
 }
