@@ -65,4 +65,15 @@ public class GymController {
         return ResponseEntity.ok(ApiResponse.success("Gym registration resubmitted for verification",
                 gymProfileService.resubmitRegistration(userDetails.getUsername(), request)));
     }
+
+    @Operation(
+            summary = "UC-44 — Cập nhật hồ sơ Gym",
+            description = "Actor: **Gym Operator**. Cập nhật một phần hồ sơ (gymName/description/address/city/phone). Không đổi trạng thái xác minh. Lỗi: 404 chưa có hồ sơ.")
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateGymProfileRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Gym profile updated",
+                gymProfileService.updateProfile(userDetails.getUsername(), request)));
+    }
 }
