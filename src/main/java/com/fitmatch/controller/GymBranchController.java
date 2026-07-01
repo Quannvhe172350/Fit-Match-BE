@@ -62,4 +62,19 @@ public class GymBranchController {
         branchService.deactivate(userDetails.getUsername(), id);
         return ResponseEntity.ok(ApiResponse.success("Branch deactivated", null));
     }
+
+    @Operation(summary = "UC-52 — Liệt kê chi nhánh", description = "Actor: **Gym Operator**. Trả về chi nhánh của Gym mình.")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<BranchResponse>>> list(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(branchService.list(userDetails.getUsername())));
+    }
+
+    @Operation(summary = "UC-52 — Chi tiết chi nhánh", description = "Actor: **Gym Operator** (chủ sở hữu). Lỗi: 404 không tồn tại/không thuộc về bạn.")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<BranchResponse>> detail(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(branchService.detail(userDetails.getUsername(), id)));
+    }
 }
