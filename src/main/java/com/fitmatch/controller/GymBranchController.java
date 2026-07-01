@@ -43,4 +43,23 @@ public class GymBranchController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Branch created", branchService.create(userDetails.getUsername(), request)));
     }
+
+    @Operation(summary = "UC-51 — Cập nhật chi nhánh", description = "Actor: **Gym Operator** (chủ sở hữu). Lỗi: 404 không tồn tại/không thuộc về bạn.")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<BranchResponse>> update(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody BranchRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Branch updated",
+                branchService.update(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(summary = "UC-51 — Vô hiệu hoá chi nhánh", description = "Actor: **Gym Operator** (chủ sở hữu). Đặt active=false.")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deactivate(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        branchService.deactivate(userDetails.getUsername(), id);
+        return ResponseEntity.ok(ApiResponse.success("Branch deactivated", null));
+    }
 }
