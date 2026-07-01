@@ -62,4 +62,11 @@ public class GymServiceController {
         catalogService.deactivate(userDetails.getUsername(), id);
         return ResponseEntity.ok(ApiResponse.success("Gym service deactivated", null));
     }
+
+    @Operation(summary = "UC-55 — Liệt kê dịch vụ Gym", description = "Actor: **Gym Operator**. Trả về dịch vụ của Gym mình.")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<GymServiceResponse>>> list(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(catalogService.list(userDetails.getUsername())));
+    }
 }
