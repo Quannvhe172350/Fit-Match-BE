@@ -3,19 +3,25 @@ package com.fitmatch.controller;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.admin.RejectRequest;
 import com.fitmatch.dto.gym.GymProfileResponse;
 import com.fitmatch.service.AdminGymVerificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,5 +53,27 @@ public class AdminGymVerificationController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<GymProfileResponse>> detail(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(service.detail(id)));
+    }
+
+    @Operation(
+            summary = "UC-46 — Duyệt xác minh Gym",
+            description = "Actor: **Admin**. PENDING -> APPROVED, kích hoạt marketplace, nâng tài khoản ROLE_GYM_OPERATOR. Lỗi: 409 không ở PENDING; 404 không tồn tại.")
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> approve(
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Gym verification approved",
+                service.approve(id, actor.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-46 — Từ chối xác minh Gym",
+            description = "Actor: **Admin**. PENDING -> REJECTED kèm lý do (Gym có thể nộp lại - UC-43). Lỗi: 409 không ở PENDING; 404 không tồn tại.")
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> reject(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Gym verification rejected",
+                service.reject(id, request.getReason(), actor.getUsername())));
     }
 }

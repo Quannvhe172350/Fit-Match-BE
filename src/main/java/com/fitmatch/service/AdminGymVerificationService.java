@@ -12,4 +12,10 @@ public interface AdminGymVerificationService {
 
     /** UC-45: xem chi tiết một yêu cầu xác minh Gym (kèm tài liệu). */
     GymProfileResponse detail(Long profileId);
+
+    /** UC-46: duyệt — chỉ khi PENDING -> APPROVED + active + nâng role ROLE_GYM_OPERATOR. */
+    GymProfileResponse approve(Long profileId, String actorUsername);
+
+    /** UC-46: từ chối — chỉ khi PENDING -> REJECTED + lý do. */
+    GymProfileResponse reject(Long profileId, String reason, String actorUsername);
 }
