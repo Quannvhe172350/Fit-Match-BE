@@ -64,4 +64,11 @@ public class GymFacilityController {
         facilityService.deactivate(userDetails.getUsername(), id);
         return ResponseEntity.ok(ApiResponse.success("Facility deactivated", null));
     }
+
+    @Operation(summary = "UC-49 — Liệt kê cơ sở vật chất", description = "Actor: **Gym Operator**. Trả về cơ sở vật chất của Gym mình.")
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<FacilityResponse>>> list(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(facilityService.list(userDetails.getUsername())));
+    }
 }
