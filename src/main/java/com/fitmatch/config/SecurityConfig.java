@@ -77,6 +77,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Marketplace browse & public content là công khai (Guest/Customer).
+                        .requestMatchers(HttpMethod.GET, "/api/marketplace/**", "/api/public/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

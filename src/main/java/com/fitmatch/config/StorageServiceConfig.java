@@ -23,7 +23,9 @@ public class StorageServiceConfig {
 
     @Bean
     @ConditionalOnMissingBean(StorageService.class)
-    public StorageService localStorageService() {
-        return new LocalStorageService();
+    public StorageService localStorageService(
+            @Value("${app.base-url:http://localhost:8080}") String baseUrl,
+            @Value("${app.upload-dir:./uploads}") String uploadDir) {
+        return new LocalStorageService(baseUrl, uploadDir);
     }
 }
