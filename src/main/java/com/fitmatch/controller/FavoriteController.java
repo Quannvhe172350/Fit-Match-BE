@@ -43,4 +43,11 @@ public class FavoriteController {
         favoriteService.removePtFavorite(userDetails.getUsername(), ptId);
         return ResponseEntity.ok(ApiResponse.success("PT removed from favorites", null));
     }
+
+    @Operation(summary = "UC-17 — Danh sách PT yêu thích", description = "Actor: **Customer**. Trả về hồ sơ công khai của các PT đã yêu thích.")
+    @GetMapping("/pts")
+    public ResponseEntity<ApiResponse<List<PtPublicProfileResponse>>> listPts(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(favoriteService.listPtFavorites(userDetails.getUsername())));
+    }
 }
