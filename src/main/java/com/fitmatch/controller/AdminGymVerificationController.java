@@ -76,4 +76,16 @@ public class AdminGymVerificationController {
         return ResponseEntity.ok(ApiResponse.success("Gym verification rejected",
                 service.reject(id, request.getReason(), actor.getUsername())));
     }
+
+    @Operation(
+            summary = "UC-013 — Yêu cầu bổ sung hồ sơ Gym",
+            description = "Actor: **Admin**. PENDING -> REQUIRES_INFO kèm ghi chú; Gym bổ sung và nộp lại (resubmit). Lỗi: 409 không ở PENDING; 404 không tồn tại.")
+    @PostMapping("/{id}/request-info")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> requestInfo(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Additional information requested",
+                service.requestInfo(id, request.getReason(), actor.getUsername())));
+    }
 }

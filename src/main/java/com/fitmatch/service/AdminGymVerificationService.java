@@ -18,4 +18,7 @@ public interface AdminGymVerificationService {
 
     /** UC-46: từ chối — chỉ khi PENDING -> REJECTED + lý do. */
     GymProfileResponse reject(Long profileId, String reason, String actorUsername);
+
+    /** UC-013: yêu cầu bổ sung hồ sơ — chỉ khi PENDING -> REQUIRES_INFO + ghi chú review. */
+    GymProfileResponse requestInfo(Long profileId, String note, String actorUsername);
 }

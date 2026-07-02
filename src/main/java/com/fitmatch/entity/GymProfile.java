@@ -64,6 +64,10 @@ public class GymProfile extends BaseEntity {
     @Column(name = "rejection_reason", length = 1000)
     private String rejectionReason;
 
+    /** Ghi chú của Admin khi yêu cầu bổ sung hồ sơ (UC-013). */
+    @Column(name = "review_note", length = 1000)
+    private String reviewNote;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = false;

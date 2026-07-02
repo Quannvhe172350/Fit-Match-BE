@@ -16,4 +16,5 @@ public final class AuditActions {
     public static final String PT_VERIFY_REJECT = "PT_VERIFY_REJECT";
     public static final String GYM_VERIFY_APPROVE = "GYM_VERIFY_APPROVE";
     public static final String GYM_VERIFY_REJECT = "GYM_VERIFY_REJECT";
+    public static final String GYM_VERIFY_REQUEST_INFO = "GYM_VERIFY_REQUEST_INFO";
 }

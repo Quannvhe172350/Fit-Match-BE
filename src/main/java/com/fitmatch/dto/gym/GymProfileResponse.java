@@ -26,6 +26,7 @@ public class GymProfileResponse {
     private String phone;
     private VerificationStatus verificationStatus;
     private String rejectionReason;
+    private String reviewNote;
     private boolean active;
     private List<GymDocumentDto> documents;
 
@@ -40,6 +41,7 @@ public class GymProfileResponse {
                 .phone(g.getPhone())
                 .verificationStatus(g.getVerificationStatus())
                 .rejectionReason(g.getRejectionReason())
+                .reviewNote(g.getReviewNote())
                 .active(g.isActive())
                 .documents(documents)
                 .build();

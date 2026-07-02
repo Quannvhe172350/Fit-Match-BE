@@ -15,5 +15,8 @@ public enum VerificationStatus {
     APPROVED,
 
     /** Bị từ chối — có thể nộp lại (resubmit). */
-    REJECTED
+    REJECTED,
+
+    /** Admin yêu cầu bổ sung hồ sơ (UC-013) — chủ hồ sơ bổ sung rồi nộp lại. */
+    REQUIRES_INFO
 }

@@ -81,6 +81,20 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional
+    public GymProfileResponse requestInfo(Long profileId, String note, String actorUsername) {
+        GymProfile profile = requirePending(profileId);
+        profile.setVerificationStatus(VerificationStatus.REQUIRES_INFO);
+        profile.setReviewNote(note);
+        gymProfileRepository.save(profile);
+
+        auditService.record(AuditActions.GYM_VERIFY_REQUEST_INFO, "GymProfile", profileId,
+                "Additional info requested by " + actorUsername + ": " + note);
+        log.info("Gym verification {} returned for additional info by {}", profileId, actorUsername);
+        return toResponse(profile);
+    }
+
     private GymProfile requirePending(Long profileId) {
         GymProfile profile = requireProfile(profileId);
         if (profile.getVerificationStatus() != VerificationStatus.PENDING) {

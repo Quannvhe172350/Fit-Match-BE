@@ -67,9 +67,12 @@ public class GymProfileServiceImpl implements GymProfileService {
     @Transactional
     public GymProfileResponse resubmitRegistration(String username, SubmitGymRegistrationRequest request) {
         GymProfile profile = requireOwnProfile(username);
-        if (profile.getVerificationStatus() != VerificationStatus.REJECTED) {
+        // UC-013: hồ sơ bị REJECTED hoặc bị yêu cầu bổ sung (REQUIRES_INFO) đều được nộp lại.
+        if (profile.getVerificationStatus() != VerificationStatus.REJECTED
+                && profile.getVerificationStatus() != VerificationStatus.REQUIRES_INFO) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Only a REJECTED application can be resubmitted (current: " + profile.getVerificationStatus() + ")");
+                    "Only a REJECTED or REQUIRES_INFO application can be resubmitted (current: "
+                            + profile.getVerificationStatus() + ")");
         }
         profile.setGymName(request.getGymName());
         profile.setDescription(request.getDescription());
@@ -78,6 +81,7 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setPhone(request.getPhone());
         profile.setVerificationStatus(VerificationStatus.PENDING);
         profile.setRejectionReason(null);
+        profile.setReviewNote(null);
         gymProfileRepository.save(profile);
 
         gymDocumentRepository.deleteByGymProfile_Id(profile.getId());
