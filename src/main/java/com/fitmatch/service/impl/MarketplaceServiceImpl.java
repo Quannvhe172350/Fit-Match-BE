@@ -2,12 +2,16 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.gym.GymPublicProfileResponse;
 import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
+import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.repository.GymProfileRepository;
 import com.fitmatch.repository.PtCertificationRepository;
 import com.fitmatch.repository.PtProfileRepository;
+import com.fitmatch.repository.spec.GymProfileSpecifications;
 import com.fitmatch.repository.spec.PtProfileSpecifications;
 import com.fitmatch.service.MarketplaceService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     private final PtProfileRepository ptProfileRepository;
     private final PtCertificationRepository ptCertificationRepository;
+    private final GymProfileRepository gymProfileRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -47,5 +52,23 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         List<CertificationResponse> certs = ptCertificationRepository.findByPtProfile_Id(ptProfileId).stream()
                 .map(CertificationResponse::of).toList();
         return PtPublicProfileResponse.of(profile, certs);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, Pageable pageable) {
+        Specification<GymProfile> spec = Specification.where(GymProfileSpecifications.visibleOnMarketplace())
+                .and(GymProfileSpecifications.keyword(keyword))
+                .and(GymProfileSpecifications.city(city));
+        return PageResponse.of(gymProfileRepository.findAll(spec, pageable), GymPublicProfileResponse::of);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public GymPublicProfileResponse getGymDetail(Long gymProfileId) {
+        GymProfile profile = gymProfileRepository
+                .findByIdAndVerificationStatusAndActiveTrue(gymProfileId, VerificationStatus.APPROVED)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym profile", gymProfileId));
+        return GymPublicProfileResponse.of(profile);
     }
 }

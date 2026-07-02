@@ -25,7 +25,15 @@ class MarketplaceServiceImplTest {
 
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private PtCertificationRepository ptCertificationRepository;
+    @Mock private com.fitmatch.repository.GymProfileRepository gymProfileRepository;
     @InjectMocks private MarketplaceServiceImpl service;
+
+    @Test
+    void getGymDetail_notVisible_throws() {
+        when(gymProfileRepository.findByIdAndVerificationStatusAndActiveTrue(3L, VerificationStatus.APPROVED))
+                .thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.getGymDetail(3L)).isInstanceOf(ResourceNotFoundException.class);
+    }
 
     @Test
     void getPtDetail_onlyApprovedActive() {

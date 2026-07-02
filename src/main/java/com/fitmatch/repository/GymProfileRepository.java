@@ -20,4 +20,6 @@ public interface GymProfileRepository extends JpaRepository<GymProfile, Long>, J
     boolean existsByUser_Username(String username);
 
     Page<GymProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable);
+
+    Optional<GymProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);
 }
