@@ -1,5 +1,6 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.enums.AccountType;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.TokenType;
 import com.fitmatch.dto.auth.AuthResponse;
@@ -59,12 +60,18 @@ public class AuthServiceImpl implements AuthService {
                     "Email '" + request.getEmail() + "' is already registered");
         }
 
+        // UC-001: role suy ra từ AccountType (CUSTOMER | GYM_OPERATOR), mặc định CUSTOMER.
+        // Gym Operator có role ngay nhưng chỉ dùng được tính năng provider sau khi Gym được duyệt (UC-013).
+        AccountType accountType = request.getAccountType() != null
+                ? request.getAccountType()
+                : AccountType.CUSTOMER;
+
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
-                .role(com.fitmatch.common.enums.Role.ROLE_CUSTOMER)
+                .role(accountType.getRole())
                 .status(com.fitmatch.common.enums.UserStatus.ACTIVE)
                 .build();
 

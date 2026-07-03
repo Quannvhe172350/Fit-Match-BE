@@ -36,10 +36,11 @@ public class AuthController {
     private final AuthService authService;
 
     @Operation(
-            summary = "UC-01 — Đăng ký tài khoản",
+            summary = "UC-001 — Đăng ký tài khoản (Customer / Gym Operator)",
             description = """
-                    Actor: **Guest**. Tạo tài khoản mới với role mặc định ROLE_CUSTOMER (không nhận role từ client).
-                    Gửi email xác minh (stub log) và trả về access/refresh token.
+                    Actor: **Guest**. Tạo tài khoản theo accountType: CUSTOMER (mặc định) hoặc GYM_OPERATOR.
+                    Không nhận Role trực tiếp từ client (chống leo thang đặc quyền); PT do Gym tạo (UC-019).
+                    Gửi email xác minh và trả về access/refresh token.
                     Lỗi: 409 nếu username/email đã tồn tại; 400 nếu validation thất bại.
                     """)
     @SecurityRequirements // public
@@ -51,7 +52,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-01 — Xác minh email",
+            summary = "UC-002 — Xác minh email",
             description = "Actor: **Guest**. Xác minh email bằng token một lần (TTL 24h). Lỗi: 400 token không hợp lệ/hết hạn; 409 email đã xác minh.")
     @SecurityRequirements // public
     @PostMapping("/verify-email")
@@ -61,7 +62,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-01 — Gửi lại email xác minh",
+            summary = "UC-002 — Gửi lại email xác minh",
             description = "Actor: **Guest**. Phát hành lại token xác minh cho email chưa verify. Lỗi: 404 không tìm thấy email; 409 đã xác minh.")
     @SecurityRequirements // public
     @PostMapping("/resend-verification")
@@ -71,7 +72,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-04 — Quên mật khẩu",
+            summary = "UC-004 — Quên mật khẩu",
             description = "Actor: **All**. Gửi token đặt lại mật khẩu qua email (TTL 30 phút). Luôn trả 200 dù email không tồn tại (chống account enumeration).")
     @SecurityRequirements // public
     @PostMapping("/forgot-password")
@@ -81,7 +82,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-04 — Đặt lại mật khẩu",
+            summary = "UC-004 — Đặt lại mật khẩu",
             description = "Actor: **All**. Đặt lại mật khẩu bằng token reset. Lỗi: 400 token không hợp lệ/hết hạn.")
     @SecurityRequirements // public
     @PostMapping("/reset-password")
@@ -91,7 +92,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-02 — Đăng nhập",
+            summary = "UC-003 — Đăng nhập",
             description = "Actor: **All**. Trả về access token + refresh token. Lỗi: 401 sai thông tin đăng nhập; 403 tài khoản bị khoá.")
     @SecurityRequirements // public
     @PostMapping("/login")
@@ -101,7 +102,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-02 — Làm mới token",
+            summary = "UC-003 — Làm mới token",
             description = "Actor: **All**. Cấp access token mới từ refresh token hợp lệ. Lỗi: 401 refresh token không hợp lệ/hết hạn.")
     @SecurityRequirements // public
     @PostMapping("/refresh")
@@ -111,7 +112,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-03 — Đăng xuất",
+            summary = "UC-003 — Đăng xuất",
             description = "Actor: **Authenticated**. JWT stateless: client tự huỷ token. Yêu cầu Bearer token.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/logout")
@@ -121,7 +122,7 @@ public class AuthController {
     }
 
     @Operation(
-            summary = "UC-06 — Đổi mật khẩu",
+            summary = "UC-004 — Đổi mật khẩu",
             description = "Actor: **Authenticated**. Đổi mật khẩu khi biết mật khẩu cũ. Lỗi: 401 mật khẩu cũ sai.",
             security = @SecurityRequirement(name = "bearerAuth"))
     @PutMapping("/change-password")

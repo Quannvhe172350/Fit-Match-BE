@@ -1,5 +1,6 @@
 package com.fitmatch.dto.auth;
 
+import com.fitmatch.common.enums.AccountType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -33,6 +34,7 @@ public class RegisterRequest {
     @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
     private String phone;
 
-    // KHÔNG nhận role từ client: self-register luôn là ROLE_CUSTOMER (fix B-01 privilege escalation).
-    // PT/Gym nâng cấp qua onboarding (UC-23/41); Admin gán role (UC-12).
+    // UC-001: client chỉ được chọn AccountType (CUSTOMER | GYM_OPERATOR), không gửi Role trực tiếp
+    // để tránh leo thang đặc quyền. PT do Gym tạo (UC-019); role quản trị do Admin gán (UC-077).
+    private AccountType accountType;
 }
