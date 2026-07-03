@@ -8,13 +8,20 @@ spring:
     driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MariaDBDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # DB hiện hữu (schema do Hibernate tạo trước đây) được baseline tại V1,
+    # chỉ chạy V2+; database trống chạy đủ từ V1.
+    baseline-on-migrate: true
+    baseline-version: 1
 
 server:
   port: 8080
