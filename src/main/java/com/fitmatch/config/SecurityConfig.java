@@ -64,11 +64,11 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/files/**",
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/refresh",
                                 "/api/auth/verify-email",
+                                "/api/auth/resend-verification",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/health",
@@ -77,6 +77,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Tải file công khai (ảnh/tài liệu đã upload); upload vẫn yêu cầu đăng nhập.
+                        .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
                         // Marketplace browse & public content là công khai (Guest/Customer).
                         .requestMatchers(HttpMethod.GET, "/api/marketplace/**", "/api/public/**").permitAll()
                         .anyRequest().authenticated()
