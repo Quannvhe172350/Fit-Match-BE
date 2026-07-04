@@ -1,5 +1,6 @@
 package com.fitmatch.entity;
 
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -41,6 +43,14 @@ public class PtProfile extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
+    /**
+     * Gym chịu trách nhiệm quản lý PT (UC-019). Nullable ở DB vì các hồ sơ PT
+     * self-registered cũ (mô hình trước) không thuộc Gym nào; hồ sơ mới luôn có Gym.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "gym_profile_id")
+    private GymProfile gymProfile;
+
     @Column(name = "display_name", nullable = false, length = 120)
     private String displayName;
 
@@ -56,6 +66,11 @@ public class PtProfile extends BaseEntity {
     @Column(name = "experience_years")
     private Integer experienceYears;
 
+    /**
+     * @deprecated mô hình PT self-verification đã bỏ (UC-019 mới); giữ cột cho dữ liệu cũ.
+     * Trạng thái hoạt động dùng {@link #status}.
+     */
+    @Deprecated
     @Enumerated(EnumType.STRING)
     @Column(name = "verification_status", nullable = false, length = 20)
     @Builder.Default
@@ -63,6 +78,16 @@ public class PtProfile extends BaseEntity {
 
     @Column(name = "rejection_reason", length = 1000)
     private String rejectionReason;
+
+    /** Trạng thái hoạt động của PT do Gym/Admin điều khiển (UC-021). */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private PtStatus status = PtStatus.INACTIVE;
+
+    /** Lý do đình chỉ khi Admin suspend (UC-021). */
+    @Column(name = "suspension_reason", length = 1000)
+    private String suspensionReason;
 
     /** Hiển thị trên marketplace hay không (chỉ true khi APPROVED và PT không tự ẩn). */
     @Column(nullable = false)

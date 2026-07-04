@@ -25,18 +25,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/pt")
 @RequiredArgsConstructor
-@Tag(name = "D. PT Onboarding", description = "Đăng ký & xác minh Personal Trainer (UC-23 → UC-28)")
+@Tag(name = "D. PT Self-service", description = "PT tự quản lý hồ sơ cá nhân giới hạn (UC-007). Các flow self-registration cũ đã DEPRECATED — PT do Gym tạo (UC-019).")
 @SecurityRequirement(name = "bearerAuth")
 public class PtController {
 
     private final PtProfileService ptProfileService;
 
+    /** @deprecated Mô hình mới (UC-019): PT do Gym tạo qua POST /api/gym/pts. */
+    @Deprecated
     @Operation(
-            summary = "UC-23 — Nộp hồ sơ đăng ký PT & tài liệu",
+            deprecated = true,
+            summary = "[DEPRECATED] Nộp hồ sơ đăng ký PT & tài liệu",
             description = """
-                    Actor: **Authenticated user** (chưa là PT). Tạo hồ sơ PT ở trạng thái PENDING kèm tài liệu xác minh
-                    (file biểu diễn bằng URL). Admin sẽ duyệt (UC-29/30); khi duyệt, tài khoản được nâng role ROLE_PT.
-                    Lỗi: 409 đã có hồ sơ PT; 400 validation.
+                    **DEPRECATED — mô hình PT self-registration đã bỏ (Use Case mới UC-019).**
+                    Thay bằng: Gym tạo PT qua POST /api/gym/pts. Endpoint giữ tạm cho client cũ.
                     """)
     @PostMapping("/registration")
     public ResponseEntity<ApiResponse<PtProfileResponse>> submitRegistration(
@@ -47,21 +49,24 @@ public class PtController {
                 .body(ApiResponse.success("PT registration submitted for verification", response));
     }
 
+    /** @deprecated PT không còn qua platform verification (UC-019). */
+    @Deprecated
     @Operation(
-            summary = "UC-24 — Xem trạng thái xác minh PT",
-            description = "Actor: **PT applicant**. Xem hồ sơ PT của chính mình kèm verificationStatus và lý do từ chối (nếu có). Lỗi: 404 chưa nộp hồ sơ.")
+            deprecated = true,
+            summary = "[DEPRECATED] Xem trạng thái xác minh PT",
+            description = "**DEPRECATED — PT không còn qua platform verification (UC-019).** Dùng GET /api/pt/profile/preview để xem hồ sơ.")
     @GetMapping("/verification-status")
     public ResponseEntity<ApiResponse<PtProfileResponse>> getVerificationStatus(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(ptProfileService.getOwnProfile(userDetails.getUsername())));
     }
 
+    /** @deprecated Mô hình PT self-verification đã bỏ (UC-019). */
+    @Deprecated
     @Operation(
-            summary = "UC-25 — Nộp lại hồ sơ xác minh PT",
-            description = """
-                    Actor: **PT applicant**. Cập nhật thông tin + tài liệu và nộp lại; chỉ áp dụng khi hồ sơ đang REJECTED.
-                    Đặt lại status -> PENDING và xoá lý do từ chối. Lỗi: 409 nếu không ở trạng thái REJECTED; 404 chưa có hồ sơ.
-                    """)
+            deprecated = true,
+            summary = "[DEPRECATED] Nộp lại hồ sơ xác minh PT",
+            description = "**DEPRECATED — mô hình PT self-verification đã bỏ (UC-019).** Endpoint giữ tạm cho client cũ.")
     @PutMapping("/registration/resubmit")
     public ResponseEntity<ApiResponse<PtProfileResponse>> resubmit(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -71,8 +76,8 @@ public class PtController {
     }
 
     @Operation(
-            summary = "UC-26 — Cập nhật hồ sơ & khu vực phục vụ PT",
-            description = "Actor: **PT**. Cập nhật một phần hồ sơ (displayName/bio/serviceArea/specialization/experienceYears). Không đổi trạng thái xác minh. Lỗi: 404 chưa có hồ sơ.")
+            summary = "UC-007 — PT tự cập nhật hồ sơ cá nhân (giới hạn)",
+            description = "Actor: **PT**. Chỉ được tự sửa displayName và bio (giới thiệu cá nhân) theo chính sách Gym; specialization/serviceArea/experienceYears do Gym quản lý (UC-019/020). Lỗi: 404 chưa có hồ sơ.")
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<PtProfileResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -82,7 +87,7 @@ public class PtController {
     }
 
     @Operation(
-            summary = "UC-28 — Xem trước hồ sơ PT công khai",
+            summary = "UC-007 — Xem trước hồ sơ PT công khai",
             description = "Actor: **PT**. Xem hồ sơ của mình theo góc nhìn công khai (kèm chứng chỉ, không gồm tài liệu nội bộ). Lỗi: 404 chưa có hồ sơ.")
     @GetMapping("/profile/preview")
     public ResponseEntity<ApiResponse<PtPublicProfileResponse>> publicPreview(

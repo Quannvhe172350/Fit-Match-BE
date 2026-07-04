@@ -20,4 +20,10 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
     Optional<PtProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);
 
     Page<PtProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable);
+
+    /** UC-019: danh sách PT thuộc một Gym. */
+    Page<PtProfile> findByGymProfile_Id(Long gymProfileId, Pageable pageable);
+
+    /** UC-019: PT thuộc Gym của operator đang đăng nhập (ownership check, chống IDOR). */
+    Optional<PtProfile> findByIdAndGymProfile_User_Username(Long id, String username);
 }

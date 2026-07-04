@@ -29,16 +29,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/pt-verifications")
 @RequiredArgsConstructor
-@Tag(name = "D. Admin - PT Verification", description = "Duyệt xác minh PT (UC-29, UC-30). Yêu cầu ROLE_ADMIN.")
+@Tag(name = "D. Admin - PT Verification [DEPRECATED]",
+        description = "DEPRECATED — mô hình PT self-verification đã bỏ (UC-019 mới): Gym tạo và quản lý PT. Giữ tạm cho dữ liệu/client cũ. Yêu cầu ROLE_ADMIN.")
 @SecurityRequirement(name = "bearerAuth")
 @PreAuthorize("hasRole('ADMIN')")
+@Deprecated
 public class AdminPtVerificationController {
 
     private final AdminPtVerificationService service;
 
     @Operation(
-            summary = "UC-29 — Danh sách yêu cầu xác minh PT",
-            description = "Actor: **Admin**. Liệt kê hồ sơ PT theo trạng thái (mặc định PENDING), có phân trang. Read-only.")
+            deprecated = true,
+            summary = "[DEPRECATED] Danh sách yêu cầu xác minh PT",
+            description = "**DEPRECATED (UC-019).** Actor: **Admin**. Liệt kê hồ sơ PT theo trạng thái (mặc định PENDING), có phân trang. Read-only.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<PtProfileResponse>>> list(
             @Parameter(description = "Trạng thái xác minh (mặc định PENDING)")
@@ -48,19 +51,18 @@ public class AdminPtVerificationController {
     }
 
     @Operation(
-            summary = "UC-29 — Chi tiết yêu cầu xác minh PT",
-            description = "Actor: **Admin**. Xem chi tiết hồ sơ PT kèm tài liệu. Lỗi: 404 không tồn tại.")
+            deprecated = true,
+            summary = "[DEPRECATED] Chi tiết yêu cầu xác minh PT",
+            description = "**DEPRECATED (UC-019).** Actor: **Admin**. Xem chi tiết hồ sơ PT kèm tài liệu. Lỗi: 404 không tồn tại.")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<PtProfileResponse>> detail(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(service.detail(id)));
     }
 
     @Operation(
-            summary = "UC-30 — Duyệt xác minh PT",
-            description = """
-                    Actor: **Admin**. Duyệt hồ sơ PENDING -> APPROVED, kích hoạt hiển thị marketplace và
-                    nâng tài khoản lên ROLE_PT. Lỗi: 409 nếu không ở trạng thái PENDING; 404 không tồn tại.
-                    """)
+            deprecated = true,
+            summary = "[DEPRECATED] Duyệt xác minh PT",
+            description = "**DEPRECATED (UC-019) — PT không còn qua platform verification.** Giữ tạm cho hồ sơ cũ.")
     @PostMapping("/{id}/approve")
     public ResponseEntity<ApiResponse<PtProfileResponse>> approve(
             @PathVariable Long id, @AuthenticationPrincipal UserDetails actor) {
@@ -69,8 +71,9 @@ public class AdminPtVerificationController {
     }
 
     @Operation(
-            summary = "UC-30 — Từ chối xác minh PT",
-            description = "Actor: **Admin**. Từ chối hồ sơ PENDING -> REJECTED kèm lý do (PT có thể nộp lại - UC-25). Lỗi: 409 không ở PENDING; 404 không tồn tại.")
+            deprecated = true,
+            summary = "[DEPRECATED] Từ chối xác minh PT",
+            description = "**DEPRECATED (UC-019) — PT không còn qua platform verification.** Giữ tạm cho hồ sơ cũ.")
     @PostMapping("/{id}/reject")
     public ResponseEntity<ApiResponse<PtProfileResponse>> reject(
             @PathVariable Long id,

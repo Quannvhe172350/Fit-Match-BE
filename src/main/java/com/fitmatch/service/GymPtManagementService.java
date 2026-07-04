@@ -1,0 +1,22 @@
+package com.fitmatch.service;
+
+import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.pt.CreateGymPtRequest;
+import com.fitmatch.dto.pt.GymPtResponse;
+import com.fitmatch.dto.pt.UpdateGymPtRequest;
+import org.springframework.data.domain.Pageable;
+
+public interface GymPtManagementService {
+
+    /** UC-019: Gym tạo tài khoản (ROLE_PT) + hồ sơ PT dưới quyền quản lý của mình. */
+    GymPtResponse createPt(String gymUsername, CreateGymPtRequest request);
+
+    /** UC-019: danh sách PT của Gym (phân trang). */
+    PageResponse<GymPtResponse> list(String gymUsername, Pageable pageable);
+
+    /** UC-019: chi tiết một PT thuộc Gym. */
+    GymPtResponse detail(String gymUsername, Long ptId);
+
+    /** UC-019: cập nhật một phần hồ sơ PT thuộc Gym. */
+    GymPtResponse update(String gymUsername, Long ptId, UpdateGymPtRequest request);
+}
