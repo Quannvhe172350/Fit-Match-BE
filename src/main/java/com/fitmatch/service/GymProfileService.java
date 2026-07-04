@@ -17,4 +17,7 @@ public interface GymProfileService {
 
     /** UC-44: cập nhật một phần hồ sơ Gym (không đổi trạng thái xác minh). */
     GymProfileResponse updateProfile(String username, UpdateGymProfileRequest request);
+
+    /** UC-018: hiển thị / ẩn hồ sơ Gym trên marketplace (chỉ khi APPROVED). */
+    GymProfileResponse updateVisibility(String username, boolean visible);
 }

@@ -114,6 +114,23 @@ public class GymProfileServiceImpl implements GymProfileService {
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional
+    public GymProfileResponse updateVisibility(String username, boolean visible) {
+        GymProfile profile = requireOwnProfile(username);
+        // UC-018: chỉ Gym đã được duyệt mới điều khiển việc hiển thị trên marketplace;
+        // Gym bị SUSPENDED do Admin đình chỉ không thể tự bật lại.
+        if (profile.getVerificationStatus() != VerificationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only an APPROVED gym can change marketplace visibility (current: "
+                            + profile.getVerificationStatus() + ")");
+        }
+        profile.setActive(visible);
+        gymProfileRepository.save(profile);
+        log.info("Gym profile of {} is now {}", username, visible ? "published" : "hidden");
+        return toResponse(profile);
+    }
+
     private List<GymDocument> saveDocuments(GymProfile profile, SubmitGymRegistrationRequest request) {
         List<GymDocument> documents = request.getDocuments().stream()
                 .map(d -> GymDocument.builder()

@@ -4,6 +4,7 @@ import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.gym.GymProfileResponse;
 import com.fitmatch.dto.gym.SubmitGymRegistrationRequest;
 import com.fitmatch.dto.gym.UpdateGymProfileRequest;
+import com.fitmatch.dto.gym.UpdateGymVisibilityRequest;
 import com.fitmatch.service.GymProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -75,5 +76,16 @@ public class GymController {
             @Valid @RequestBody UpdateGymProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Gym profile updated",
                 gymProfileService.updateProfile(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-018 — Hiển thị / ẩn hồ sơ Gym trên marketplace",
+            description = "Actor: **Gym Operator**. Bật/tắt hiển thị công khai của Gym (chỉ khi APPROVED; Gym bị SUSPENDED không tự bật lại được). Lỗi: 409 chưa được duyệt; 404 chưa có hồ sơ.")
+    @PutMapping("/profile/visibility")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> updateVisibility(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateGymVisibilityRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Gym visibility updated",
+                gymProfileService.updateVisibility(userDetails.getUsername(), request.getVisible())));
     }
 }
