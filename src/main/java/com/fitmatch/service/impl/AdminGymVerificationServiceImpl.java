@@ -95,6 +95,44 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional
+    public GymProfileResponse suspend(Long profileId, String reason, String actorUsername) {
+        GymProfile profile = requireProfile(profileId);
+        if (profile.getVerificationStatus() != VerificationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only an APPROVED gym can be suspended (current: " + profile.getVerificationStatus() + ")");
+        }
+        profile.setVerificationStatus(VerificationStatus.SUSPENDED);
+        profile.setReviewNote(reason);
+        profile.setActive(false);
+        gymProfileRepository.save(profile);
+
+        auditService.record(AuditActions.GYM_SUSPEND, "GymProfile", profileId,
+                "Suspended by " + actorUsername + ": " + reason);
+        log.info("Gym {} suspended by {}", profileId, actorUsername);
+        return toResponse(profile);
+    }
+
+    @Override
+    @Transactional
+    public GymProfileResponse reactivate(Long profileId, String actorUsername) {
+        GymProfile profile = requireProfile(profileId);
+        if (profile.getVerificationStatus() != VerificationStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only a SUSPENDED gym can be reactivated (current: " + profile.getVerificationStatus() + ")");
+        }
+        profile.setVerificationStatus(VerificationStatus.APPROVED);
+        profile.setReviewNote(null);
+        profile.setActive(true);
+        gymProfileRepository.save(profile);
+
+        auditService.record(AuditActions.GYM_REACTIVATE, "GymProfile", profileId,
+                "Reactivated by " + actorUsername);
+        log.info("Gym {} reactivated by {}", profileId, actorUsername);
+        return toResponse(profile);
+    }
+
     private GymProfile requirePending(Long profileId) {
         GymProfile profile = requireProfile(profileId);
         if (profile.getVerificationStatus() != VerificationStatus.PENDING) {

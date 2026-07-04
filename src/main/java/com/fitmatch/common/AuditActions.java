@@ -17,4 +17,6 @@ public final class AuditActions {
     public static final String GYM_VERIFY_APPROVE = "GYM_VERIFY_APPROVE";
     public static final String GYM_VERIFY_REJECT = "GYM_VERIFY_REJECT";
     public static final String GYM_VERIFY_REQUEST_INFO = "GYM_VERIFY_REQUEST_INFO";
+    public static final String GYM_SUSPEND = "GYM_SUSPEND";
+    public static final String GYM_REACTIVATE = "GYM_REACTIVATE";
 }

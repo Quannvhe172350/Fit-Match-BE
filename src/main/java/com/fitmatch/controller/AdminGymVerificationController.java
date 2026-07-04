@@ -88,4 +88,26 @@ public class AdminGymVerificationController {
         return ResponseEntity.ok(ApiResponse.success("Additional information requested",
                 service.requestInfo(id, request.getReason(), actor.getUsername())));
     }
+
+    @Operation(
+            summary = "UC-014 — Đình chỉ Gym",
+            description = "Actor: **Admin**. APPROVED -> SUSPENDED kèm lý do; Gym bị ẩn khỏi marketplace và không quản lý được catalog. Lỗi: 409 không ở APPROVED; 404 không tồn tại.")
+    @PostMapping("/{id}/suspend")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> suspend(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Gym suspended",
+                service.suspend(id, request.getReason(), actor.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-014 — Kích hoạt lại Gym bị đình chỉ",
+            description = "Actor: **Admin**. SUSPENDED -> APPROVED, hiển thị lại trên marketplace. Lỗi: 409 không ở SUSPENDED; 404 không tồn tại.")
+    @PostMapping("/{id}/reactivate")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> reactivate(
+            @PathVariable Long id, @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Gym reactivated",
+                service.reactivate(id, actor.getUsername())));
+    }
 }

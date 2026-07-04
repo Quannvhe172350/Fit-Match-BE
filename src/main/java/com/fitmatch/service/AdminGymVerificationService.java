@@ -21,4 +21,10 @@ public interface AdminGymVerificationService {
 
     /** UC-013: yêu cầu bổ sung hồ sơ — chỉ khi PENDING -> REQUIRES_INFO + ghi chú review. */
     GymProfileResponse requestInfo(Long profileId, String note, String actorUsername);
+
+    /** UC-014: đình chỉ Gym vi phạm chính sách — chỉ khi APPROVED -> SUSPENDED + ẩn khỏi marketplace. */
+    GymProfileResponse suspend(Long profileId, String reason, String actorUsername);
+
+    /** UC-014: kích hoạt lại Gym bị đình chỉ — chỉ khi SUSPENDED -> APPROVED + hiển thị lại. */
+    GymProfileResponse reactivate(Long profileId, String actorUsername);
 }

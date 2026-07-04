@@ -18,5 +18,8 @@ public enum VerificationStatus {
     REJECTED,
 
     /** Admin yêu cầu bổ sung hồ sơ (UC-013) — chủ hồ sơ bổ sung rồi nộp lại. */
-    REQUIRES_INFO
+    REQUIRES_INFO,
+
+    /** Bị đình chỉ do vi phạm chính sách (UC-014) — Admin có thể kích hoạt lại. */
+    SUSPENDED
 }
