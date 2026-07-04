@@ -23,4 +23,6 @@ public final class AuditActions {
     public static final String PT_STATUS_CHANGE = "PT_STATUS_CHANGE";
     public static final String PT_SUSPEND = "PT_SUSPEND";
     public static final String PT_REACTIVATE = "PT_REACTIVATE";
+    public static final String MASTER_DATA_CHANGE = "MASTER_DATA_CHANGE";
+    public static final String SYSTEM_CONFIG_CHANGE = "SYSTEM_CONFIG_CHANGE";
 }
