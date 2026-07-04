@@ -14,4 +14,7 @@ public interface PtCertificationRepository extends JpaRepository<PtCertification
 
     /** Dùng để vừa định vị chứng chỉ vừa kiểm tra quyền sở hữu theo user. */
     Optional<PtCertification> findByIdAndPtProfile_User_Username(Long id, String username);
+
+    /** UC-020: định vị chứng chỉ trong phạm vi một PT (Gym quản lý). */
+    Optional<PtCertification> findByIdAndPtProfile_Id(Long id, Long ptProfileId);
 }

@@ -27,13 +27,16 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/pt/certifications")
 @RequiredArgsConstructor
-@Tag(name = "D. PT Certifications", description = "Quản lý chứng chỉ PT (UC-27)")
+@Tag(name = "D. PT Certifications", description = "Chứng chỉ PT. Từ UC-020: Gym quản lý chứng chỉ qua /api/gym/pts/{ptId}/certifications; PT chỉ xem. Các thao tác ghi ở đây DEPRECATED.")
 @SecurityRequirement(name = "bearerAuth")
 public class PtCertificationController {
 
     private final PtCertificationService certificationService;
 
-    @Operation(summary = "UC-27 — Thêm chứng chỉ", description = "Actor: **PT**. Lỗi: 404 chưa có hồ sơ PT.")
+    /** @deprecated UC-020: chứng chỉ do Gym quản lý qua /api/gym/pts/{ptId}/certifications. */
+    @Deprecated
+    @Operation(deprecated = true, summary = "[DEPRECATED] Thêm chứng chỉ",
+            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
     @PostMapping
     public ResponseEntity<ApiResponse<CertificationResponse>> add(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -43,7 +46,10 @@ public class PtCertificationController {
                         certificationService.add(userDetails.getUsername(), request)));
     }
 
-    @Operation(summary = "UC-27 — Cập nhật chứng chỉ", description = "Actor: **PT** (chủ sở hữu). Lỗi: 404 không tồn tại/không thuộc về bạn.")
+    /** @deprecated UC-020: chứng chỉ do Gym quản lý. */
+    @Deprecated
+    @Operation(deprecated = true, summary = "[DEPRECATED] Cập nhật chứng chỉ",
+            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CertificationResponse>> update(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -53,7 +59,10 @@ public class PtCertificationController {
                 certificationService.update(userDetails.getUsername(), id, request)));
     }
 
-    @Operation(summary = "UC-27 — Xoá chứng chỉ", description = "Actor: **PT** (chủ sở hữu). Lỗi: 404 không tồn tại/không thuộc về bạn.")
+    /** @deprecated UC-020: chứng chỉ do Gym quản lý. */
+    @Deprecated
+    @Operation(deprecated = true, summary = "[DEPRECATED] Xoá chứng chỉ",
+            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -62,7 +71,7 @@ public class PtCertificationController {
         return ResponseEntity.ok(ApiResponse.success("Certification deleted", null));
     }
 
-    @Operation(summary = "UC-27 — Liệt kê chứng chỉ", description = "Actor: **PT**. Trả về chứng chỉ của chính mình.")
+    @Operation(summary = "UC-007 — Liệt kê chứng chỉ của chính mình", description = "Actor: **PT**. Read-only; chứng chỉ do Gym ghi nhận (UC-020).")
     @GetMapping
     public ResponseEntity<ApiResponse<List<CertificationResponse>>> list(
             @AuthenticationPrincipal UserDetails userDetails) {

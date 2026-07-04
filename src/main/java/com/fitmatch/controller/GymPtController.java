@@ -2,10 +2,15 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.pt.CertificationRequest;
+import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.CreateGymPtRequest;
 import com.fitmatch.dto.pt.GymPtResponse;
+import com.fitmatch.dto.pt.PtDocumentDto;
+import com.fitmatch.dto.pt.PtDocumentResponse;
 import com.fitmatch.dto.pt.UpdateGymPtRequest;
 import com.fitmatch.service.GymPtManagementService;
+import com.fitmatch.service.GymPtQualificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +31,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/gym/pts")
@@ -36,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GymPtController {
 
     private final GymPtManagementService service;
+    private final GymPtQualificationService qualificationService;
 
     @Operation(
             summary = "UC-019 — Tạo PT dưới quyền Gym",
@@ -77,5 +86,88 @@ public class GymPtController {
             @Valid @RequestBody UpdateGymPtRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT profile updated",
                 service.update(userDetails.getUsername(), id, request)));
+    }
+
+    // ==================== UC-020: Qualification records ====================
+
+    @Operation(
+            summary = "UC-020 — Thêm chứng chỉ cho PT",
+            description = "Actor: **Gym Operator**. Ghi nhận chứng chỉ của PT thuộc Gym. Lỗi: 404 PT không thuộc Gym.")
+    @PostMapping("/{ptId}/certifications")
+    public ResponseEntity<ApiResponse<CertificationResponse>> addCertification(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @Valid @RequestBody CertificationRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Certification added",
+                qualificationService.addCertification(userDetails.getUsername(), ptId, request)));
+    }
+
+    @Operation(
+            summary = "UC-020 — Cập nhật chứng chỉ của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT/chứng chỉ không thuộc Gym.")
+    @PutMapping("/{ptId}/certifications/{certId}")
+    public ResponseEntity<ApiResponse<CertificationResponse>> updateCertification(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @PathVariable Long certId,
+            @Valid @RequestBody CertificationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Certification updated",
+                qualificationService.updateCertification(userDetails.getUsername(), ptId, certId, request)));
+    }
+
+    @Operation(
+            summary = "UC-020 — Xoá chứng chỉ của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT/chứng chỉ không thuộc Gym.")
+    @DeleteMapping("/{ptId}/certifications/{certId}")
+    public ResponseEntity<ApiResponse<Void>> deleteCertification(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @PathVariable Long certId) {
+        qualificationService.deleteCertification(userDetails.getUsername(), ptId, certId);
+        return ResponseEntity.ok(ApiResponse.success("Certification deleted", null));
+    }
+
+    @Operation(
+            summary = "UC-020 — Danh sách chứng chỉ của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT không thuộc Gym.")
+    @GetMapping("/{ptId}/certifications")
+    public ResponseEntity<ApiResponse<List<CertificationResponse>>> listCertifications(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long ptId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                qualificationService.listCertifications(userDetails.getUsername(), ptId)));
+    }
+
+    @Operation(
+            summary = "UC-020 — Thêm tài liệu năng lực cho PT",
+            description = "Actor: **Gym Operator**. Tài liệu biểu diễn bằng URL (upload qua /api/files/upload trước). Lỗi: 404 PT không thuộc Gym.")
+    @PostMapping("/{ptId}/documents")
+    public ResponseEntity<ApiResponse<PtDocumentResponse>> addDocument(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @Valid @RequestBody PtDocumentDto request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Document added",
+                qualificationService.addDocument(userDetails.getUsername(), ptId, request)));
+    }
+
+    @Operation(
+            summary = "UC-020 — Xoá tài liệu năng lực của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT/tài liệu không thuộc Gym.")
+    @DeleteMapping("/{ptId}/documents/{documentId}")
+    public ResponseEntity<ApiResponse<Void>> deleteDocument(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @PathVariable Long documentId) {
+        qualificationService.deleteDocument(userDetails.getUsername(), ptId, documentId);
+        return ResponseEntity.ok(ApiResponse.success("Document deleted", null));
+    }
+
+    @Operation(
+            summary = "UC-020 — Danh sách tài liệu năng lực của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT không thuộc Gym.")
+    @GetMapping("/{ptId}/documents")
+    public ResponseEntity<ApiResponse<List<PtDocumentResponse>>> listDocuments(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long ptId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                qualificationService.listDocuments(userDetails.getUsername(), ptId)));
     }
 }
