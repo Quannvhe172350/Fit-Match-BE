@@ -1,5 +1,6 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
@@ -46,8 +47,10 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public PtPublicProfileResponse getPtDetail(Long ptProfileId) {
+        // UC-021: PT hiển thị khi ACTIVE và Gym chịu trách nhiệm APPROVED + đang hiển thị.
         PtProfile profile = ptProfileRepository
-                .findByIdAndVerificationStatusAndActiveTrue(ptProfileId, VerificationStatus.APPROVED)
+                .findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                        ptProfileId, PtStatus.ACTIVE, VerificationStatus.APPROVED)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptProfileId));
         List<CertificationResponse> certs = ptCertificationRepository.findByPtProfile_Id(ptProfileId).stream()
                 .map(CertificationResponse::of).toList();

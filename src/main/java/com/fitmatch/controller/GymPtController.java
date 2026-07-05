@@ -9,6 +9,7 @@ import com.fitmatch.dto.pt.GymPtResponse;
 import com.fitmatch.dto.pt.PtDocumentDto;
 import com.fitmatch.dto.pt.PtDocumentResponse;
 import com.fitmatch.dto.pt.UpdateGymPtRequest;
+import com.fitmatch.dto.pt.UpdatePtStatusRequest;
 import com.fitmatch.service.GymPtManagementService;
 import com.fitmatch.service.GymPtQualificationService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +26,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -86,6 +88,18 @@ public class GymPtController {
             @Valid @RequestBody UpdateGymPtRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT profile updated",
                 service.update(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-021 — Gym bật/tắt PT",
+            description = "Actor: **Gym Operator**. Đặt trạng thái ACTIVE/INACTIVE cho PT thuộc Gym; PT INACTIVE ẩn khỏi marketplace và không nhận booking. Không đổi được PT đang bị Admin SUSPENDED. Lỗi: 409 trạng thái không hợp lệ; 404 PT không thuộc Gym.")
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<GymPtResponse>> updateStatus(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdatePtStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("PT status updated",
+                service.updateStatus(userDetails.getUsername(), id, request.getStatus())));
     }
 
     // ==================== UC-020: Qualification records ====================

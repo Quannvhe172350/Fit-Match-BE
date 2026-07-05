@@ -1,5 +1,6 @@
 package com.fitmatch.repository;
 
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.entity.PtProfile;
 import org.springframework.data.domain.Page;
@@ -20,6 +21,10 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
     Optional<PtProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);
 
     Page<PtProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable);
+
+    /** UC-021: PT hiển thị công khai — ACTIVE và thuộc Gym APPROVED đang hiển thị. */
+    Optional<PtProfile> findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+            Long id, PtStatus status, VerificationStatus gymStatus);
 
     /** UC-019: danh sách PT thuộc một Gym. */
     Page<PtProfile> findByGymProfile_Id(Long gymProfileId, Pageable pageable);

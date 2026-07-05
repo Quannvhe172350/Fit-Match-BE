@@ -1,23 +1,32 @@
 package com.fitmatch.repository.spec;
 
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.entity.PtProfile;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
 /**
- * Specification cho tìm kiếm PT trên marketplace (UC-14): chỉ PT đã APPROVED & active.
+ * Specification cho tìm kiếm PT trên marketplace (UC-008/UC-021):
+ * PT ACTIVE thuộc Gym đã APPROVED và đang hiển thị.
  */
 public final class PtProfileSpecifications {
 
     private PtProfileSpecifications() {
     }
 
-    /** Chỉ hiển thị PT đã được duyệt và đang bật hiển thị. */
+    /**
+     * UC-021: PT hiển thị khi chính PT đang ACTIVE và Gym chịu trách nhiệm đã APPROVED
+     * + đang hiển thị. Inner join loại luôn hồ sơ PT self-registered cũ (không có Gym).
+     */
     public static Specification<PtProfile> visibleOnMarketplace() {
-        return (root, q, cb) -> cb.and(
-                cb.equal(root.get("verificationStatus"), VerificationStatus.APPROVED),
-                cb.isTrue(root.get("active")));
+        return (root, q, cb) -> {
+            var gym = root.join("gymProfile");
+            return cb.and(
+                    cb.equal(root.get("status"), PtStatus.ACTIVE),
+                    cb.equal(gym.get("verificationStatus"), VerificationStatus.APPROVED),
+                    cb.isTrue(gym.get("active")));
+        };
     }
 
     public static Specification<PtProfile> keyword(String keyword) {

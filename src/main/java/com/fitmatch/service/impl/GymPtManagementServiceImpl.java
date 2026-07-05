@@ -116,6 +116,28 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         return GymPtResponse.of(profile);
     }
 
+    @Override
+    @Transactional
+    public GymPtResponse updateStatus(String gymUsername, Long ptId, PtStatus status) {
+        PtProfile profile = requireOwnedPt(gymUsername, ptId);
+        if (status == PtStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Suspension is an admin action; gyms can only set ACTIVE or INACTIVE");
+        }
+        if (profile.getStatus() == PtStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "PT is suspended by platform admin; only an admin can lift the suspension");
+        }
+        profile.setStatus(status);
+        profile.setActive(status == PtStatus.ACTIVE);
+        ptProfileRepository.save(profile);
+
+        auditService.record(AuditActions.PT_STATUS_CHANGE, "PtProfile", ptId,
+                "Status set to " + status + " by gym " + gymUsername);
+        log.info("PT {} status set to {} by gym {}", ptId, status, gymUsername);
+        return GymPtResponse.of(profile);
+    }
+
     /** PT phải thuộc Gym của operator đang đăng nhập (chống IDOR). */
     PtProfile requireOwnedPt(String gymUsername, Long ptId) {
         return ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)

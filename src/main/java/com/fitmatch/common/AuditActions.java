@@ -20,4 +20,7 @@ public final class AuditActions {
     public static final String GYM_SUSPEND = "GYM_SUSPEND";
     public static final String GYM_REACTIVATE = "GYM_REACTIVATE";
     public static final String PT_CREATED_BY_GYM = "PT_CREATED_BY_GYM";
+    public static final String PT_STATUS_CHANGE = "PT_STATUS_CHANGE";
+    public static final String PT_SUSPEND = "PT_SUSPEND";
+    public static final String PT_REACTIVATE = "PT_REACTIVATE";
 }

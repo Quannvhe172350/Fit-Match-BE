@@ -19,4 +19,10 @@ public interface GymPtManagementService {
 
     /** UC-019: cập nhật một phần hồ sơ PT thuộc Gym. */
     GymPtResponse update(String gymUsername, Long ptId, UpdateGymPtRequest request);
+
+    /**
+     * UC-021: Gym bật/tắt PT (ACTIVE/INACTIVE). Không đổi được PT đang bị Admin
+     * SUSPENDED và không tự đặt SUSPENDED.
+     */
+    GymPtResponse updateStatus(String gymUsername, Long ptId, com.fitmatch.common.enums.PtStatus status);
 }
