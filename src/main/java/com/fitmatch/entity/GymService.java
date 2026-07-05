@@ -44,6 +44,15 @@ public class GymService extends BaseEntity {
     @Column(length = 1000)
     private String description;
 
+    /** Danh mục dịch vụ từ master data (UC-024/UC-078); nullable cho dịch vụ cũ. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id")
+    private ServiceCategory category;
+
+    /** Điều kiện tham gia / đối tượng phù hợp (UC-024). */
+    @Column(name = "eligibility_notes", length = 1000)
+    private String eligibilityNotes;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 

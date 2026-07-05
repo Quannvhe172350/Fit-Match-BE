@@ -33,4 +33,11 @@ public class GymServiceRequest {
 
     @Positive(message = "Duration must be positive")
     private Integer durationMinutes;
+
+    /** UC-024: id danh mục dịch vụ (master data UC-078); null = không phân loại. */
+    private Long categoryId;
+
+    /** UC-024: điều kiện tham gia / đối tượng phù hợp. */
+    @Size(max = 1000)
+    private String eligibilityNotes;
 }

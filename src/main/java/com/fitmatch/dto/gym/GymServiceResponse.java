@@ -21,6 +21,9 @@ public class GymServiceResponse {
     private String description;
     private BigDecimal price;
     private Integer durationMinutes;
+    private Long categoryId;
+    private String categoryName;
+    private String eligibilityNotes;
     private boolean active;
 
     public static GymServiceResponse of(GymService s) {
@@ -30,6 +33,9 @@ public class GymServiceResponse {
                 .description(s.getDescription())
                 .price(s.getPrice())
                 .durationMinutes(s.getDurationMinutes())
+                .categoryId(s.getCategory() != null ? s.getCategory().getId() : null)
+                .categoryName(s.getCategory() != null ? s.getCategory().getName() : null)
+                .eligibilityNotes(s.getEligibilityNotes())
                 .active(s.isActive())
                 .build();
     }

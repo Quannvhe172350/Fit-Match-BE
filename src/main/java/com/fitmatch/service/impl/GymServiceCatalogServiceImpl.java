@@ -1,11 +1,15 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.dto.gym.GymServiceRequest;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.GymService;
+import com.fitmatch.entity.ServiceCategory;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.GymServiceRepository;
+import com.fitmatch.repository.ServiceCategoryRepository;
 import com.fitmatch.service.GymServiceCatalogService;
 import com.fitmatch.service.support.GymProfileResolver;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +25,7 @@ import java.util.List;
 public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
 
     private final GymServiceRepository gymServiceRepository;
+    private final ServiceCategoryRepository serviceCategoryRepository;
     private final GymProfileResolver gymProfileResolver;
 
     @Override
@@ -31,6 +36,8 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
                 .gymProfile(gym)
                 .name(request.getName())
                 .description(request.getDescription())
+                .category(resolveCategory(request.getCategoryId()))
+                .eligibilityNotes(request.getEligibilityNotes())
                 .price(request.getPrice())
                 .durationMinutes(request.getDurationMinutes())
                 .active(true)
@@ -45,9 +52,25 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
         GymService svc = requireOwned(username, id);
         svc.setName(request.getName());
         svc.setDescription(request.getDescription());
+        svc.setCategory(resolveCategory(request.getCategoryId()));
+        svc.setEligibilityNotes(request.getEligibilityNotes());
         svc.setPrice(request.getPrice());
         svc.setDurationMinutes(request.getDurationMinutes());
         return GymServiceResponse.of(gymServiceRepository.save(svc));
+    }
+
+    /** UC-024: danh mục phải tồn tại và đang bật; null = không phân loại. */
+    private ServiceCategory resolveCategory(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        ServiceCategory category = serviceCategoryRepository.findById(categoryId)
+                .orElseThrow(() -> new ResourceNotFoundException("Service category", categoryId));
+        if (!category.isActive()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Service category '" + category.getName() + "' is inactive");
+        }
+        return category;
     }
 
     @Override
