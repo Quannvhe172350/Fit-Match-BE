@@ -9,22 +9,22 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Tạo/cập nhật cơ sở vật chất (UC-47/48).
+ * Thêm ảnh/media cho Gym hoặc chi nhánh (UC-016). URL lấy từ /api/files/upload.
  */
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class FacilityRequest {
+public class GymMediaRequest {
 
-    @NotBlank(message = "Facility name is required")
-    @Size(max = 150)
-    private String name;
+    @NotBlank(message = "Media URL is required")
+    @Size(max = 500)
+    private String url;
 
-    @Size(max = 1000)
-    private String description;
+    @Size(max = 255)
+    private String caption;
 
-    /** UC-016: chi nhánh chứa cơ sở vật chất (phải thuộc Gym); null = chưa gắn. */
+    /** Ảnh của chi nhánh cụ thể (phải thuộc Gym); null = ảnh chung. */
     private Long branchId;
 }

@@ -16,17 +16,18 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Chi nhánh của Gym (UC-50..52).
- * Schema: gym_branches(id, gym_profile_id FK, name, address, city, phone, active, + audit).
+ * Ảnh/media công khai của Gym hoặc chi nhánh (UC-016). File biểu diễn bằng URL
+ * (upload qua /api/files/upload trước).
+ * Schema: gym_media(id, gym_profile_id FK, gym_branch_id FK nullable, url, caption, + audit).
  */
 @Entity
-@Table(name = "gym_branches")
+@Table(name = "gym_media")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class GymBranch extends BaseEntity {
+public class GymMedia extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,23 +37,14 @@ public class GymBranch extends BaseEntity {
     @JoinColumn(name = "gym_profile_id", nullable = false)
     private GymProfile gymProfile;
 
-    @Column(nullable = false, length = 150)
-    private String name;
+    /** Ảnh của chi nhánh cụ thể; null = ảnh chung của Gym. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "gym_branch_id")
+    private GymBranch gymBranch;
+
+    @Column(nullable = false, length = 500)
+    private String url;
 
     @Column(length = 255)
-    private String address;
-
-    @Column(length = 100)
-    private String city;
-
-    @Column(length = 30)
-    private String phone;
-
-    /** Tiện ích của chi nhánh (UC-016), danh sách phân tách bằng dấu phẩy. */
-    @Column(length = 1000)
-    private String amenities;
-
-    @Column(nullable = false)
-    @Builder.Default
-    private boolean active = true;
+    private String caption;
 }

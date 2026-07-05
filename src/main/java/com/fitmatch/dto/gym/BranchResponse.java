@@ -19,6 +19,7 @@ public class BranchResponse {
     private String address;
     private String city;
     private String phone;
+    private String amenities;
     private boolean active;
 
     public static BranchResponse of(GymBranch b) {
@@ -28,6 +29,7 @@ public class BranchResponse {
                 .address(b.getAddress())
                 .city(b.getCity())
                 .phone(b.getPhone())
+                .amenities(b.getAmenities())
                 .active(b.isActive())
                 .build();
     }

@@ -36,6 +36,11 @@ public class GymFacility extends BaseEntity {
     @JoinColumn(name = "gym_profile_id", nullable = false)
     private GymProfile gymProfile;
 
+    /** Chi nhánh chứa cơ sở vật chất (UC-016); nullable cho dữ liệu cũ chưa gắn branch. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "gym_branch_id")
+    private GymBranch gymBranch;
+
     @Column(nullable = false, length = 150)
     private String name;
 

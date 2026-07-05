@@ -27,4 +27,8 @@ public class BranchRequest {
 
     @Size(max = 30)
     private String phone;
+
+    /** UC-016: tiện ích của chi nhánh, phân tách bằng dấu phẩy (vd "Parking,Sauna,Pool"). */
+    @Size(max = 1000)
+    private String amenities;
 }

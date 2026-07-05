@@ -2,9 +2,11 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.dto.gym.FacilityRequest;
 import com.fitmatch.dto.gym.FacilityResponse;
+import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymFacility;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.GymFacilityRepository;
 import com.fitmatch.service.GymFacilityService;
 import com.fitmatch.service.support.GymProfileResolver;
@@ -21,6 +23,7 @@ import java.util.List;
 public class GymFacilityServiceImpl implements GymFacilityService {
 
     private final GymFacilityRepository facilityRepository;
+    private final GymBranchRepository gymBranchRepository;
     private final GymProfileResolver gymProfileResolver;
 
     @Override
@@ -29,6 +32,7 @@ public class GymFacilityServiceImpl implements GymFacilityService {
         GymProfile gym = gymProfileResolver.requireApprovedGym(username);
         GymFacility facility = facilityRepository.save(GymFacility.builder()
                 .gymProfile(gym)
+                .gymBranch(resolveBranch(username, request.getBranchId()))
                 .name(request.getName())
                 .description(request.getDescription())
                 .active(true)
@@ -43,7 +47,17 @@ public class GymFacilityServiceImpl implements GymFacilityService {
         GymFacility facility = requireOwned(username, id);
         facility.setName(request.getName());
         facility.setDescription(request.getDescription());
+        facility.setGymBranch(resolveBranch(username, request.getBranchId()));
         return FacilityResponse.of(facilityRepository.save(facility));
+    }
+
+    /** UC-016: chi nhánh gắn với facility phải thuộc chính Gym của operator. */
+    private GymBranch resolveBranch(String username, Long branchId) {
+        if (branchId == null) {
+            return null;
+        }
+        return gymBranchRepository.findByIdAndGymProfile_User_Username(branchId, username)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym branch", branchId));
     }
 
     @Override

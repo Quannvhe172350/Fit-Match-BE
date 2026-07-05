@@ -33,6 +33,7 @@ public class GymBranchServiceImpl implements GymBranchService {
                 .address(request.getAddress())
                 .city(request.getCity())
                 .phone(request.getPhone())
+                .amenities(request.getAmenities())
                 .active(true)
                 .build());
         log.info("Gym {} created branch {}", username, branch.getId());
@@ -47,6 +48,7 @@ public class GymBranchServiceImpl implements GymBranchService {
         branch.setAddress(request.getAddress());
         branch.setCity(request.getCity());
         branch.setPhone(request.getPhone());
+        branch.setAmenities(request.getAmenities());
         return BranchResponse.of(branchRepository.save(branch));
     }
 
