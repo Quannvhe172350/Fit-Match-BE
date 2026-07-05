@@ -73,20 +73,18 @@ public class PtProfileServiceImpl implements PtProfileService {
     @Transactional
     public PtProfileResponse updateProfile(String username, UpdatePtProfileRequest request) {
         PtProfile profile = requireOwnProfile(username);
+        // UC-007: PT chỉ tự sửa phần giới thiệu cá nhân (displayName, bio).
+        // specialization/serviceArea/experienceYears là hồ sơ năng lực do Gym quản lý (UC-019/020).
+        if (request.getServiceArea() != null || request.getSpecialization() != null
+                || request.getExperienceYears() != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Only displayName and bio can be self-updated; qualification fields are managed by your gym");
+        }
         if (request.getDisplayName() != null) {
             profile.setDisplayName(request.getDisplayName());
         }
         if (request.getBio() != null) {
             profile.setBio(request.getBio());
-        }
-        if (request.getServiceArea() != null) {
-            profile.setServiceArea(request.getServiceArea());
-        }
-        if (request.getSpecialization() != null) {
-            profile.setSpecialization(request.getSpecialization());
-        }
-        if (request.getExperienceYears() != null) {
-            profile.setExperienceYears(request.getExperienceYears());
         }
         ptProfileRepository.save(profile);
         log.info("PT profile updated by {}", username);
