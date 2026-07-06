@@ -25,4 +25,7 @@ public interface GymServiceCatalogService {
 
     /** UC-026: cấu hình quy tắc thanh toán/đặt lịch cho dịch vụ. */
     GymServiceResponse updateBookingRules(String username, Long id, com.fitmatch.dto.gym.BookingRulesDto rules);
+
+    /** UC-027: đổi trạng thái vòng đời (PUBLISHED/HIDDEN/PAUSED/ARCHIVED); ARCHIVED là trạng thái cuối. */
+    GymServiceResponse updateCatalogStatus(String username, Long id, com.fitmatch.common.enums.CatalogStatus status);
 }

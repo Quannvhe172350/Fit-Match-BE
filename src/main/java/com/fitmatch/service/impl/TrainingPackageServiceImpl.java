@@ -1,11 +1,14 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.enums.CatalogStatus;
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.TrainingPackageRequest;
 import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.GymService;
 import com.fitmatch.entity.TrainingPackage;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.TrainingPackageRepository;
@@ -65,8 +68,24 @@ public class TrainingPackageServiceImpl implements TrainingPackageService {
     public void deactivate(String username, Long id) {
         TrainingPackage pkg = requireOwned(username, id);
         pkg.setActive(false);
+        pkg.setStatus(CatalogStatus.HIDDEN);
         trainingPackageRepository.save(pkg);
         log.info("Gym {} deactivated training package {}", username, id);
+    }
+
+    @Override
+    @Transactional
+    public TrainingPackageResponse updateCatalogStatus(String username, Long id, CatalogStatus status) {
+        TrainingPackage pkg = requireOwned(username, id);
+        // UC-027: ARCHIVED là trạng thái cuối — không quay lại được.
+        if (pkg.getStatus() == CatalogStatus.ARCHIVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "An ARCHIVED package cannot change status");
+        }
+        pkg.setStatus(status);
+        pkg.setActive(status == CatalogStatus.PUBLISHED);
+        log.info("Gym {} set package {} catalog status to {}", username, id, status);
+        return TrainingPackageResponse.of(trainingPackageRepository.save(pkg));
     }
 
     @Override

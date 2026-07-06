@@ -3,6 +3,7 @@ package com.fitmatch.controller;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.GymServiceRequest;
+import com.fitmatch.dto.gym.UpdateCatalogStatusRequest;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.service.GymServiceCatalogService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -80,5 +82,16 @@ public class GymServiceController {
             @Valid @RequestBody BookingRulesDto request) {
         return ResponseEntity.ok(ApiResponse.success("Booking rules updated",
                 catalogService.updateBookingRules(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(summary = "UC-027 — Đổi trạng thái vòng đời dịch vụ",
+            description = "Actor: **Gym Operator**. PUBLISHED / HIDDEN / PAUSED / ARCHIVED; ARCHIVED là trạng thái cuối. Lỗi: 409 đã ARCHIVED; 404 không thuộc Gym.")
+    @PatchMapping("/{id}/catalog-status")
+    public ResponseEntity<ApiResponse<GymServiceResponse>> updateCatalogStatus(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateCatalogStatusRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Catalog status updated",
+                catalogService.updateCatalogStatus(userDetails.getUsername(), id, request.getStatus())));
     }
 }

@@ -1,5 +1,6 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.common.enums.CatalogStatus;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.GymServiceRequest;
@@ -79,8 +80,24 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
     public void deactivate(String username, Long id) {
         GymService svc = requireOwned(username, id);
         svc.setActive(false);
+        svc.setStatus(CatalogStatus.HIDDEN);
         gymServiceRepository.save(svc);
         log.info("Gym {} deactivated service {}", username, id);
+    }
+
+    @Override
+    @Transactional
+    public GymServiceResponse updateCatalogStatus(String username, Long id, CatalogStatus status) {
+        GymService svc = requireOwned(username, id);
+        // UC-027: ARCHIVED là trạng thái cuối — không quay lại được.
+        if (svc.getStatus() == CatalogStatus.ARCHIVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "An ARCHIVED service cannot change status");
+        }
+        svc.setStatus(status);
+        svc.setActive(status == CatalogStatus.PUBLISHED);
+        log.info("Gym {} set service {} catalog status to {}", username, id, status);
+        return GymServiceResponse.of(gymServiceRepository.save(svc));
     }
 
     @Override

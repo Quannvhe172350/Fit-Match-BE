@@ -1,5 +1,6 @@
 package com.fitmatch.dto.gym;
 
+import com.fitmatch.common.enums.CatalogStatus;
 import com.fitmatch.entity.TrainingPackage;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +27,7 @@ public class TrainingPackageResponse {
     private Long gymServiceId;
     private String gymServiceName;
     private BookingRulesDto bookingRules;
+    private CatalogStatus status;
     private boolean active;
 
     public static TrainingPackageResponse of(TrainingPackage p) {
@@ -40,6 +42,7 @@ public class TrainingPackageResponse {
                 .gymServiceId(p.getGymService() != null ? p.getGymService().getId() : null)
                 .gymServiceName(p.getGymService() != null ? p.getGymService().getName() : null)
                 .bookingRules(BookingRulesDto.of(p.getBookingRules()))
+                .status(p.getStatus())
                 .active(p.isActive())
                 .build();
     }

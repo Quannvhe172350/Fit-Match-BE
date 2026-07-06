@@ -1,8 +1,11 @@
 package com.fitmatch.entity;
 
+import com.fitmatch.common.enums.CatalogStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -63,6 +66,12 @@ public class GymService extends BaseEntity {
     /** Quy tắc thanh toán/đặt lịch (UC-026); null = mặc định nền tảng. */
     @Embedded
     private BookingRules bookingRules;
+
+    /** Vòng đời hiển thị trên marketplace (UC-027). {@code active} được đồng bộ = PUBLISHED. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private CatalogStatus status = CatalogStatus.PUBLISHED;
 
     @Column(nullable = false)
     @Builder.Default
