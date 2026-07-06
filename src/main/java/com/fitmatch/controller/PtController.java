@@ -2,11 +2,14 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.pt.AvailabilitySlotDto;
+import com.fitmatch.dto.pt.BlockedTimeRequest;
+import com.fitmatch.dto.pt.BlockedTimeResponse;
 import com.fitmatch.dto.pt.PtProfileResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
 import com.fitmatch.dto.pt.UpdateAvailabilityRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
+import com.fitmatch.service.BlockedTimeService;
 import com.fitmatch.service.PtAvailabilityService;
 import com.fitmatch.service.PtProfileService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,7 +21,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,6 +41,7 @@ public class PtController {
 
     private final PtProfileService ptProfileService;
     private final PtAvailabilityService ptAvailabilityService;
+    private final BlockedTimeService blockedTimeService;
 
     /** @deprecated Mô hình mới (UC-019): PT do Gym tạo qua POST /api/gym/pts. */
     @Deprecated
@@ -111,6 +117,37 @@ public class PtController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(
                 ptAvailabilityService.getOwn(userDetails.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-029 — PT tạo thời gian bận cá nhân",
+            description = "Actor: **PT**. Bỏ trống ptId/branchId (tự áp cho chính mình). Lỗi: 400 startAt >= endAt; 409 đang bị SUSPENDED.")
+    @PostMapping("/blocked-times")
+    public ResponseEntity<ApiResponse<BlockedTimeResponse>> createBlockedTime(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody BlockedTimeRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Blocked time created",
+                blockedTimeService.createForPt(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-029 — PT xoá thời gian bận cá nhân",
+            description = "Actor: **PT**. Lỗi: 404 không thuộc về bạn.")
+    @DeleteMapping("/blocked-times/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteBlockedTime(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        blockedTimeService.deleteForPt(userDetails.getUsername(), id);
+        return ResponseEntity.ok(ApiResponse.success("Blocked time deleted", null));
+    }
+
+    @Operation(
+            summary = "UC-029 — PT xem thời gian bận cá nhân",
+            description = "Actor: **PT**.")
+    @GetMapping("/blocked-times")
+    public ResponseEntity<ApiResponse<List<BlockedTimeResponse>>> listBlockedTimes(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(
+                blockedTimeService.listForPt(userDetails.getUsername())));
     }
 
     @Operation(
