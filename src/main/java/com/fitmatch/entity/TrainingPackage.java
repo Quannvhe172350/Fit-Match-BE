@@ -1,6 +1,7 @@
 package com.fitmatch.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -66,6 +67,10 @@ public class TrainingPackage extends BaseEntity {
     /** Điều kiện sử dụng gói (UC-025). */
     @Column(name = "usage_conditions", length = 1000)
     private String usageConditions;
+
+    /** Quy tắc thanh toán/đặt lịch (UC-026); null = mặc định nền tảng. */
+    @Embedded
+    private BookingRules bookingRules;
 
     @Column(nullable = false)
     @Builder.Default

@@ -25,6 +25,7 @@ public class TrainingPackageResponse {
     private String usageConditions;
     private Long gymServiceId;
     private String gymServiceName;
+    private BookingRulesDto bookingRules;
     private boolean active;
 
     public static TrainingPackageResponse of(TrainingPackage p) {
@@ -38,6 +39,7 @@ public class TrainingPackageResponse {
                 .usageConditions(p.getUsageConditions())
                 .gymServiceId(p.getGymService() != null ? p.getGymService().getId() : null)
                 .gymServiceName(p.getGymService() != null ? p.getGymService().getName() : null)
+                .bookingRules(BookingRulesDto.of(p.getBookingRules()))
                 .active(p.isActive())
                 .build();
     }

@@ -1,5 +1,6 @@
 package com.fitmatch.service.impl;
 
+import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.TrainingPackageRequest;
 import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.entity.GymProfile;
@@ -80,6 +81,15 @@ public class TrainingPackageServiceImpl implements TrainingPackageService {
     @Transactional(readOnly = true)
     public TrainingPackageResponse detail(String username, Long id) {
         return TrainingPackageResponse.of(requireOwned(username, id));
+    }
+
+    @Override
+    @Transactional
+    public TrainingPackageResponse updateBookingRules(String username, Long id, BookingRulesDto rules) {
+        TrainingPackage pkg = requireOwned(username, id);
+        pkg.setBookingRules(rules.toEntity());
+        log.info("Gym {} updated booking rules of package {}", username, id);
+        return TrainingPackageResponse.of(trainingPackageRepository.save(pkg));
     }
 
     /** Dịch vụ gắn với gói phải thuộc chính Gym của operator (chống gắn chéo gym khác). */

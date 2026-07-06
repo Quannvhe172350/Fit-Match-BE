@@ -19,4 +19,7 @@ public interface TrainingPackageService {
     List<TrainingPackageResponse> list(String username);
 
     TrainingPackageResponse detail(String username, Long id);
+
+    /** UC-026: cấu hình quy tắc thanh toán/đặt lịch cho gói tập. */
+    TrainingPackageResponse updateBookingRules(String username, Long id, com.fitmatch.dto.gym.BookingRulesDto rules);
 }

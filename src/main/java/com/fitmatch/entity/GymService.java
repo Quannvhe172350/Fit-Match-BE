@@ -1,6 +1,7 @@
 package com.fitmatch.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -58,6 +59,10 @@ public class GymService extends BaseEntity {
 
     @Column(name = "duration_minutes")
     private Integer durationMinutes;
+
+    /** Quy tắc thanh toán/đặt lịch (UC-026); null = mặc định nền tảng. */
+    @Embedded
+    private BookingRules bookingRules;
 
     @Column(nullable = false)
     @Builder.Default

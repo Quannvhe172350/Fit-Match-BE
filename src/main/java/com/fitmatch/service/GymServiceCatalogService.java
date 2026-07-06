@@ -22,4 +22,7 @@ public interface GymServiceCatalogService {
 
     /** UC-55: liệt kê dịch vụ của Gym mình. */
     List<GymServiceResponse> list(String username);
+
+    /** UC-026: cấu hình quy tắc thanh toán/đặt lịch cho dịch vụ. */
+    GymServiceResponse updateBookingRules(String username, Long id, com.fitmatch.dto.gym.BookingRulesDto rules);
 }

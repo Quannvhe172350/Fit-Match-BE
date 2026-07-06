@@ -1,6 +1,7 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.TrainingPackageRequest;
 import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.service.TrainingPackageService;
@@ -79,5 +80,16 @@ public class TrainingPackageController {
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> detail(
             @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(trainingPackageService.detail(userDetails.getUsername(), id)));
+    }
+
+    @Operation(summary = "UC-026 — Cấu hình quy tắc thanh toán/đặt lịch cho gói tập",
+            description = "Actor: **Gym Operator**. depositPercent (0-100, null = trả đủ), freeCancellationHours, minNoticeHours. Lỗi: 404 gói không thuộc Gym.")
+    @PutMapping("/{id}/booking-rules")
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> updateBookingRules(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody BookingRulesDto request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking rules updated",
+                trainingPackageService.updateBookingRules(userDetails.getUsername(), id, request)));
     }
 }

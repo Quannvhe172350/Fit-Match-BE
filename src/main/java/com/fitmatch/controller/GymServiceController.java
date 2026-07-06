@@ -1,6 +1,7 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.GymServiceRequest;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.service.GymServiceCatalogService;
@@ -68,5 +69,16 @@ public class GymServiceController {
     public ResponseEntity<ApiResponse<List<GymServiceResponse>>> list(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(catalogService.list(userDetails.getUsername())));
+    }
+
+    @Operation(summary = "UC-026 — Cấu hình quy tắc thanh toán/đặt lịch cho dịch vụ",
+            description = "Actor: **Gym Operator**. depositPercent (0-100, null = trả đủ), freeCancellationHours, minNoticeHours. Lỗi: 404 không thuộc Gym.")
+    @PutMapping("/{id}/booking-rules")
+    public ResponseEntity<ApiResponse<GymServiceResponse>> updateBookingRules(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody BookingRulesDto request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking rules updated",
+                catalogService.updateBookingRules(userDetails.getUsername(), id, request)));
     }
 }

@@ -1,6 +1,7 @@
 package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.ErrorCode;
+import com.fitmatch.dto.gym.BookingRulesDto;
 import com.fitmatch.dto.gym.GymServiceRequest;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.entity.GymProfile;
@@ -88,6 +89,15 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
         GymProfile gym = gymProfileResolver.requireApprovedGym(username);
         return gymServiceRepository.findByGymProfile_Id(gym.getId()).stream()
                 .map(GymServiceResponse::of).toList();
+    }
+
+    @Override
+    @Transactional
+    public GymServiceResponse updateBookingRules(String username, Long id, BookingRulesDto rules) {
+        GymService svc = requireOwned(username, id);
+        svc.setBookingRules(rules.toEntity());
+        log.info("Gym {} updated booking rules of service {}", username, id);
+        return GymServiceResponse.of(gymServiceRepository.save(svc));
     }
 
     private GymService requireOwned(String username, Long id) {

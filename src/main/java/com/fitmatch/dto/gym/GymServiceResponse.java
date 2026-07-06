@@ -24,6 +24,7 @@ public class GymServiceResponse {
     private Long categoryId;
     private String categoryName;
     private String eligibilityNotes;
+    private BookingRulesDto bookingRules;
     private boolean active;
 
     public static GymServiceResponse of(GymService s) {
@@ -36,6 +37,7 @@ public class GymServiceResponse {
                 .categoryId(s.getCategory() != null ? s.getCategory().getId() : null)
                 .categoryName(s.getCategory() != null ? s.getCategory().getName() : null)
                 .eligibilityNotes(s.getEligibilityNotes())
+                .bookingRules(BookingRulesDto.of(s.getBookingRules()))
                 .active(s.isActive())
                 .build();
     }
