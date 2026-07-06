@@ -52,6 +52,10 @@ public class GymBranch extends BaseEntity {
     @Column(length = 1000)
     private String amenities;
 
+    /** Sức chứa tối đa của chi nhánh (UC-017); null = không giới hạn. */
+    @Column
+    private Integer capacity;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;

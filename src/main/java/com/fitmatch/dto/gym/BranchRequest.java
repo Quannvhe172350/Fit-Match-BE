@@ -1,6 +1,7 @@
 package com.fitmatch.dto.gym;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,4 +32,8 @@ public class BranchRequest {
     /** UC-016: tiện ích của chi nhánh, phân tách bằng dấu phẩy (vd "Parking,Sauna,Pool"). */
     @Size(max = 1000)
     private String amenities;
+
+    /** UC-017: sức chứa tối đa; null = không giới hạn. */
+    @Positive(message = "Capacity must be positive")
+    private Integer capacity;
 }

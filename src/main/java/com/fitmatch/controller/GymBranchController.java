@@ -3,7 +3,10 @@ package com.fitmatch.controller;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.gym.BranchRequest;
 import com.fitmatch.dto.gym.BranchResponse;
+import com.fitmatch.dto.gym.OperatingHourDto;
+import com.fitmatch.dto.gym.UpdateOperatingHoursRequest;
 import com.fitmatch.service.GymBranchService;
+import com.fitmatch.service.GymOperationsConfigService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +37,7 @@ import java.util.List;
 public class GymBranchController {
 
     private final GymBranchService branchService;
+    private final GymOperationsConfigService operationsConfigService;
 
     @Operation(summary = "UC-50 — Tạo chi nhánh", description = "Actor: **Gym Operator** (Gym đã APPROVED). Lỗi: 409 chưa duyệt; 404 chưa có hồ sơ Gym.")
     @PostMapping
@@ -76,5 +80,26 @@ public class GymBranchController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(branchService.detail(userDetails.getUsername(), id)));
+    }
+
+    @Operation(summary = "UC-017 — Cấu hình giờ hoạt động tuần của chi nhánh",
+            description = "Actor: **Gym Operator**. Thay toàn bộ lịch tuần: dayOfWeek 1-7 (không trùng), openTime < closeTime, closed=true = nghỉ. Lỗi: 400 lịch không hợp lệ; 404 branch không thuộc Gym.")
+    @PutMapping("/{id}/operating-hours")
+    public ResponseEntity<ApiResponse<List<OperatingHourDto>>> updateOperatingHours(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateOperatingHoursRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Operating hours updated",
+                operationsConfigService.updateOperatingHours(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(summary = "UC-017 — Xem giờ hoạt động của chi nhánh",
+            description = "Actor: **Gym Operator**. Lỗi: 404 branch không thuộc Gym.")
+    @GetMapping("/{id}/operating-hours")
+    public ResponseEntity<ApiResponse<List<OperatingHourDto>>> getOperatingHours(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                operationsConfigService.getOperatingHours(userDetails.getUsername(), id)));
     }
 }
