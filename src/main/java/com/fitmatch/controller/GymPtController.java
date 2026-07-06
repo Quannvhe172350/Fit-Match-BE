@@ -6,12 +6,15 @@ import com.fitmatch.dto.pt.CertificationRequest;
 import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.CreateGymPtRequest;
 import com.fitmatch.dto.pt.GymPtResponse;
+import com.fitmatch.dto.pt.PtAssignmentRequest;
+import com.fitmatch.dto.pt.PtAssignmentResponse;
 import com.fitmatch.dto.pt.PtDocumentDto;
 import com.fitmatch.dto.pt.PtDocumentResponse;
 import com.fitmatch.dto.pt.UpdateGymPtRequest;
 import com.fitmatch.dto.pt.UpdatePtStatusRequest;
 import com.fitmatch.service.GymPtManagementService;
 import com.fitmatch.service.GymPtQualificationService;
+import com.fitmatch.service.PtAssignmentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,6 +50,7 @@ public class GymPtController {
 
     private final GymPtManagementService service;
     private final GymPtQualificationService qualificationService;
+    private final PtAssignmentService assignmentService;
 
     @Operation(
             summary = "UC-019 — Tạo PT dưới quyền Gym",
@@ -100,6 +104,42 @@ public class GymPtController {
             @Valid @RequestBody UpdatePtStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT status updated",
                 service.updateStatus(userDetails.getUsername(), id, request.getStatus())));
+    }
+
+    // ==================== UC-022: Assignments ====================
+
+    @Operation(
+            summary = "UC-022 — Gán PT vào chi nhánh/dịch vụ/gói tập",
+            description = "Actor: **Gym Operator**. Truyền đúng MỘT trong branchId/serviceId/packageId (phải thuộc cùng Gym). Lỗi: 400 truyền sai số đích; 404 đích không thuộc Gym; 400 đã gán trước đó.")
+    @PostMapping("/{ptId}/assignments")
+    public ResponseEntity<ApiResponse<PtAssignmentResponse>> assign(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @Valid @RequestBody PtAssignmentRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("PT assigned",
+                assignmentService.assign(userDetails.getUsername(), ptId, request)));
+    }
+
+    @Operation(
+            summary = "UC-022 — Gỡ gán PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 assignment không thuộc Gym.")
+    @DeleteMapping("/{ptId}/assignments/{assignmentId}")
+    public ResponseEntity<ApiResponse<Void>> removeAssignment(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @PathVariable Long assignmentId) {
+        assignmentService.remove(userDetails.getUsername(), ptId, assignmentId);
+        return ResponseEntity.ok(ApiResponse.success("Assignment removed", null));
+    }
+
+    @Operation(
+            summary = "UC-022 — Danh sách gán của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT không thuộc Gym.")
+    @GetMapping("/{ptId}/assignments")
+    public ResponseEntity<ApiResponse<List<PtAssignmentResponse>>> listAssignments(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long ptId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                assignmentService.list(userDetails.getUsername(), ptId)));
     }
 
     // ==================== UC-020: Qualification records ====================
