@@ -3,10 +3,14 @@ package com.fitmatch.repository;
 import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.entity.PtProfile;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -31,4 +35,12 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
 
     /** UC-019: PT thuộc Gym của operator đang đăng nhập (ownership check, chống IDOR). */
     Optional<PtProfile> findByIdAndGymProfile_User_Username(Long id, String username);
+
+    /**
+     * UC-033: khoá bản ghi PT (PESSIMISTIC_WRITE) để tuần tự hoá việc giữ chỗ,
+     * tránh double-booking khi hai request checkout/accept chạy song song.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PtProfile p where p.id = :id")
+    Optional<PtProfile> lockById(@Param("id") Long id);
 }
