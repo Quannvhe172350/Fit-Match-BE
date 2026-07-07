@@ -2,6 +2,7 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.pt.AvailabilitySlotDto;
 import com.fitmatch.dto.pt.CertificationRequest;
 import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.CreateGymPtRequest;
@@ -10,11 +11,13 @@ import com.fitmatch.dto.pt.PtAssignmentRequest;
 import com.fitmatch.dto.pt.PtAssignmentResponse;
 import com.fitmatch.dto.pt.PtDocumentDto;
 import com.fitmatch.dto.pt.PtDocumentResponse;
+import com.fitmatch.dto.pt.UpdateAvailabilityRequest;
 import com.fitmatch.dto.pt.UpdateGymPtRequest;
 import com.fitmatch.dto.pt.UpdatePtStatusRequest;
 import com.fitmatch.service.GymPtManagementService;
 import com.fitmatch.service.GymPtQualificationService;
 import com.fitmatch.service.PtAssignmentService;
+import com.fitmatch.service.PtAvailabilityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -51,6 +54,7 @@ public class GymPtController {
     private final GymPtManagementService service;
     private final GymPtQualificationService qualificationService;
     private final PtAssignmentService assignmentService;
+    private final PtAvailabilityService availabilityService;
 
     @Operation(
             summary = "UC-019 — Tạo PT dưới quyền Gym",
@@ -104,6 +108,30 @@ public class GymPtController {
             @Valid @RequestBody UpdatePtStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT status updated",
                 service.updateStatus(userDetails.getUsername(), id, request.getStatus())));
+    }
+
+    // ==================== UC-028: Availability ====================
+
+    @Operation(
+            summary = "UC-028 — Gym cấu hình lịch rảnh tuần của PT",
+            description = "Actor: **Gym Operator**. Thay toàn bộ lịch rảnh lặp hàng tuần (dayOfWeek 1-7, start<end, không chồng lấn). Lỗi: 400 lịch không hợp lệ; 404 PT không thuộc Gym.")
+    @PutMapping("/{ptId}/availability")
+    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> updateAvailability(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long ptId,
+            @Valid @RequestBody UpdateAvailabilityRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Availability updated",
+                availabilityService.updateForGym(userDetails.getUsername(), ptId, request)));
+    }
+
+    @Operation(
+            summary = "UC-028 — Xem lịch rảnh tuần của PT",
+            description = "Actor: **Gym Operator**. Lỗi: 404 PT không thuộc Gym.")
+    @GetMapping("/{ptId}/availability")
+    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> getAvailability(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long ptId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                availabilityService.getForGym(userDetails.getUsername(), ptId)));
     }
 
     // ==================== UC-022: Assignments ====================

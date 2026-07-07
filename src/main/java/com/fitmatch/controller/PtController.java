@@ -1,10 +1,13 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.pt.AvailabilitySlotDto;
 import com.fitmatch.dto.pt.PtProfileResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
+import com.fitmatch.dto.pt.UpdateAvailabilityRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
+import com.fitmatch.service.PtAvailabilityService;
 import com.fitmatch.service.PtProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -22,6 +25,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/pt")
 @RequiredArgsConstructor
@@ -30,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PtController {
 
     private final PtProfileService ptProfileService;
+    private final PtAvailabilityService ptAvailabilityService;
 
     /** @deprecated Mô hình mới (UC-019): PT do Gym tạo qua POST /api/gym/pts. */
     @Deprecated
@@ -84,6 +90,27 @@ public class PtController {
             @Valid @RequestBody UpdatePtProfileRequest request) {
         return ResponseEntity.ok(ApiResponse.success("PT profile updated",
                 ptProfileService.updateProfile(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-028 — PT tự cập nhật lịch rảnh tuần",
+            description = "Actor: **PT**. Thay toàn bộ lịch rảnh lặp hàng tuần của chính mình (trong khuôn khổ Gym; bị chặn khi SUSPENDED). Lỗi: 400 lịch không hợp lệ; 409 đang bị đình chỉ; 404 chưa có hồ sơ.")
+    @PutMapping("/availability")
+    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> updateAvailability(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateAvailabilityRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Availability updated",
+                ptAvailabilityService.updateOwn(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-028 — PT xem lịch rảnh tuần của mình",
+            description = "Actor: **PT**. Lỗi: 404 chưa có hồ sơ.")
+    @GetMapping("/availability")
+    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> getAvailability(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(
+                ptAvailabilityService.getOwn(userDetails.getUsername())));
     }
 
     @Operation(
