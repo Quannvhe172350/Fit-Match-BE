@@ -20,6 +20,9 @@ import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.BookingService;
+import com.fitmatch.service.support.BookingEligibilityChecker;
+import com.fitmatch.service.support.BookingLifecycle;
+import com.fitmatch.service.support.BookingPriceCalculator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,6 +39,9 @@ public class BookingServiceImpl implements BookingService {
     private final TrainingPackageRepository trainingPackageRepository;
     private final GymBranchRepository gymBranchRepository;
     private final PtProfileRepository ptProfileRepository;
+    private final BookingEligibilityChecker bookingEligibilityChecker;
+    private final BookingPriceCalculator bookingPriceCalculator;
+    private final BookingLifecycle bookingLifecycle;
 
     @Override
     @Transactional
@@ -97,6 +103,40 @@ public class BookingServiceImpl implements BookingService {
         }
         bookingRepository.save(booking);
         log.info("Customer {} updated selection of booking {}", customerUsername, bookingId);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse checkout(String customerUsername, Long bookingId) {
+        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        if (booking.getStatus() != BookingStatus.DRAFT) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only a DRAFT booking can be checked out (current: " + booking.getStatus() + ")");
+        }
+
+        // UC-033: khoá bản ghi PT để tuần tự hoá giữ chỗ (chống double-booking race).
+        if (booking.getPtProfile() != null) {
+            ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        bookingEligibilityChecker.assertEligible(booking);
+
+        // UC-034: chốt snapshot giá.
+        bookingPriceCalculator.applyPricing(booking);
+
+        // UC-035: vào luồng thanh toán; miễn phí thì chuyển thẳng cho Gym (UC-037).
+        if (booking.getPayableAmount() != null
+                && booking.getPayableAmount().compareTo(java.math.BigDecimal.ZERO) == 0) {
+            bookingLifecycle.transition(booking, BookingStatus.PENDING_GYM,
+                    "Free booking - routed to gym");
+        } else {
+            bookingLifecycle.transition(booking, BookingStatus.PENDING_PAYMENT,
+                    "Checkout submitted - awaiting payment hold");
+        }
+        bookingRepository.save(booking);
+        log.info("Customer {} checked out booking {} (payable {})",
+                customerUsername, bookingId, booking.getPayableAmount());
         return BookingResponse.of(booking);
     }
 

@@ -14,4 +14,10 @@ public interface BookingService {
 
     /** UC-032: cập nhật lựa chọn service/package/PT/branch/time khi còn DRAFT. */
     BookingResponse updateSelection(String customerUsername, Long bookingId, CreateBookingRequest request);
+
+    /**
+     * UC-035: checkout — validate eligibility (UC-033), chốt giá (UC-034) rồi chuyển
+     * DRAFT -> PENDING_PAYMENT (hoặc PENDING_GYM nếu số phải trả = 0).
+     */
+    BookingResponse checkout(String customerUsername, Long bookingId);
 }

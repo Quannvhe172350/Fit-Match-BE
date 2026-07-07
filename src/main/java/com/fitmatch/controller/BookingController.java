@@ -43,6 +43,16 @@ public class BookingController {
     }
 
     @Operation(
+            summary = "UC-035 — Checkout booking",
+            description = "Actor: **Customer**. Validate đủ điều kiện (UC-033: gym/catalog/lịch/PT/capacity), chốt giá (UC-034) và chuyển DRAFT -> PENDING_PAYMENT (miễn phí -> PENDING_GYM). Lỗi: 409 không đủ điều kiện kèm danh sách lý do; 404 không thuộc về bạn.")
+    @PostMapping("/{id}/checkout")
+    public ResponseEntity<ApiResponse<BookingResponse>> checkout(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Booking checked out",
+                bookingService.checkout(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
             summary = "UC-032 — Cập nhật lựa chọn của booking nháp",
             description = "Actor: **Customer**. Đổi service/package/PT/branch/khung giờ khi booking còn DRAFT; field null giữ nguyên. Lỗi: 409 không ở DRAFT; 400 lựa chọn khác Gym; 404 không thuộc về bạn.")
     @PutMapping("/{id}/selection")
