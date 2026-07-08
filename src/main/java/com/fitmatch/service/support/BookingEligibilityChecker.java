@@ -84,31 +84,7 @@ public class BookingEligibilityChecker {
 
         // PT: phải được gán vào đích đã chọn + rảnh + không trùng booking khác.
         if (booking.getPtProfile() != null) {
-            Long ptId = booking.getPtProfile().getId();
-            boolean assigned =
-                    (hasService && booking.getGymService() != null
-                            && ptAssignmentRepository.existsByPtProfile_IdAndGymService_Id(
-                                    ptId, booking.getGymService().getId()))
-                    || (hasPackage && booking.getTrainingPackage() != null
-                            && ptAssignmentRepository.existsByPtProfile_IdAndTrainingPackage_Id(
-                                    ptId, booking.getTrainingPackage().getId()))
-                    || (booking.getGymBranch() != null
-                            && ptAssignmentRepository.existsByPtProfile_IdAndGymBranch_Id(
-                                    ptId, booking.getGymBranch().getId()));
-            if (!assigned) {
-                reasons.add("PT is not assigned to the selected service/package/branch");
-            }
-            if (start != null && end != null) {
-                reasons.addAll(scheduleConflictValidator.checkPt(ptId, start, end));
-                boolean overlapping = !bookingRepository
-                        .findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
-                                ptId, HOLDING_STATUSES, end, start).stream()
-                        .filter(b -> !b.getId().equals(booking.getId()))
-                        .toList().isEmpty();
-                if (overlapping) {
-                    reasons.add("PT already has a booking in this time slot");
-                }
-            }
+            reasons.addAll(ptIssues(booking, booking.getPtProfile().getId()));
         }
 
         // Chi nhánh: mở cửa + không bị chặn + còn capacity.
@@ -129,5 +105,40 @@ public class BookingEligibilityChecker {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Booking is not eligible: " + String.join("; ", reasons));
         }
+    }
+
+    /**
+     * UC-039: các vi phạm khi gán một PT cho booking — assignment với đích đã chọn,
+     * xung đột lịch (UC-030) và trùng booking đang giữ chỗ khác.
+     */
+    public List<String> ptIssues(Booking booking, Long ptId) {
+        List<String> reasons = new ArrayList<>();
+        boolean assigned =
+                (booking.getGymService() != null
+                        && ptAssignmentRepository.existsByPtProfile_IdAndGymService_Id(
+                                ptId, booking.getGymService().getId()))
+                || (booking.getTrainingPackage() != null
+                        && ptAssignmentRepository.existsByPtProfile_IdAndTrainingPackage_Id(
+                                ptId, booking.getTrainingPackage().getId()))
+                || (booking.getGymBranch() != null
+                        && ptAssignmentRepository.existsByPtProfile_IdAndGymBranch_Id(
+                                ptId, booking.getGymBranch().getId()));
+        if (!assigned) {
+            reasons.add("PT is not assigned to the selected service/package/branch");
+        }
+        LocalDateTime start = booking.getStartAt();
+        LocalDateTime end = booking.getEndAt();
+        if (start != null && end != null) {
+            reasons.addAll(scheduleConflictValidator.checkPt(ptId, start, end));
+            boolean overlapping = !bookingRepository
+                    .findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                            ptId, HOLDING_STATUSES, end, start).stream()
+                    .filter(b -> !b.getId().equals(booking.getId()))
+                    .toList().isEmpty();
+            if (overlapping) {
+                reasons.add("PT already has a booking in this time slot");
+            }
+        }
+        return reasons;
     }
 }
