@@ -5,7 +5,10 @@ import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.booking.CancelBookingRequest;
 import com.fitmatch.dto.booking.CreateBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
+import com.fitmatch.dto.booking.WaitlistRequest;
+import com.fitmatch.dto.booking.WaitlistResponse;
 import com.fitmatch.service.BookingService;
+import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,12 +19,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -32,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final WaitlistService waitlistService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -77,6 +85,38 @@ public class BookingController {
         String reason = request != null ? request.getReason() : null;
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
                 bookingService.cancel(userDetails.getUsername(), id, reason)));
+    }
+
+    // ==================== UC-044: Waitlist ====================
+
+    @Operation(
+            summary = "UC-044 — Đăng ký danh sách chờ",
+            description = "Actor: **Customer**. Khi slot mong muốn không còn: đăng ký chờ cho đúng MỘT dịch vụ hoặc gói kèm khung giờ mong muốn. Lỗi: 400 sai số đích; 404 đích không tồn tại.")
+    @PostMapping("/waitlist")
+    public ResponseEntity<ApiResponse<WaitlistResponse>> joinWaitlist(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody WaitlistRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Joined waitlist",
+                waitlistService.join(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-044 — Rời danh sách chờ",
+            description = "Actor: **Customer**. Lỗi: 404 không thuộc về bạn.")
+    @DeleteMapping("/waitlist/{id}")
+    public ResponseEntity<ApiResponse<Void>> leaveWaitlist(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        waitlistService.leave(userDetails.getUsername(), id);
+        return ResponseEntity.ok(ApiResponse.success("Left waitlist", null));
+    }
+
+    @Operation(
+            summary = "UC-044 — Danh sách chờ của tôi",
+            description = "Actor: **Customer**.")
+    @GetMapping("/waitlist")
+    public ResponseEntity<ApiResponse<List<WaitlistResponse>>> myWaitlist(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(waitlistService.myEntries(userDetails.getUsername())));
     }
 
     @Operation(

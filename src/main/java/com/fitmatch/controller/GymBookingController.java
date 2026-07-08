@@ -8,7 +8,9 @@ import com.fitmatch.dto.booking.AssignBookingPtRequest;
 import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.booking.GymAcceptBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
+import com.fitmatch.dto.booking.WaitlistResponse;
 import com.fitmatch.service.GymBookingService;
+import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/gym/bookings")
 @RequiredArgsConstructor
@@ -38,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class GymBookingController {
 
     private final GymBookingService gymBookingService;
+    private final WaitlistService waitlistService;
 
     @Operation(
             summary = "UC-037 — Hộp thư booking của Gym",
@@ -50,6 +55,18 @@ public class GymBookingController {
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
                 gymBookingService.list(userDetails.getUsername(), status, pageable)));
+    }
+
+    @Operation(
+            summary = "UC-044 — Danh sách chờ của dịch vụ/gói",
+            description = "Actor: **Gym Operator**. Xem khách đang chờ cho một dịch vụ/gói của Gym (truyền serviceId hoặc packageId) để chủ động liên hệ khi có chỗ. Lỗi: 400 thiếu tham số; 404 đích không thuộc Gym.")
+    @GetMapping("/waitlist")
+    public ResponseEntity<ApiResponse<List<WaitlistResponse>>> waitlist(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Long serviceId,
+            @RequestParam(required = false) Long packageId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                waitlistService.listForGym(userDetails.getUsername(), serviceId, packageId)));
     }
 
     @Operation(
