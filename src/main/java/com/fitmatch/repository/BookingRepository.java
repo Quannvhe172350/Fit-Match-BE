@@ -35,4 +35,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     /** UC-033: đếm booking giữ chỗ tại chi nhánh trong khung giờ — kiểm tra capacity. */
     long countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
             Long branchId, Collection<BookingStatus> statuses, LocalDateTime end, LocalDateTime start);
+
+    /** UC-045: lịch của PT đang đăng nhập. */
+    Page<Booking> findByPtProfile_User_Username(String username, Pageable pageable);
+
+    Page<Booking> findByPtProfile_User_UsernameAndStatus(String username, BookingStatus status, Pageable pageable);
+
+    /** UC-045: admin xem toàn hệ thống theo trạng thái. */
+    Page<Booking> findByStatus(BookingStatus status, Pageable pageable);
 }

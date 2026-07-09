@@ -1,12 +1,16 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.booking.BookingResponse;
+import com.fitmatch.dto.booking.BookingStatusHistoryResponse;
 import com.fitmatch.dto.booking.CancelBookingRequest;
 import com.fitmatch.dto.booking.CreateBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.dto.booking.WaitlistRequest;
 import com.fitmatch.dto.booking.WaitlistResponse;
+import com.fitmatch.service.BookingQueryService;
 import com.fitmatch.service.BookingService;
 import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +18,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +32,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -40,6 +47,7 @@ public class BookingController {
 
     private final BookingService bookingService;
     private final WaitlistService waitlistService;
+    private final BookingQueryService bookingQueryService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -85,6 +93,40 @@ public class BookingController {
         String reason = request != null ? request.getReason() : null;
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
                 bookingService.cancel(userDetails.getUsername(), id, reason)));
+    }
+
+    // ==================== UC-045: History & details ====================
+
+    @Operation(
+            summary = "UC-045 — Booking của tôi",
+            description = "Actor: **Customer**. Danh sách booking của mình, lọc theo trạng thái, phân trang.")
+    @GetMapping("/my")
+    public ResponseEntity<ApiResponse<PageResponse<BookingResponse>>> myBookings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) BookingStatus status,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookingQueryService.myBookings(userDetails.getUsername(), status, pageable)));
+    }
+
+    @Operation(
+            summary = "UC-045 — Chi tiết booking",
+            description = "Actor: **Customer** (chủ booking). Lỗi: 404 không thuộc về bạn.")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<BookingResponse>> detail(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookingQueryService.detail(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-040 — Timeline trạng thái booking",
+            description = "Actor: **Customer** (chủ booking). Toàn bộ lịch sử chuyển trạng thái kèm lý do/actor. Lỗi: 404 không thuộc về bạn.")
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<List<BookingStatusHistoryResponse>>> history(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookingQueryService.history(userDetails.getUsername(), id)));
     }
 
     // ==================== UC-044: Waitlist ====================

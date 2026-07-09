@@ -6,9 +6,11 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.admin.RejectRequest;
 import com.fitmatch.dto.booking.AssignBookingPtRequest;
 import com.fitmatch.dto.booking.BookingResponse;
+import com.fitmatch.dto.booking.BookingStatusHistoryResponse;
 import com.fitmatch.dto.booking.GymAcceptBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.dto.booking.WaitlistResponse;
+import com.fitmatch.service.BookingQueryService;
 import com.fitmatch.service.GymBookingService;
 import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -43,6 +45,7 @@ public class GymBookingController {
 
     private final GymBookingService gymBookingService;
     private final WaitlistService waitlistService;
+    private final BookingQueryService bookingQueryService;
 
     @Operation(
             summary = "UC-037 — Hộp thư booking của Gym",
@@ -55,6 +58,26 @@ public class GymBookingController {
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
                 gymBookingService.list(userDetails.getUsername(), status, pageable)));
+    }
+
+    @Operation(
+            summary = "UC-045 — Chi tiết booking (Gym)",
+            description = "Actor: **Gym Operator**. Lỗi: 404 không thuộc Gym.")
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<BookingResponse>> detail(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookingQueryService.detail(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-040 — Timeline trạng thái booking (Gym)",
+            description = "Actor: **Gym Operator**. Lỗi: 404 không thuộc Gym.")
+    @GetMapping("/{id}/history")
+    public ResponseEntity<ApiResponse<List<BookingStatusHistoryResponse>>> history(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                bookingQueryService.history(userDetails.getUsername(), id)));
     }
 
     @Operation(
