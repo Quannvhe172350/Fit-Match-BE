@@ -10,8 +10,10 @@ import com.fitmatch.dto.booking.CreateBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.dto.booking.WaitlistRequest;
 import com.fitmatch.dto.booking.WaitlistResponse;
+import com.fitmatch.dto.payment.PaymentOrderResponse;
 import com.fitmatch.service.BookingQueryService;
 import com.fitmatch.service.BookingService;
+import com.fitmatch.service.PaymentService;
 import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -48,6 +50,7 @@ public class BookingController {
     private final BookingService bookingService;
     private final WaitlistService waitlistService;
     private final BookingQueryService bookingQueryService;
+    private final PaymentService paymentService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -93,6 +96,16 @@ public class BookingController {
         String reason = request != null ? request.getReason() : null;
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
                 bookingService.cancel(userDetails.getUsername(), id, reason)));
+    }
+
+    @Operation(
+            summary = "UC-052 — Xem đơn thanh toán VietQR của booking",
+            description = "Actor: **Customer**. Trả về refCode, số tiền, nội dung VietQR (FE render QR), trạng thái. Khách chuyển khoản với nội dung = refCode; Casso sẽ đối soát. Lỗi: 404 chưa có đơn/không thuộc về bạn.")
+    @GetMapping("/{id}/payment")
+    public ResponseEntity<ApiResponse<PaymentOrderResponse>> payment(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                paymentService.getForCustomer(id, userDetails.getUsername())));
     }
 
     // ==================== UC-045: History & details ====================

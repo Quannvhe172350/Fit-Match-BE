@@ -20,6 +20,7 @@ import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.BookingService;
+import com.fitmatch.service.PaymentService;
 import com.fitmatch.service.support.BookingEligibilityChecker;
 import com.fitmatch.service.support.BookingLifecycle;
 import com.fitmatch.service.support.BookingPriceCalculator;
@@ -42,6 +43,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingEligibilityChecker bookingEligibilityChecker;
     private final BookingPriceCalculator bookingPriceCalculator;
     private final BookingLifecycle bookingLifecycle;
+    private final PaymentService paymentService;
 
     @Override
     @Transactional
@@ -130,11 +132,14 @@ public class BookingServiceImpl implements BookingService {
                 && booking.getPayableAmount().compareTo(java.math.BigDecimal.ZERO) == 0) {
             bookingLifecycle.transition(booking, BookingStatus.PENDING_GYM,
                     "Free booking - routed to gym");
+            bookingRepository.save(booking);
         } else {
             bookingLifecycle.transition(booking, BookingStatus.PENDING_PAYMENT,
                     "Checkout submitted - awaiting payment hold");
+            bookingRepository.save(booking);
+            // UC-052: tạo đơn thanh toán VietQR để khách chuyển khoản.
+            paymentService.createOrder(booking);
         }
-        bookingRepository.save(booking);
         log.info("Customer {} checked out booking {} (payable {})",
                 customerUsername, bookingId, booking.getPayableAmount());
         return BookingResponse.of(booking);

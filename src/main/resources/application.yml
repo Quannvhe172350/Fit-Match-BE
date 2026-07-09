@@ -50,3 +50,14 @@ app:
     bucket: ${GCS_BUCKET:fit-match}
     project-id: ${GCP_PROJECT_ID:}
     credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}
+  # VietQR: tài khoản nhận tiền của nền tảng (khách chuyển khoản theo QR)
+  vietqr:
+    bank-bin: ${VIETQR_BANK_BIN:970415}
+    account-no: ${VIETQR_ACCOUNT_NO:113366668888}
+    account-name: ${VIETQR_ACCOUNT_NAME:FIT MATCH}
+    template: ${VIETQR_TEMPLATE:compact2}
+  # Casso: dịch vụ đối soát biến động số dư ngân hàng, gọi webhook khi tiền vào
+  casso:
+    webhook-secret: ${CASSO_WEBHOOK_SECRET:fitmatch-casso-secret}
+  payment:
+    order-ttl-hours: ${PAYMENT_ORDER_TTL_HOURS:24}
