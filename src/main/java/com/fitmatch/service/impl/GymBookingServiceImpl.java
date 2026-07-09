@@ -91,6 +91,61 @@ public class GymBookingServiceImpl implements GymBookingService {
         return BookingResponse.of(booking);
     }
 
+    @Override
+    @Transactional
+    public BookingResponse reschedule(String gymUsername, Long bookingId,
+                                      java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        if (booking.getStatus() != BookingStatus.PENDING_GYM
+                && booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only a PENDING_GYM or CONFIRMED booking can be rescheduled (current: "
+                            + booking.getStatus() + ")");
+        }
+        if (booking.getPtProfile() != null) {
+            ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        List<String> issues = bookingEligibilityChecker.rescheduleIssues(booking, startAt, endAt);
+        if (!issues.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot reschedule: " + String.join("; ", issues));
+        }
+        String note = "Rescheduled by gym from " + booking.getStartAt() + " to " + startAt;
+        booking.setStartAt(startAt);
+        booking.setEndAt(endAt);
+        bookingLifecycle.recordNote(booking, note);
+        bookingRepository.save(booking);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse cancel(String gymUsername, Long bookingId, String reason) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
+                "Cancelled by gym: " + reason);
+        bookingRepository.save(booking);
+        auditService.record(AuditActions.BOOKING_CANCEL_BY_GYM, "Booking", bookingId,
+                "Cancelled by gym " + gymUsername + ": " + reason);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse markNoShow(String gymUsername, Long bookingId) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        if (booking.getStartAt() == null || booking.getStartAt().isAfter(java.time.LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "No-show can only be recorded after the session start time");
+        }
+        bookingLifecycle.transition(booking, BookingStatus.NO_SHOW,
+                "Marked as no-show by gym " + gymUsername);
+        bookingRepository.save(booking);
+        auditService.record(AuditActions.BOOKING_NO_SHOW, "Booking", bookingId,
+                "No-show recorded by gym " + gymUsername);
+        return BookingResponse.of(booking);
+    }
+
     /** Khoá PT + kiểm tra assignment/lịch/trùng chỗ rồi gán vào booking (UC-039). */
     private void applyPt(String gymUsername, Booking booking, Long ptId) {
         PtProfile pt = ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)

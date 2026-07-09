@@ -108,6 +108,42 @@ public class BookingEligibilityChecker {
     }
 
     /**
+     * UC-041: các vi phạm khi dời booking sang khung giờ mới — PT (nếu có) và
+     * chi nhánh (nếu có) phải nhận được [start, end), loại trừ chính booking này.
+     */
+    public List<String> rescheduleIssues(Booking booking, LocalDateTime start, LocalDateTime end) {
+        List<String> reasons = new ArrayList<>();
+        if (!start.isAfter(LocalDateTime.now())) {
+            reasons.add("startAt must be in the future");
+        }
+        if (booking.getPtProfile() != null) {
+            Long ptId = booking.getPtProfile().getId();
+            reasons.addAll(scheduleConflictValidator.checkPt(ptId, start, end));
+            boolean overlapping = !bookingRepository
+                    .findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                            ptId, HOLDING_STATUSES, end, start).stream()
+                    .filter(b -> !b.getId().equals(booking.getId()))
+                    .toList().isEmpty();
+            if (overlapping) {
+                reasons.add("PT already has a booking in this time slot");
+            }
+        }
+        if (booking.getGymBranch() != null) {
+            reasons.addAll(scheduleConflictValidator.checkBranch(booking.getGymBranch().getId(), start, end));
+            Integer capacity = booking.getGymBranch().getCapacity();
+            if (capacity != null) {
+                long held = bookingRepository
+                        .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                                booking.getGymBranch().getId(), HOLDING_STATUSES, end, start);
+                if (held >= capacity) {
+                    reasons.add("Branch capacity is full for this time slot");
+                }
+            }
+        }
+        return reasons;
+    }
+
+    /**
      * UC-039: các vi phạm khi gán một PT cho booking — assignment với đích đã chọn,
      * xung đột lịch (UC-030) và trùng booking đang giữ chỗ khác.
      */

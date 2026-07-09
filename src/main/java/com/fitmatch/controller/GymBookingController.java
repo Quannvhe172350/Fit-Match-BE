@@ -7,6 +7,7 @@ import com.fitmatch.dto.admin.RejectRequest;
 import com.fitmatch.dto.booking.AssignBookingPtRequest;
 import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.booking.GymAcceptBookingRequest;
+import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.service.GymBookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -74,6 +75,40 @@ public class GymBookingController {
             @Valid @RequestBody RejectRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Booking rejected",
                 gymBookingService.reject(userDetails.getUsername(), id, request.getReason())));
+    }
+
+    @Operation(
+            summary = "UC-041 — Gym dời lịch booking",
+            description = "Actor: **Gym Operator**. Dời PENDING_GYM/CONFIRMED sang khung giờ mới hợp lệ; các bên được thông báo (phase notification). Lỗi: 409 vi phạm; 404 không thuộc Gym.")
+    @PostMapping("/{id}/reschedule")
+    public ResponseEntity<ApiResponse<BookingResponse>> reschedule(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody RescheduleBookingRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking rescheduled",
+                gymBookingService.reschedule(userDetails.getUsername(), id, request.getStartAt(), request.getEndAt())));
+    }
+
+    @Operation(
+            summary = "UC-042 — Gym hủy booking",
+            description = "Actor: **Gym Operator**. Hủy PENDING_GYM/CONFIRMED kèm lý do; hoàn tiền xử lý ở phase payment. Lỗi: 409 trạng thái cuối; 404 không thuộc Gym.")
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<BookingResponse>> cancel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody RejectRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
+                gymBookingService.cancel(userDetails.getUsername(), id, request.getReason())));
+    }
+
+    @Operation(
+            summary = "UC-043 — Ghi nhận khách không đến (no-show)",
+            description = "Actor: **Gym Operator**. CONFIRMED + đã qua giờ bắt đầu -> NO_SHOW; quy tắc phí/hoàn tiền áp ở phase payment. Lỗi: 409 chưa tới giờ hoặc sai trạng thái; 404 không thuộc Gym.")
+    @PostMapping("/{id}/no-show")
+    public ResponseEntity<ApiResponse<BookingResponse>> markNoShow(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("No-show recorded",
+                gymBookingService.markNoShow(userDetails.getUsername(), id)));
     }
 
     @Operation(

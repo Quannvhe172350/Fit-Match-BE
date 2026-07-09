@@ -44,6 +44,17 @@ public class BookingLifecycle {
 
     private final BookingStatusHistoryRepository historyRepository;
 
+    /** Ghi một dòng lịch sử không đổi trạng thái (vd reschedule, đổi PT) — UC-040. */
+    public void recordNote(Booking booking, String reason) {
+        historyRepository.save(BookingStatusHistory.builder()
+                .booking(booking)
+                .fromStatus(booking.getStatus())
+                .toStatus(booking.getStatus())
+                .reason(reason)
+                .build());
+        log.info("Booking {} note: {}", booking.getId(), reason);
+    }
+
     /** Chuyển trạng thái nếu hợp lệ; ghi history; ném 409 nếu chuyển sai luồng. */
     public void transition(Booking booking, BookingStatus to, String reason) {
         BookingStatus from = booking.getStatus();

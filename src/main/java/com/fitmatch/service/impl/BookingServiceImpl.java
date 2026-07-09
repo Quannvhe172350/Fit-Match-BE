@@ -140,6 +140,66 @@ public class BookingServiceImpl implements BookingService {
         return BookingResponse.of(booking);
     }
 
+    @Override
+    @Transactional
+    public BookingResponse reschedule(String customerUsername, Long bookingId,
+                                      java.time.LocalDateTime startAt, java.time.LocalDateTime endAt) {
+        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        if (booking.getStatus() != BookingStatus.PENDING_GYM
+                && booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only a PENDING_GYM or CONFIRMED booking can be rescheduled (current: "
+                            + booking.getStatus() + ")");
+        }
+        if (booking.getPtProfile() != null) {
+            ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        var issues = bookingEligibilityChecker.rescheduleIssues(booking, startAt, endAt);
+        if (!issues.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot reschedule: " + String.join("; ", issues));
+        }
+        String note = "Rescheduled by customer from " + booking.getStartAt() + " to " + startAt;
+        booking.setStartAt(startAt);
+        booking.setEndAt(endAt);
+        bookingLifecycle.recordNote(booking, note);
+        bookingRepository.save(booking);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse cancel(String customerUsername, Long bookingId, String reason) {
+        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+
+        // UC-042/043: hủy CONFIRMED trong cửa sổ mất phí -> đánh dấu hủy muộn.
+        if (booking.getStatus() == BookingStatus.CONFIRMED && booking.getStartAt() != null) {
+            Integer freeHours = resolveFreeCancellationHours(booking);
+            if (freeHours != null) {
+                java.time.LocalDateTime deadline = booking.getStartAt().minusHours(freeHours);
+                if (java.time.LocalDateTime.now().isAfter(deadline)) {
+                    booking.setLateCancellation(true);
+                }
+            }
+        }
+        bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
+                "Cancelled by customer" + (reason != null ? ": " + reason : ""));
+        bookingRepository.save(booking);
+        return BookingResponse.of(booking);
+    }
+
+    private Integer resolveFreeCancellationHours(Booking booking) {
+        if (booking.getGymService() != null && booking.getGymService().getBookingRules() != null) {
+            return booking.getGymService().getBookingRules().getFreeCancellationHours();
+        }
+        if (booking.getTrainingPackage() != null && booking.getTrainingPackage().getBookingRules() != null) {
+            return booking.getTrainingPackage().getBookingRules().getFreeCancellationHours();
+        }
+        return null;
+    }
+
     /**
      * Resolve các đích được truyền và bảo đảm tất cả thuộc CÙNG một Gym.
      * currentGym != null (khi cập nhật DRAFT) được dùng làm Gym mặc định.

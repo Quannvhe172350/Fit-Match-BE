@@ -21,4 +21,14 @@ public interface GymBookingService {
 
     /** UC-039: gán/đổi PT phụ trách khi PENDING_GYM hoặc CONFIRMED. */
     BookingResponse assignPt(String gymUsername, Long bookingId, Long ptId);
+
+    /** UC-041: Gym dời lịch booking sang khung giờ hợp lệ mới. */
+    BookingResponse reschedule(String gymUsername, Long bookingId, java.time.LocalDateTime startAt,
+                               java.time.LocalDateTime endAt);
+
+    /** UC-042: Gym hủy booking kèm lý do. */
+    BookingResponse cancel(String gymUsername, Long bookingId, String reason);
+
+    /** UC-043: đánh dấu khách không đến (CONFIRMED + đã qua giờ hẹn) -> NO_SHOW. */
+    BookingResponse markNoShow(String gymUsername, Long bookingId);
 }

@@ -20,4 +20,14 @@ public interface BookingService {
      * DRAFT -> PENDING_PAYMENT (hoặc PENDING_GYM nếu số phải trả = 0).
      */
     BookingResponse checkout(String customerUsername, Long bookingId);
+
+    /** UC-041: customer dời lịch (PENDING_GYM/CONFIRMED) sang khung giờ hợp lệ mới. */
+    BookingResponse reschedule(String customerUsername, Long bookingId, java.time.LocalDateTime startAt,
+                               java.time.LocalDateTime endAt);
+
+    /**
+     * UC-042: customer hủy booking; hủy CONFIRMED trong cửa sổ mất phí
+     * (freeCancellationHours) bị đánh dấu lateCancellation (UC-043).
+     */
+    BookingResponse cancel(String customerUsername, Long bookingId, String reason);
 }

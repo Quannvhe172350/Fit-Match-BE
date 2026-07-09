@@ -2,7 +2,9 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.booking.BookingResponse;
+import com.fitmatch.dto.booking.CancelBookingRequest;
 import com.fitmatch.dto.booking.CreateBookingRequest;
+import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.service.BookingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -50,6 +52,31 @@ public class BookingController {
             @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Booking checked out",
                 bookingService.checkout(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-041 — Dời lịch booking",
+            description = "Actor: **Customer**. Dời PENDING_GYM/CONFIRMED sang khung giờ mới hợp lệ (PT rảnh, branch mở, còn chỗ). Lỗi: 409 sai trạng thái hoặc khung giờ vi phạm; 404 không thuộc về bạn.")
+    @PostMapping("/{id}/reschedule")
+    public ResponseEntity<ApiResponse<BookingResponse>> reschedule(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody RescheduleBookingRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Booking rescheduled",
+                bookingService.reschedule(userDetails.getUsername(), id, request.getStartAt(), request.getEndAt())));
+    }
+
+    @Operation(
+            summary = "UC-042 — Hủy booking",
+            description = "Actor: **Customer**. Hủy DRAFT/PENDING_PAYMENT/PENDING_GYM/CONFIRMED; hủy CONFIRMED trong cửa sổ mất phí bị đánh dấu lateCancellation (ảnh hưởng hoàn tiền — UC-043). Lỗi: 409 trạng thái cuối; 404 không thuộc về bạn.")
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<BookingResponse>> cancel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @RequestBody(required = false) CancelBookingRequest request) {
+        String reason = request != null ? request.getReason() : null;
+        return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
+                bookingService.cancel(userDetails.getUsername(), id, reason)));
     }
 
     @Operation(
