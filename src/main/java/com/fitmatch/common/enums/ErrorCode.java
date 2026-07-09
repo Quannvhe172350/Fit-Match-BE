@@ -21,7 +21,10 @@ public enum ErrorCode {
     EMAIL_ALREADY_VERIFIED(HttpStatus.CONFLICT, "Email is already verified"),
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email address has not been verified"),
     PROFILE_EXISTS(HttpStatus.CONFLICT, "Profile already exists for this user"),
-    INVALID_STATE(HttpStatus.CONFLICT, "Operation not allowed in the current state");
+    INVALID_STATE(HttpStatus.CONFLICT, "Operation not allowed in the current state"),
+    PAYMENT_ERROR(HttpStatus.BAD_REQUEST, "Payment processing error"),
+    INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "Insufficient wallet balance"),
+    DUPLICATE_WEBHOOK(HttpStatus.OK, "Webhook already processed");
 
     private final HttpStatus status;
     private final String defaultMessage;

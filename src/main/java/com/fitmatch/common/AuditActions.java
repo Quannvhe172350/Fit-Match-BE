@@ -31,4 +31,5 @@ public final class AuditActions {
     public static final String BOOKING_PT_ASSIGN = "BOOKING_PT_ASSIGN";
     public static final String BOOKING_CANCEL_BY_GYM = "BOOKING_CANCEL_BY_GYM";
     public static final String BOOKING_NO_SHOW = "BOOKING_NO_SHOW";
+    public static final String COMMISSION_CONFIG_CHANGE = "COMMISSION_CONFIG_CHANGE";
 }
