@@ -77,6 +77,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Webhook đối soát Casso — xác thực bằng Secure-Token header trong controller.
+                        .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
                         // Tải file công khai (ảnh/tài liệu đã upload); upload vẫn yêu cầu đăng nhập.
                         .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
                         // Marketplace browse & public content là công khai (Guest/Customer).
