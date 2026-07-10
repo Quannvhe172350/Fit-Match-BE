@@ -42,7 +42,7 @@ jwt:
   refresh-token-expiration: 604800000
 
 cors:
-  allowed-origins: "*"
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
 app:
   base-url: ${APP_BASE_URL}
