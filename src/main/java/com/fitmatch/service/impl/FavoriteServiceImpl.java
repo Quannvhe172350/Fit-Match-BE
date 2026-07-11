@@ -2,6 +2,7 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.FavoriteType;
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
@@ -34,7 +35,10 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional
     public void addPtFavorite(String username, Long ptProfileId) {
-        ptProfileRepository.findByIdAndVerificationStatusAndActiveTrue(ptProfileId, VerificationStatus.APPROVED)
+        // Cùng quy tắc hiển thị với marketplace (UC-021): PT ACTIVE thuộc Gym APPROVED đang hiển thị.
+        // Không dùng verificationStatus/active (đã @Deprecated) vì PT do Gym tạo bỏ qua platform verification.
+        ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                        ptProfileId, PtStatus.ACTIVE, VerificationStatus.APPROVED)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptProfileId));
         addFavorite(username, FavoriteType.PT, ptProfileId);
     }

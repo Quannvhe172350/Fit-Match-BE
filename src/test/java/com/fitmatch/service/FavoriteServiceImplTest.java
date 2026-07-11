@@ -1,6 +1,7 @@
 package com.fitmatch.service;
 
 import com.fitmatch.common.enums.FavoriteType;
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.entity.Favorite;
 import com.fitmatch.entity.PtProfile;
@@ -37,7 +38,8 @@ class FavoriteServiceImplTest {
 
     @Test
     void addPtFavorite_persists() {
-        when(ptProfileRepository.findByIdAndVerificationStatusAndActiveTrue(1L, VerificationStatus.APPROVED))
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
                 .thenReturn(Optional.of(PtProfile.builder().id(1L).build()));
         when(favoriteRepository.existsByUser_UsernameAndTypeAndTargetId("u", FavoriteType.PT, 1L)).thenReturn(false);
         when(userRepository.findByUsername("u")).thenReturn(Optional.of(User.builder().username("u").build()));
@@ -49,7 +51,8 @@ class FavoriteServiceImplTest {
 
     @Test
     void addPtFavorite_duplicate_throws() {
-        when(ptProfileRepository.findByIdAndVerificationStatusAndActiveTrue(1L, VerificationStatus.APPROVED))
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
                 .thenReturn(Optional.of(PtProfile.builder().id(1L).build()));
         when(favoriteRepository.existsByUser_UsernameAndTypeAndTargetId("u", FavoriteType.PT, 1L)).thenReturn(true);
 
