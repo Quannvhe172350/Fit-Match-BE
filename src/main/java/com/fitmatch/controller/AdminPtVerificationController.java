@@ -1,7 +1,9 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.admin.RejectRequest;
 import com.fitmatch.dto.pt.PtProfileResponse;
@@ -61,25 +63,23 @@ public class AdminPtVerificationController {
 
     @Operation(
             deprecated = true,
-            summary = "[DEPRECATED] Duyệt xác minh PT",
-            description = "**DEPRECATED (UC-019) — PT không còn qua platform verification.** Giữ tạm cho hồ sơ cũ.")
+            summary = "[DISABLED] Duyệt xác minh PT",
+            description = "**410 GONE (UC-019) — PT không còn qua platform verification.** Approve luồng cũ sẽ promote user lên ROLE_PT không qua Gym — mâu thuẫn mô hình mới nên bị chặn cứng.")
     @PostMapping("/{id}/approve")
     public ResponseEntity<ApiResponse<PtProfileResponse>> approve(
             @PathVariable Long id, @AuthenticationPrincipal UserDetails actor) {
-        return ResponseEntity.ok(ApiResponse.success("PT verification approved",
-                service.approve(id, actor.getUsername())));
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     @Operation(
             deprecated = true,
-            summary = "[DEPRECATED] Từ chối xác minh PT",
-            description = "**DEPRECATED (UC-019) — PT không còn qua platform verification.** Giữ tạm cho hồ sơ cũ.")
+            summary = "[DISABLED] Từ chối xác minh PT",
+            description = "**410 GONE (UC-019) — PT không còn qua platform verification.**")
     @PostMapping("/{id}/reject")
     public ResponseEntity<ApiResponse<PtProfileResponse>> reject(
             @PathVariable Long id,
             @Valid @RequestBody RejectRequest request,
             @AuthenticationPrincipal UserDetails actor) {
-        return ResponseEntity.ok(ApiResponse.success("PT verification rejected",
-                service.reject(id, request.getReason(), actor.getUsername())));
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 }

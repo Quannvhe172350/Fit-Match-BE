@@ -21,6 +21,7 @@ import com.fitmatch.repository.VerificationTokenRepository;
 import com.fitmatch.security.JwtTokenProvider;
 import com.fitmatch.service.AuthService;
 import com.fitmatch.service.EmailService;
+import com.fitmatch.service.support.EmailVerificationIssuer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -38,7 +39,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    private static final long EMAIL_VERIFICATION_TTL_HOURS = 24;
     private static final long PASSWORD_RESET_TTL_MINUTES = 30;
 
     private final UserRepository userRepository;
@@ -47,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserDetailsService userDetailsService;
     private final EmailService emailService;
+    private final EmailVerificationIssuer emailVerificationIssuer;
 
     @Override
     @Transactional
@@ -79,7 +80,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("New user registered: {} with role: {}", user.getUsername(), user.getRole());
 
         // UC-01: phát hành token xác minh email và gửi qua EmailService (stub).
-        issueVerificationToken(user);
+        emailVerificationIssuer.issue(user);
 
         String accessToken = jwtTokenProvider.generateAccessToken(user.getUsername(), user.getRole().name());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUsername());
@@ -180,7 +181,7 @@ public class AuthServiceImpl implements AuthService {
         // Không tiết lộ email có tồn tại hay không: luôn trả về thành công.
         userRepository.findByEmail(request.getEmail()).ifPresentOrElse(user -> {
             if (!user.isEmailVerified()) {
-                issueVerificationToken(user);
+                emailVerificationIssuer.issue(user);
                 log.info("Verification email re-sent to: {}", request.getEmail());
             }
         }, () -> log.debug("Resend verification requested for unknown email: {}", request.getEmail()));
@@ -224,17 +225,4 @@ public class AuthServiceImpl implements AuthService {
         log.info("Password reset completed for user: {}", user.getUsername());
     }
 
-    /** Vô hiệu hoá token cũ, tạo token mới và gửi email xác minh. */
-    private void issueVerificationToken(User user) {
-        verificationTokenRepository.invalidateExisting(user, TokenType.EMAIL_VERIFICATION);
-        VerificationToken token = VerificationToken.builder()
-                .token(UUID.randomUUID().toString())
-                .user(user)
-                .type(TokenType.EMAIL_VERIFICATION)
-                .expiresAt(LocalDateTime.now().plusHours(EMAIL_VERIFICATION_TTL_HOURS))
-                .used(false)
-                .build();
-        verificationTokenRepository.save(token);
-        emailService.sendVerificationEmail(user.getEmail(), token.getToken());
-    }
 }

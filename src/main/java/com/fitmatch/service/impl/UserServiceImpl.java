@@ -14,6 +14,7 @@ import com.fitmatch.mapper.UserMapper;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.StorageService;
 import com.fitmatch.service.UserService;
+import com.fitmatch.service.support.EmailVerificationIssuer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +32,7 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final PasswordEncoder passwordEncoder;
+    private final EmailVerificationIssuer emailVerificationIssuer;
 
     @Override
     public UserResponse getProfile(String username) {
@@ -46,7 +48,19 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
         if (request.getFullName() != null) user.setFullName(request.getFullName());
-        if (request.getEmail() != null) user.setEmail(request.getEmail());
+
+        // UC-002: đổi email = đổi danh tính liên hệ — phải là email chưa ai dùng
+        // và phải xác minh lại quyền sở hữu (reset emailVerified + gửi token mới).
+        boolean emailChanged = request.getEmail() != null && !request.getEmail().equalsIgnoreCase(user.getEmail());
+        if (emailChanged) {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                throw new BusinessException(ErrorCode.EMAIL_EXISTS,
+                        "Email '" + request.getEmail() + "' is already registered");
+            }
+            user.setEmail(request.getEmail());
+            user.setEmailVerified(false);
+        }
+
         if (request.getPhone() != null) user.setPhone(request.getPhone());
         if (request.getGender() != null) user.setGender(request.getGender());
         if (request.getLocation() != null) user.setLocation(request.getLocation());
@@ -71,6 +85,10 @@ public class UserServiceImpl implements UserService {
         }
 
         user = userRepository.save(user);
+        if (emailChanged) {
+            emailVerificationIssuer.issue(user);
+            log.info("Email changed for user: {} — re-verification required", username);
+        }
         log.info("Profile updated for user: {}", username);
         return UserMapper.toResponse(user);
     }

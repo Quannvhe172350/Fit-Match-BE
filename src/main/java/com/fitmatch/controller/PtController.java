@@ -1,7 +1,9 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.pt.AvailabilitySlotDto;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.dto.pt.BlockedTimeRequest;
 import com.fitmatch.dto.pt.BlockedTimeResponse;
 import com.fitmatch.dto.pt.PtProfileResponse;
@@ -19,6 +21,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,8 +38,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/pt")
 @RequiredArgsConstructor
-@Tag(name = "D. PT Self-service", description = "PT tự quản lý hồ sơ cá nhân giới hạn (UC-007). Các flow self-registration cũ đã DEPRECATED — PT do Gym tạo (UC-019).")
+@Tag(name = "D. PT Self-service", description = "PT tự quản lý hồ sơ cá nhân giới hạn (UC-007). Các flow self-registration cũ đã bị vô hiệu hoá — PT do Gym tạo (UC-019).")
 @SecurityRequirement(name = "bearerAuth")
+@PreAuthorize("hasRole('PT')")
 public class PtController {
 
     private final PtProfileService ptProfileService;
@@ -47,18 +51,17 @@ public class PtController {
     @Deprecated
     @Operation(
             deprecated = true,
-            summary = "[DEPRECATED] Nộp hồ sơ đăng ký PT & tài liệu",
+            summary = "[DISABLED] Nộp hồ sơ đăng ký PT & tài liệu",
             description = """
-                    **DEPRECATED — mô hình PT self-registration đã bỏ (Use Case mới UC-019).**
-                    Thay bằng: Gym tạo PT qua POST /api/gym/pts. Endpoint giữ tạm cho client cũ.
+                    **410 GONE — mô hình PT self-registration đã bỏ (UC-019).**
+                    PT do Gym tạo qua POST /api/gym/pts.
                     """)
     @PostMapping("/registration")
     public ResponseEntity<ApiResponse<PtProfileResponse>> submitRegistration(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody SubmitPtRegistrationRequest request) {
-        PtProfileResponse response = ptProfileService.submitRegistration(userDetails.getUsername(), request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("PT registration submitted for verification", response));
+        // UC-019: chặn cứng — luồng này mâu thuẫn mô hình "PT thuộc Gym".
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     /** @deprecated PT không còn qua platform verification (UC-019). */
@@ -77,14 +80,14 @@ public class PtController {
     @Deprecated
     @Operation(
             deprecated = true,
-            summary = "[DEPRECATED] Nộp lại hồ sơ xác minh PT",
-            description = "**DEPRECATED — mô hình PT self-verification đã bỏ (UC-019).** Endpoint giữ tạm cho client cũ.")
+            summary = "[DISABLED] Nộp lại hồ sơ xác minh PT",
+            description = "**410 GONE — mô hình PT self-verification đã bỏ (UC-019).** Hồ sơ PT do Gym quản lý.")
     @PutMapping("/registration/resubmit")
     public ResponseEntity<ApiResponse<PtProfileResponse>> resubmit(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody SubmitPtRegistrationRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("PT registration resubmitted for verification",
-                ptProfileService.resubmitRegistration(userDetails.getUsername(), request)));
+        // UC-019/007: chặn cứng — endpoint này còn cho phép PT tự sửa các field do Gym quản lý.
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     @Operation(

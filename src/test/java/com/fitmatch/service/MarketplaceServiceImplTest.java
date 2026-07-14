@@ -1,5 +1,6 @@
 package com.fitmatch.service;
 
+import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.entity.PtProfile;
@@ -38,7 +39,8 @@ class MarketplaceServiceImplTest {
     @Test
     void getPtDetail_onlyApprovedActive() {
         PtProfile p = PtProfile.builder().id(1L).displayName("Coach").build();
-        when(ptProfileRepository.findByIdAndVerificationStatusAndActiveTrue(1L, VerificationStatus.APPROVED))
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
                 .thenReturn(Optional.of(p));
         when(ptCertificationRepository.findByPtProfile_Id(1L)).thenReturn(List.of());
 
@@ -49,7 +51,8 @@ class MarketplaceServiceImplTest {
 
     @Test
     void getPtDetail_notVisible_throws() {
-        when(ptProfileRepository.findByIdAndVerificationStatusAndActiveTrue(2L, VerificationStatus.APPROVED))
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                2L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
                 .thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.getPtDetail(2L)).isInstanceOf(ResourceNotFoundException.class);
     }

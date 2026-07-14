@@ -1,8 +1,10 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.pt.CertificationRequest;
 import com.fitmatch.dto.pt.CertificationResponse;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.service.PtCertificationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -11,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,46 +32,43 @@ import java.util.List;
 @RequiredArgsConstructor
 @Tag(name = "D. PT Certifications", description = "Chứng chỉ PT. Từ UC-020: Gym quản lý chứng chỉ qua /api/gym/pts/{ptId}/certifications; PT chỉ xem. Các thao tác ghi ở đây DEPRECATED.")
 @SecurityRequirement(name = "bearerAuth")
+@PreAuthorize("hasRole('PT')")
 public class PtCertificationController {
 
     private final PtCertificationService certificationService;
 
     /** @deprecated UC-020: chứng chỉ do Gym quản lý qua /api/gym/pts/{ptId}/certifications. */
     @Deprecated
-    @Operation(deprecated = true, summary = "[DEPRECATED] Thêm chứng chỉ",
-            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
+    @Operation(deprecated = true, summary = "[DISABLED] Thêm chứng chỉ",
+            description = "**410 GONE (UC-020)** — Gym quản lý chứng chỉ PT qua /api/gym/pts/{ptId}/certifications.")
     @PostMapping
     public ResponseEntity<ApiResponse<CertificationResponse>> add(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody CertificationRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Certification added",
-                        certificationService.add(userDetails.getUsername(), request)));
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     /** @deprecated UC-020: chứng chỉ do Gym quản lý. */
     @Deprecated
-    @Operation(deprecated = true, summary = "[DEPRECATED] Cập nhật chứng chỉ",
-            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
+    @Operation(deprecated = true, summary = "[DISABLED] Cập nhật chứng chỉ",
+            description = "**410 GONE (UC-020)** — Gym quản lý chứng chỉ PT qua /api/gym/pts/{ptId}/certifications.")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<CertificationResponse>> update(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
             @Valid @RequestBody CertificationRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Certification updated",
-                certificationService.update(userDetails.getUsername(), id, request)));
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     /** @deprecated UC-020: chứng chỉ do Gym quản lý. */
     @Deprecated
-    @Operation(deprecated = true, summary = "[DEPRECATED] Xoá chứng chỉ",
-            description = "**DEPRECATED (UC-020)** — Gym quản lý chứng chỉ PT. Giữ tạm cho client cũ.")
+    @Operation(deprecated = true, summary = "[DISABLED] Xoá chứng chỉ",
+            description = "**410 GONE (UC-020)** — Gym quản lý chứng chỉ PT qua /api/gym/pts/{ptId}/certifications.")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id) {
-        certificationService.delete(userDetails.getUsername(), id);
-        return ResponseEntity.ok(ApiResponse.success("Certification deleted", null));
+        throw new BusinessException(ErrorCode.LEGACY_ENDPOINT_DISABLED);
     }
 
     @Operation(summary = "UC-007 — Liệt kê chứng chỉ của chính mình", description = "Actor: **PT**. Read-only; chứng chỉ do Gym ghi nhận (UC-020).")
