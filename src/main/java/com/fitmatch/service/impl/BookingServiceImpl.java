@@ -21,6 +21,7 @@ import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.BookingService;
 import com.fitmatch.service.PaymentService;
+import com.fitmatch.service.RefundService;
 import com.fitmatch.service.support.BookingEligibilityChecker;
 import com.fitmatch.service.support.BookingLifecycle;
 import com.fitmatch.service.support.BookingPriceCalculator;
@@ -44,6 +45,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingPriceCalculator bookingPriceCalculator;
     private final BookingLifecycle bookingLifecycle;
     private final PaymentService paymentService;
+    private final RefundService refundService;
 
     @Override
     @Transactional
@@ -192,6 +194,13 @@ public class BookingServiceImpl implements BookingService {
         bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
                 "Cancelled by customer" + (reason != null ? ": " + reason : ""));
         bookingRepository.save(booking);
+        // UC-042/055: booking đã giữ tiền -> mở yêu cầu hoàn (Finance quyết định
+        // mức hoàn; hủy muộn được ghi chú để cân nhắc giữ phí theo chính sách).
+        refundService.autoCreate(booking, "Customer cancelled"
+                + (booking.isLateCancellation() ? " (LATE cancellation - fee may apply)" : "")
+                + (reason != null ? ": " + reason : ""));
+        // Đơn VietQR chưa trả tiền thì đóng lại (UC-054).
+        paymentService.cancelOrderIfPending(bookingId);
         return BookingResponse.of(booking);
     }
 

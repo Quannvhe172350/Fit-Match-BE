@@ -11,9 +11,12 @@ import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.dto.booking.WaitlistRequest;
 import com.fitmatch.dto.booking.WaitlistResponse;
 import com.fitmatch.dto.payment.PaymentOrderResponse;
+import com.fitmatch.dto.payment.RefundReasonRequest;
+import com.fitmatch.dto.payment.RefundResponse;
 import com.fitmatch.service.BookingQueryService;
 import com.fitmatch.service.BookingService;
 import com.fitmatch.service.PaymentService;
+import com.fitmatch.service.RefundService;
 import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -51,6 +54,7 @@ public class BookingController {
     private final WaitlistService waitlistService;
     private final BookingQueryService bookingQueryService;
     private final PaymentService paymentService;
+    private final RefundService refundService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -184,5 +188,29 @@ public class BookingController {
             @Valid @RequestBody CreateBookingRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Booking selection updated",
                 bookingService.updateSelection(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-055 — Mở yêu cầu hoàn tiền cho booking",
+            description = "Actor: **Customer**. Cho booking REJECTED/CANCELLED/NO_SHOW còn giữ tiền; Finance duyệt và thực thi (UC-056). Lỗi: 409 sai trạng thái/không còn tiền giữ/đã có yêu cầu mở; 404 không thuộc về bạn.")
+    @PostMapping("/{id}/refund-request")
+    public ResponseEntity<ApiResponse<RefundResponse>> requestRefund(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody RefundReasonRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+                "Refund request created",
+                refundService.createForCustomer(userDetails.getUsername(), id, request.getReason())));
+    }
+
+    @Operation(
+            summary = "UC-055 — Danh sách yêu cầu hoàn tiền của tôi",
+            description = "Actor: **Customer**.")
+    @GetMapping("/refunds")
+    public ResponseEntity<ApiResponse<PageResponse<RefundResponse>>> myRefunds(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(
+                refundService.listForCustomer(userDetails.getUsername(), pageable)));
     }
 }

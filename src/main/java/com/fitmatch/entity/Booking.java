@@ -1,6 +1,7 @@
 package com.fitmatch.entity;
 
 import com.fitmatch.common.enums.BookingStatus;
+import com.fitmatch.common.enums.SettlementStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -99,4 +100,22 @@ public class Booking extends BaseEntity {
     @Column(name = "late_cancellation", nullable = false)
     @Builder.Default
     private boolean lateCancellation = false;
+
+    /** Thời điểm buổi tập được ghi nhận hoàn tất (UC-049). */
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    /** Trạng thái dòng tiền escrow của booking (UC-057..059). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "settlement_status", nullable = false, length = 20)
+    @Builder.Default
+    private SettlementStatus settlementStatus = SettlementStatus.NONE;
+
+    /** Số tiền đang chờ giải ngân (held đã chuyển sang pending) — UC-058. */
+    @Column(name = "settlement_amount", precision = 14, scale = 2)
+    private BigDecimal settlementAmount;
+
+    /** Thời điểm tiền vào pending settlement — mốc tính holding period (UC-059). */
+    @Column(name = "settlement_pending_at")
+    private LocalDateTime settlementPendingAt;
 }

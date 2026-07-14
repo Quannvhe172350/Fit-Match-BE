@@ -32,4 +32,15 @@ public final class AuditActions {
     public static final String BOOKING_CANCEL_BY_GYM = "BOOKING_CANCEL_BY_GYM";
     public static final String BOOKING_NO_SHOW = "BOOKING_NO_SHOW";
     public static final String COMMISSION_CONFIG_CHANGE = "COMMISSION_CONFIG_CHANGE";
+    public static final String BOOKING_COMPLETE = "BOOKING_COMPLETE";
+    public static final String SETTLEMENT_PENDING = "SETTLEMENT_PENDING";
+    public static final String SETTLEMENT_RELEASE = "SETTLEMENT_RELEASE";
+    public static final String REFUND_REQUEST_CREATE = "REFUND_REQUEST_CREATE";
+    public static final String REFUND_EXECUTE = "REFUND_EXECUTE";
+    public static final String REFUND_REJECT = "REFUND_REJECT";
+    public static final String WITHDRAWAL_REQUEST = "WITHDRAWAL_REQUEST";
+    public static final String WITHDRAWAL_APPROVE = "WITHDRAWAL_APPROVE";
+    public static final String WITHDRAWAL_REJECT = "WITHDRAWAL_REJECT";
+    public static final String WITHDRAWAL_PAID = "WITHDRAWAL_PAID";
+    public static final String PAYMENT_ORDER_EXPIRE = "PAYMENT_ORDER_EXPIRE";
 }

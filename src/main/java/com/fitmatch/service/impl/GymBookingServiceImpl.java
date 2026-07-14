@@ -13,6 +13,9 @@ import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.GymBookingService;
+import com.fitmatch.service.PaymentService;
+import com.fitmatch.service.RefundService;
+import com.fitmatch.service.SettlementService;
 import com.fitmatch.service.support.BookingEligibilityChecker;
 import com.fitmatch.service.support.BookingLifecycle;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +36,9 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final BookingEligibilityChecker bookingEligibilityChecker;
     private final BookingLifecycle bookingLifecycle;
     private final AuditService auditService;
+    private final RefundService refundService;
+    private final SettlementService settlementService;
+    private final PaymentService paymentService;
 
     @Override
     @Transactional(readOnly = true)
@@ -68,7 +74,9 @@ public class GymBookingServiceImpl implements GymBookingService {
         bookingLifecycle.transition(booking, BookingStatus.REJECTED,
                 "Rejected by gym: " + reason);
         bookingRepository.save(booking);
-        // Phase payment: REJECTED của booking đã giữ tiền sẽ kích hoạt hoàn tiền (UC-055).
+        // UC-038/055: gym từ chối booking đã giữ tiền -> tự mở yêu cầu hoàn toàn bộ.
+        refundService.autoCreate(booking, "Gym rejected booking: " + reason);
+        paymentService.cancelOrderIfPending(bookingId);
         auditService.record(AuditActions.BOOKING_REJECT, "Booking", bookingId,
                 "Rejected by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);
@@ -125,6 +133,9 @@ public class GymBookingServiceImpl implements GymBookingService {
         bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
                 "Cancelled by gym: " + reason);
         bookingRepository.save(booking);
+        // UC-042/055: gym chủ động hủy -> khách được mở yêu cầu hoàn toàn bộ.
+        refundService.autoCreate(booking, "Gym cancelled booking: " + reason);
+        paymentService.cancelOrderIfPending(bookingId);
         auditService.record(AuditActions.BOOKING_CANCEL_BY_GYM, "Booking", bookingId,
                 "Cancelled by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);
@@ -140,9 +151,31 @@ public class GymBookingServiceImpl implements GymBookingService {
         }
         bookingLifecycle.transition(booking, BookingStatus.NO_SHOW,
                 "Marked as no-show by gym " + gymUsername);
+        // UC-043: khách không đến -> theo chính sách nền tảng, tiền giữ được chuyển
+        // cho Gym (qua pending settlement, vẫn có holding period để khiếu nại).
+        settlementService.settleAfterFulfillment(booking, "no-show");
         bookingRepository.save(booking);
         auditService.record(AuditActions.BOOKING_NO_SHOW, "Booking", bookingId,
                 "No-show recorded by gym " + gymUsername);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse complete(String gymUsername, Long bookingId) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        if (booking.getStartAt() == null || booking.getStartAt().isAfter(java.time.LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Booking can only be completed after the session start time");
+        }
+        bookingLifecycle.transition(booking, BookingStatus.COMPLETED,
+                "Completed by gym " + gymUsername);
+        booking.setCompletedAt(java.time.LocalDateTime.now());
+        // UC-049/058: hoàn tất -> tiền giữ chuyển sang pending settlement.
+        settlementService.settleAfterFulfillment(booking, "session completed");
+        bookingRepository.save(booking);
+        auditService.record(AuditActions.BOOKING_COMPLETE, "Booking", bookingId,
+                "Completed by gym " + gymUsername);
         return BookingResponse.of(booking);
     }
 

@@ -31,4 +31,10 @@ public interface GymBookingService {
 
     /** UC-043: đánh dấu khách không đến (CONFIRMED + đã qua giờ hẹn) -> NO_SHOW. */
     BookingResponse markNoShow(String gymUsername, Long bookingId);
+
+    /**
+     * UC-049: xác nhận buổi tập đã diễn ra -> COMPLETED; tiền giữ chuyển sang
+     * pending settlement chờ hết holding period (UC-058).
+     */
+    BookingResponse complete(String gymUsername, Long bookingId);
 }

@@ -13,4 +13,10 @@ public interface PaymentService {
 
     /** Xem đơn thanh toán của booking (chủ booking). */
     PaymentOrderResponse getForCustomer(Long bookingId, String customerUsername);
+
+    /** UC-054: đóng đơn PENDING khi booking bị hủy/từ chối trước khi trả tiền. */
+    void cancelOrderIfPending(Long bookingId);
+
+    /** UC-054: đánh dấu EXPIRED các đơn PENDING quá hạn; trả về số booking bị hủy kèm. */
+    int expireOverdueOrders();
 }

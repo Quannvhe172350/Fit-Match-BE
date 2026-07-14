@@ -27,6 +27,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentProperties paymentProperties;
+    private final com.fitmatch.service.support.BookingLifecycle bookingLifecycle;
 
     @Override
     @Transactional
@@ -61,6 +62,40 @@ public class PaymentServiceImpl implements PaymentService {
                 .findByBooking_IdAndBooking_Customer_Username(bookingId, customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Payment order for booking", bookingId));
         return PaymentOrderResponse.of(order);
+    }
+
+    @Override
+    @Transactional
+    public void cancelOrderIfPending(Long bookingId) {
+        paymentOrderRepository.findByBooking_Id(bookingId)
+                .filter(o -> o.getStatus() == PaymentStatus.PENDING)
+                .ifPresent(o -> {
+                    o.setStatus(PaymentStatus.CANCELLED);
+                    paymentOrderRepository.save(o);
+                    log.info("Payment order {} cancelled (booking {} closed before payment)",
+                            o.getId(), bookingId);
+                });
+    }
+
+    @Override
+    @Transactional
+    public int expireOverdueOrders() {
+        var overdue = paymentOrderRepository
+                .findByStatusAndExpiresAtBefore(PaymentStatus.PENDING, LocalDateTime.now());
+        int cancelledBookings = 0;
+        for (PaymentOrder order : overdue) {
+            order.setStatus(PaymentStatus.EXPIRED);
+            paymentOrderRepository.save(order);
+            Booking booking = order.getBooking();
+            // Booking còn chờ thanh toán thì đóng lại để giải phóng slot (UC-054).
+            if (booking.getStatus() == com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT) {
+                bookingLifecycle.transition(booking, com.fitmatch.common.enums.BookingStatus.CANCELLED,
+                        "Payment window expired");
+                cancelledBookings++;
+            }
+            log.info("Payment order {} expired (booking {})", order.getId(), booking.getId());
+        }
+        return cancelledBookings;
     }
 
     /** VietQR quick-link (img.vietqr.io) — FE render ảnh QR; addInfo = refCode để Casso đối soát. */

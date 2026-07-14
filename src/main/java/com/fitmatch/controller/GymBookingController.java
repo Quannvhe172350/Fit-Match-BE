@@ -152,6 +152,16 @@ public class GymBookingController {
     }
 
     @Operation(
+            summary = "UC-049 — Xác nhận buổi tập hoàn tất",
+            description = "Actor: **Gym Operator**. CONFIRMED + đã qua giờ bắt đầu -> COMPLETED; tiền giữ chuyển sang pending settlement, giải ngân tự động sau holding period (UC-058/059). Lỗi: 409 chưa tới giờ hoặc sai trạng thái; 404 không thuộc Gym.")
+    @PostMapping("/{id}/complete")
+    public ResponseEntity<ApiResponse<BookingResponse>> complete(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Booking completed",
+                gymBookingService.complete(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
             summary = "UC-039 — Gán/đổi PT phụ trách booking",
             description = "Actor: **Gym Operator**. Khi PENDING_GYM/CONFIRMED; PT phải thuộc Gym, được gán đúng đích và rảnh khung giờ. Lỗi: 409 vi phạm; 404 PT/booking không thuộc Gym.")
     @PostMapping("/{id}/assign-pt")
