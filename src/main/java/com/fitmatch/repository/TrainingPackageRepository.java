@@ -12,6 +12,9 @@ public interface TrainingPackageRepository extends JpaRepository<TrainingPackage
 
     List<TrainingPackage> findByGymProfile_Id(Long gymProfileId);
 
+    /** UC-009: catalog public — chỉ gói PUBLISHED của gym hiển thị. */
+    List<TrainingPackage> findByGymProfile_IdAndStatus(Long gymProfileId, com.fitmatch.common.enums.CatalogStatus status);
+
     /** Ownership check theo operator đang đăng nhập (chống IDOR). */
     Optional<TrainingPackage> findByIdAndGymProfile_User_Username(Long id, String username);
 }

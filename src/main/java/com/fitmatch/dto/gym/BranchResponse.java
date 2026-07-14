@@ -23,6 +23,9 @@ public class BranchResponse {
     private Integer capacity;
     private boolean active;
 
+    /** Giờ mở cửa theo ngày — chỉ đổ ở luồng public marketplace (UC-009). */
+    private java.util.List<OperatingHourDto> operatingHours;
+
     public static BranchResponse of(GymBranch b) {
         return BranchResponse.builder()
                 .id(b.getId())
@@ -34,5 +37,11 @@ public class BranchResponse {
                 .capacity(b.getCapacity())
                 .active(b.isActive())
                 .build();
+    }
+
+    public static BranchResponse of(GymBranch b, java.util.List<OperatingHourDto> hours) {
+        BranchResponse r = of(b);
+        r.setOperatingHours(hours);
+        return r;
     }
 }
