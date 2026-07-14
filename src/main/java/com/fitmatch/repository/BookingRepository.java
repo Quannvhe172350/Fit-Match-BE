@@ -38,6 +38,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
             Long branchId, Collection<BookingStatus> statuses,
             LocalDateTime end, LocalDateTime start, Long excludeId);
 
+    /** UC-049: số buổi đang giữ chỗ của một gói đã mua (chưa hoàn tất) — chống đặt vượt số buổi còn lại. */
+    long countByCustomerPackage_IdAndStatusInAndIdNot(
+            Long customerPackageId, Collection<BookingStatus> statuses, Long excludeId);
+
     /** UC-033: booking đang giữ chỗ của PT chồng lấn [start, end) — chống double-booking. */
     List<Booking> findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
             Long ptId, Collection<BookingStatus> statuses, LocalDateTime end, LocalDateTime start);

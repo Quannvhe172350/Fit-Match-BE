@@ -7,6 +7,8 @@ import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.booking.BookingStatusHistoryResponse;
 import com.fitmatch.dto.booking.CancelBookingRequest;
 import com.fitmatch.dto.booking.CreateBookingRequest;
+import com.fitmatch.dto.booking.CustomerPackageResponse;
+import com.fitmatch.dto.booking.SessionNoteResponse;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
 import com.fitmatch.dto.booking.WaitlistRequest;
 import com.fitmatch.dto.booking.WaitlistResponse;
@@ -55,6 +57,8 @@ public class BookingController {
     private final BookingQueryService bookingQueryService;
     private final PaymentService paymentService;
     private final RefundService refundService;
+    private final com.fitmatch.service.PackageUsageService packageUsageService;
+    private final com.fitmatch.service.SessionNoteService sessionNoteService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -188,6 +192,36 @@ public class BookingController {
             @Valid @RequestBody CreateBookingRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Booking selection updated",
                 bookingService.updateSelection(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-046 — Customer check-in buổi tập",
+            description = "Actor: **Customer**. Booking CONFIRMED, mở từ 30' trước giờ bắt đầu đến hết giờ; mỗi booking check-in một lần. Lỗi: 409 sai trạng thái/ngoài cửa sổ/đã check-in; 404 không thuộc về bạn.")
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<ApiResponse<BookingResponse>> checkIn(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Checked in",
+                bookingService.checkIn(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-051 — Gói tập đã mua của tôi",
+            description = "Actor: **Customer**. Danh sách gói đã kích hoạt kèm số buổi còn lại; dùng customerPackageId để đặt buổi tiếp theo miễn phí (UC-049).")
+    @GetMapping("/my-packages")
+    public ResponseEntity<ApiResponse<java.util.List<CustomerPackageResponse>>> myPackages(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(
+                packageUsageService.myPackages(userDetails.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-048/051 — Ghi chú buổi tập của booking",
+            description = "Actor: **Customer**. Đọc ghi chú/bằng chứng do Gym/PT ghi nhận — theo dõi tiến độ luyện tập.")
+    @GetMapping("/{id}/notes")
+    public ResponseEntity<ApiResponse<java.util.List<SessionNoteResponse>>> notes(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                sessionNoteService.listForCustomer(userDetails.getUsername(), id)));
     }
 
     @Operation(

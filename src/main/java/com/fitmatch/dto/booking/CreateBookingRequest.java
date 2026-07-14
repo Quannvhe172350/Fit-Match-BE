@@ -28,6 +28,9 @@ public class CreateBookingRequest {
 
     private Long ptId;
 
+    /** UC-049: đặt buổi tập từ gói ĐÃ MUA — miễn phí, trừ dần số buổi khi hoàn tất. */
+    private Long customerPackageId;
+
     private LocalDateTime startAt;
 
     private LocalDateTime endAt;

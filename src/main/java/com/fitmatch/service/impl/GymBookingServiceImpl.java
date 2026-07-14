@@ -41,6 +41,8 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final RefundService refundService;
     private final SettlementService settlementService;
     private final PaymentService paymentService;
+    private final com.fitmatch.service.PackageUsageService packageUsageService;
+    private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
 
     @Override
     @Transactional(readOnly = true)
@@ -159,6 +161,8 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-043: khách không đến -> theo chính sách nền tảng, tiền giữ được chuyển
         // cho Gym (qua pending settlement, vẫn có holding period để khiếu nại).
         settlementService.settleAfterFulfillment(booking, "no-show");
+        // UC-049: no-show vẫn tiêu thụ buổi của gói (chính sách nền tảng).
+        packageUsageService.onBookingFulfilled(booking);
         bookingRepository.save(booking);
         auditService.record(AuditActions.BOOKING_NO_SHOW, "Booking", bookingId,
                 "No-show recorded by gym " + gymUsername);
@@ -178,9 +182,30 @@ public class GymBookingServiceImpl implements GymBookingService {
         booking.setCompletedAt(java.time.LocalDateTime.now());
         // UC-049/058: hoàn tất -> tiền giữ chuyển sang pending settlement.
         settlementService.settleAfterFulfillment(booking, "session completed");
+        // UC-049: kích hoạt gói (booking mua gói) hoặc trừ một buổi (buổi thuộc gói).
+        packageUsageService.onBookingFulfilled(booking);
         bookingRepository.save(booking);
         auditService.record(AuditActions.BOOKING_COMPLETE, "Booking", bookingId,
                 "Completed by gym " + gymUsername);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse checkIn(String gymUsername, Long bookingId) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        attendanceSupport.checkIn(booking, "gym " + gymUsername);
+        bookingRepository.save(booking);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse correctAttendance(String gymUsername, Long bookingId,
+                                             com.fitmatch.dto.booking.CorrectAttendanceRequest request) {
+        Booking booking = requireOwned(gymUsername, bookingId);
+        attendanceSupport.correct(booking, request, "gym " + gymUsername);
+        bookingRepository.save(booking);
         return BookingResponse.of(booking);
     }
 

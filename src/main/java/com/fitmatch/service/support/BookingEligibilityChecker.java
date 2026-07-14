@@ -52,12 +52,31 @@ public class BookingEligibilityChecker {
             reasons.add("Gym is not available for booking");
         }
 
-        // Catalog phải PUBLISHED.
+        // Catalog phải PUBLISHED — trừ buổi tập từ gói đã mua (khách vẫn còn quyền
+        // dùng buổi kể cả khi gym đã ẩn/ngừng bán gói).
+        boolean packageSession = booking.getCustomerPackage() != null;
         if (hasService && booking.getGymService().getStatus() != CatalogStatus.PUBLISHED) {
             reasons.add("Service is not published");
         }
-        if (hasPackage && booking.getTrainingPackage().getStatus() != CatalogStatus.PUBLISHED) {
+        if (hasPackage && !packageSession
+                && booking.getTrainingPackage().getStatus() != CatalogStatus.PUBLISHED) {
             reasons.add("Package is not published");
+        }
+
+        // UC-049: gói đã mua phải còn hiệu lực và còn buổi (kể cả buổi đang giữ chỗ).
+        if (packageSession) {
+            var cp = booking.getCustomerPackage();
+            if (cp.getStatus() != com.fitmatch.common.enums.CustomerPackageStatus.ACTIVE) {
+                reasons.add("Customer package is " + cp.getStatus());
+            } else {
+                long holding = bookingRepository.countByCustomerPackage_IdAndStatusInAndIdNot(
+                        cp.getId(), HOLDING_STATUSES, booking.getId());
+                if (cp.getSessionsUsed() + holding >= cp.getSessionsTotal()) {
+                    reasons.add("No remaining sessions in the purchased package (used "
+                            + cp.getSessionsUsed() + ", holding " + holding
+                            + " of " + cp.getSessionsTotal() + ")");
+                }
+            }
         }
 
         // Khung giờ bắt buộc và ở tương lai.

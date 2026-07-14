@@ -46,6 +46,8 @@ public class BookingServiceImpl implements BookingService {
     private final BookingLifecycle bookingLifecycle;
     private final PaymentService paymentService;
     private final RefundService refundService;
+    private final com.fitmatch.service.PackageUsageService packageUsageService;
+    private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
 
     @Override
     @Transactional
@@ -53,13 +55,14 @@ public class BookingServiceImpl implements BookingService {
         User customer = userRepository.findByUsername(customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("User", customerUsername));
 
-        Selection selection = resolveSelection(request, null);
+        Selection selection = resolveSelection(request, null, customerUsername);
 
         Booking booking = bookingRepository.save(Booking.builder()
                 .customer(customer)
                 .gymProfile(selection.gym)
                 .gymService(selection.service)
                 .trainingPackage(selection.trainingPackage)
+                .customerPackage(selection.customerPackage)
                 .gymBranch(selection.branch)
                 .ptProfile(selection.pt)
                 .startAt(request.getStartAt())
@@ -82,13 +85,17 @@ public class BookingServiceImpl implements BookingService {
                     "Selection can only be changed while the booking is DRAFT (current: " + booking.getStatus() + ")");
         }
 
-        Selection selection = resolveSelection(request, booking.getGymProfile());
+        Selection selection = resolveSelection(request, booking.getGymProfile(), customerUsername);
         booking.setGymProfile(selection.gym);
         if (request.getServiceId() != null) {
             booking.setGymService(selection.service);
         }
         if (request.getPackageId() != null) {
             booking.setTrainingPackage(selection.trainingPackage);
+        }
+        if (request.getCustomerPackageId() != null) {
+            booking.setTrainingPackage(selection.trainingPackage);
+            booking.setCustomerPackage(selection.customerPackage);
         }
         if (request.getBranchId() != null) {
             booking.setGymBranch(selection.branch);
@@ -211,6 +218,16 @@ public class BookingServiceImpl implements BookingService {
         return BookingResponse.of(booking);
     }
 
+    @Override
+    @Transactional
+    public BookingResponse checkIn(String customerUsername, Long bookingId) {
+        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        attendanceSupport.checkIn(booking, "customer " + customerUsername);
+        bookingRepository.save(booking);
+        return BookingResponse.of(booking);
+    }
+
     private Integer resolveFreeCancellationHours(Booking booking) {
         if (booking.getGymService() != null && booking.getGymService().getBookingRules() != null) {
             return booking.getGymService().getBookingRules().getFreeCancellationHours();
@@ -225,8 +242,21 @@ public class BookingServiceImpl implements BookingService {
      * Resolve các đích được truyền và bảo đảm tất cả thuộc CÙNG một Gym.
      * currentGym != null (khi cập nhật DRAFT) được dùng làm Gym mặc định.
      */
-    private Selection resolveSelection(CreateBookingRequest request, GymProfile currentGym) {
+    private Selection resolveSelection(CreateBookingRequest request, GymProfile currentGym,
+                                       String customerUsername) {
         Selection s = new Selection();
+
+        // UC-049: buổi tập từ gói ĐÃ MUA — loại trừ lẫn nhau với mua mới service/package.
+        if (request.getCustomerPackageId() != null) {
+            if (request.getServiceId() != null || request.getPackageId() != null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        "customerPackageId cannot be combined with serviceId/packageId");
+            }
+            var cp = packageUsageService.requireUsable(request.getCustomerPackageId(), customerUsername);
+            s.customerPackage = cp;
+            s.trainingPackage = cp.getTrainingPackage();
+            s.gym = cp.getTrainingPackage().getGymProfile();
+        }
 
         if (request.getServiceId() != null) {
             s.service = gymServiceRepository.findById(request.getServiceId())
@@ -278,6 +308,7 @@ public class BookingServiceImpl implements BookingService {
         GymProfile gym;
         GymService service;
         TrainingPackage trainingPackage;
+        com.fitmatch.entity.CustomerPackage customerPackage;
         GymBranch branch;
         PtProfile pt;
     }

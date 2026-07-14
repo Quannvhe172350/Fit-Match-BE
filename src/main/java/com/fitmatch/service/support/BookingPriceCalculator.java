@@ -17,6 +17,12 @@ public class BookingPriceCalculator {
 
     /** Gán totalAmount + payableAmount vào booking. */
     public void applyPricing(Booking booking) {
+        // UC-049: buổi tập thuộc gói ĐÃ MUA — tiền đã trả ở booking mua gói.
+        if (booking.getCustomerPackage() != null) {
+            booking.setTotalAmount(BigDecimal.ZERO);
+            booking.setPayableAmount(BigDecimal.ZERO);
+            return;
+        }
         BigDecimal total;
         BookingRules rules;
         if (booking.getGymService() != null) {

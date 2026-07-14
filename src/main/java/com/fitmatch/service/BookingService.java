@@ -30,4 +30,7 @@ public interface BookingService {
      * (freeCancellationHours) bị đánh dấu lateCancellation (UC-043).
      */
     BookingResponse cancel(String customerUsername, Long bookingId, String reason);
+
+    /** UC-046: customer tự check-in buổi tập CONFIRMED trong cửa sổ cho phép. */
+    BookingResponse checkIn(String customerUsername, Long bookingId);
 }

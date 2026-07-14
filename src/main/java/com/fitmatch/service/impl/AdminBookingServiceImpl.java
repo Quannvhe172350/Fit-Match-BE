@@ -21,6 +21,7 @@ public class AdminBookingServiceImpl implements AdminBookingService {
     private final BookingRepository bookingRepository;
     private final BookingPaymentHandler bookingPaymentHandler;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
 
     @Override
     @Transactional
@@ -36,6 +37,18 @@ public class AdminBookingServiceImpl implements AdminBookingService {
         auditService.record(AuditActions.BOOKING_PAYMENT_HOLD, "Booking", bookingId,
                 "Payment hold confirmed by " + actorUsername);
         log.info("Booking {} payment hold confirmed by {}", bookingId, actorUsername);
+        return BookingResponse.of(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse correctAttendance(Long bookingId,
+                                             com.fitmatch.dto.booking.CorrectAttendanceRequest request,
+                                             String actorUsername) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        attendanceSupport.correct(booking, request, "admin " + actorUsername);
+        bookingRepository.save(booking);
         return BookingResponse.of(booking);
     }
 }

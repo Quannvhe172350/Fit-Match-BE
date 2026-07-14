@@ -55,6 +55,31 @@ public class BookingLifecycle {
         log.info("Booking {} note: {}", booking.getId(), reason);
     }
 
+    /** Hai trạng thái kết quả điểm danh có thể hiệu chỉnh lẫn nhau (UC-050). */
+    private static final Set<BookingStatus> CORRECTABLE = Set.of(COMPLETED, NO_SHOW);
+
+    /**
+     * UC-050: hiệu chỉnh kết quả điểm danh COMPLETED <-> NO_SHOW (ngoài state
+     * machine thường). Chỉ dùng cho luồng correct-attendance có lý do + audit;
+     * caller phải tự bảo đảm tiền chưa giải ngân/hoàn.
+     */
+    public void overrideForCorrection(Booking booking, BookingStatus to, String reason) {
+        BookingStatus from = booking.getStatus();
+        if (!CORRECTABLE.contains(from) || !CORRECTABLE.contains(to) || from == to) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Attendance correction only allows COMPLETED <-> NO_SHOW (from " + from + " to " + to + ")");
+        }
+        booking.setStatus(to);
+        booking.setStatusReason(reason);
+        historyRepository.save(BookingStatusHistory.builder()
+                .booking(booking)
+                .fromStatus(from)
+                .toStatus(to)
+                .reason(reason)
+                .build());
+        log.info("Booking {} attendance corrected {} -> {} ({})", booking.getId(), from, to, reason);
+    }
+
     /** Chuyển trạng thái nếu hợp lệ; ghi history; ném 409 nếu chuyển sai luồng. */
     public void transition(Booking booking, BookingStatus to, String reason) {
         BookingStatus from = booking.getStatus();

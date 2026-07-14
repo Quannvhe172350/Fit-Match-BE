@@ -7,11 +7,15 @@ import com.fitmatch.dto.admin.RejectRequest;
 import com.fitmatch.dto.booking.AssignBookingPtRequest;
 import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.booking.BookingStatusHistoryResponse;
+import com.fitmatch.dto.booking.CorrectAttendanceRequest;
 import com.fitmatch.dto.booking.GymAcceptBookingRequest;
 import com.fitmatch.dto.booking.RescheduleBookingRequest;
+import com.fitmatch.dto.booking.SessionNoteRequest;
+import com.fitmatch.dto.booking.SessionNoteResponse;
 import com.fitmatch.dto.booking.WaitlistResponse;
 import com.fitmatch.service.BookingQueryService;
 import com.fitmatch.service.GymBookingService;
+import com.fitmatch.service.SessionNoteService;
 import com.fitmatch.service.WaitlistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -44,6 +48,7 @@ import java.util.List;
 public class GymBookingController {
 
     private final GymBookingService gymBookingService;
+    private final SessionNoteService sessionNoteService;
     private final WaitlistService waitlistService;
     private final BookingQueryService bookingQueryService;
 
@@ -159,6 +164,51 @@ public class GymBookingController {
             @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Booking completed",
                 gymBookingService.complete(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-046 — Gym check-in cho khách",
+            description = "Actor: **Gym Operator**. Ghi nhận khách đến (quầy lễ tân/quét QR). Booking CONFIRMED, trong cửa sổ 30' trước giờ bắt đầu đến hết giờ. Lỗi: 409 sai trạng thái/ngoài cửa sổ/đã check-in.")
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<ApiResponse<BookingResponse>> checkIn(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Checked in",
+                gymBookingService.checkIn(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-050 — Hiệu chỉnh bản ghi điểm danh/hoàn tất",
+            description = "Actor: **Gym Operator**. Sửa mốc check-in hoặc đổi COMPLETED <-> NO_SHOW kèm lý do (ghi audit). Chặn sau khi tiền đã giải ngân/hoàn. Lỗi: 409 không thể hiệu chỉnh; 400 thiếu nội dung sửa.")
+    @PostMapping("/{id}/correct-attendance")
+    public ResponseEntity<ApiResponse<BookingResponse>> correctAttendance(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody CorrectAttendanceRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Attendance corrected",
+                gymBookingService.correctAttendance(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-048 — Ghi chú buổi tập (kèm bằng chứng)",
+            description = "Actor: **Gym Operator**. Booking CONFIRMED/COMPLETED/NO_SHOW; evidenceUrl là file đã upload qua /api/files.")
+    @PostMapping("/{id}/notes")
+    public ResponseEntity<ApiResponse<SessionNoteResponse>> addNote(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody SessionNoteRequest request) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.success("Note added",
+                        sessionNoteService.addForGym(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-048 — Danh sách ghi chú buổi tập",
+            description = "Actor: **Gym Operator**.")
+    @GetMapping("/{id}/notes")
+    public ResponseEntity<ApiResponse<List<SessionNoteResponse>>> notes(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                sessionNoteService.listForGym(userDetails.getUsername(), id)));
     }
 
     @Operation(

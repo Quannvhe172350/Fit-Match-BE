@@ -101,6 +101,15 @@ public class Booking extends BaseEntity {
     @Builder.Default
     private boolean lateCancellation = false;
 
+    /** UC-046: thời điểm khách check-in vào buổi tập (null = chưa check-in). */
+    @Column(name = "checked_in_at")
+    private LocalDateTime checkedInAt;
+
+    /** UC-049: buổi tập thuộc gói đã mua — miễn phí, trừ dần sessionsUsed khi hoàn tất. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_package_id")
+    private CustomerPackage customerPackage;
+
     /** Thời điểm buổi tập được ghi nhận hoàn tất (UC-049). */
     @Column(name = "completed_at")
     private LocalDateTime completedAt;

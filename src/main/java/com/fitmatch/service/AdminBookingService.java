@@ -13,4 +13,9 @@ public interface AdminBookingService {
      * VietQR/Casso khi đối soát thành công.
      */
     BookingResponse confirmPaymentHold(Long bookingId, String actorUsername);
+
+    /** UC-050: admin hiệu chỉnh bản ghi điểm danh/hoàn tất kèm lý do + audit. */
+    BookingResponse correctAttendance(Long bookingId,
+                                      com.fitmatch.dto.booking.CorrectAttendanceRequest request,
+                                      String actorUsername);
 }

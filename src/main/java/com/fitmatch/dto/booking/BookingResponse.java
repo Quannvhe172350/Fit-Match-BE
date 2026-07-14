@@ -29,6 +29,8 @@ public class BookingResponse {
     private Long packageId;
     private String packageName;
     private Long ptId;
+    private Long customerPackageId;
+    private LocalDateTime checkedInAt;
     private String ptDisplayName;
     private LocalDateTime startAt;
     private LocalDateTime endAt;
@@ -53,6 +55,8 @@ public class BookingResponse {
                 .packageId(b.getTrainingPackage() != null ? b.getTrainingPackage().getId() : null)
                 .packageName(b.getTrainingPackage() != null ? b.getTrainingPackage().getName() : null)
                 .ptId(b.getPtProfile() != null ? b.getPtProfile().getId() : null)
+                .customerPackageId(b.getCustomerPackage() != null ? b.getCustomerPackage().getId() : null)
+                .checkedInAt(b.getCheckedInAt())
                 .ptDisplayName(b.getPtProfile() != null ? b.getPtProfile().getDisplayName() : null)
                 .startAt(b.getStartAt())
                 .endAt(b.getEndAt())

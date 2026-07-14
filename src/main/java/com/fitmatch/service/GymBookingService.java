@@ -34,7 +34,14 @@ public interface GymBookingService {
 
     /**
      * UC-049: xác nhận buổi tập đã diễn ra -> COMPLETED; tiền giữ chuyển sang
-     * pending settlement chờ hết holding period (UC-058).
+     * pending settlement chờ hết holding period (UC-058); buổi thuộc gói bị trừ.
      */
     BookingResponse complete(String gymUsername, Long bookingId);
+
+    /** UC-046: gym ghi nhận check-in cho khách (quầy lễ tân/quét QR). */
+    BookingResponse checkIn(String gymUsername, Long bookingId);
+
+    /** UC-050: hiệu chỉnh mốc check-in / kết quả COMPLETED <-> NO_SHOW kèm lý do + audit. */
+    BookingResponse correctAttendance(String gymUsername, Long bookingId,
+                                      com.fitmatch.dto.booking.CorrectAttendanceRequest request);
 }

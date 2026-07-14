@@ -74,4 +74,17 @@ public class AdminBookingController {
         return ResponseEntity.ok(ApiResponse.success("Payment hold confirmed",
                 adminBookingService.confirmPaymentHold(id, actor.getUsername())));
     }
+
+    @Operation(
+            summary = "UC-050 — Admin hiệu chỉnh bản ghi điểm danh/hoàn tất",
+            description = "Actor: **Admin**. Sửa mốc check-in hoặc đổi COMPLETED <-> NO_SHOW kèm lý do (ghi audit). Chặn sau khi tiền đã giải ngân/hoàn. Lỗi: 409 không thể hiệu chỉnh; 400 thiếu nội dung sửa.")
+    @PostMapping("/{id}/correct-attendance")
+    public ResponseEntity<ApiResponse<BookingResponse>> correctAttendance(
+            @PathVariable Long id,
+            @jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+            com.fitmatch.dto.booking.CorrectAttendanceRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Attendance corrected",
+                adminBookingService.correctAttendance(id, request, actor.getUsername())));
+    }
 }
