@@ -66,6 +66,9 @@ public class PtAvailabilityServiceImpl implements PtAvailabilityService {
 
     /** Thay toàn bộ lịch tuần; validate start<end và không chồng lấn trong cùng ngày. */
     private List<AvailabilitySlotDto> replaceSlots(PtProfile pt, UpdateAvailabilityRequest request) {
+        // UC-028: khoá PT — gym và PT có thể replace đồng thời; không khoá sẽ
+        // interleave delete/insert tạo slot trùng/chồng lấn.
+        ptProfileRepository.lockById(pt.getId());
         List<AvailabilitySlotDto> slots = request.getSlots();
         for (AvailabilitySlotDto s : slots) {
             if (!s.getStartTime().isBefore(s.getEndTime())) {

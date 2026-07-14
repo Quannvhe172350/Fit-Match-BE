@@ -120,9 +120,13 @@ public class BookingServiceImpl implements BookingService {
                     "Only a DRAFT booking can be checked out (current: " + booking.getStatus() + ")");
         }
 
-        // UC-033: khoá bản ghi PT để tuần tự hoá giữ chỗ (chống double-booking race).
+        // UC-033: khoá bản ghi PT rồi chi nhánh (thứ tự cố định, tránh deadlock)
+        // để tuần tự hoá giữ chỗ — chống double-booking / vượt capacity khi đồng thời.
         if (booking.getPtProfile() != null) {
             ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        if (booking.getGymBranch() != null) {
+            gymBranchRepository.lockById(booking.getGymBranch().getId());
         }
         bookingEligibilityChecker.assertEligible(booking);
 
@@ -161,6 +165,9 @@ public class BookingServiceImpl implements BookingService {
         }
         if (booking.getPtProfile() != null) {
             ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        if (booking.getGymBranch() != null) {
+            gymBranchRepository.lockById(booking.getGymBranch().getId());
         }
         var issues = bookingEligibilityChecker.rescheduleIssues(booking, startAt, endAt);
         if (!issues.isEmpty()) {

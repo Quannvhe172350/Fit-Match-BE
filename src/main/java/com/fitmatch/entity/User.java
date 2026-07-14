@@ -68,6 +68,14 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean emailVerified = false;
 
+    /**
+     * Phiên bản token (UC-003/004): nhúng vào claim JWT; tăng lên khi logout /
+     * đổi / reset mật khẩu để vô hiệu hoá toàn bộ access + refresh token cũ.
+     */
+    @Column(name = "token_version", nullable = false)
+    @Builder.Default
+    private int tokenVersion = 0;
+
     // Fitness Metrics
     @Column
     private Double height;

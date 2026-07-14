@@ -116,6 +116,19 @@ public class BookingEligibilityChecker {
         if (!start.isAfter(LocalDateTime.now())) {
             reasons.add("startAt must be in the future");
         }
+        // UC-041: dời lịch vẫn phải tôn trọng trạng thái Gym và notice tối thiểu.
+        if (booking.getGymProfile().getVerificationStatus() != VerificationStatus.APPROVED
+                || !booking.getGymProfile().isActive()) {
+            reasons.add("Gym is not available for booking");
+        }
+        BookingRules rules = booking.getGymService() != null
+                ? booking.getGymService().getBookingRules()
+                : (booking.getTrainingPackage() != null
+                        ? booking.getTrainingPackage().getBookingRules() : null);
+        if (rules != null && rules.getMinNoticeHours() != null
+                && Duration.between(LocalDateTime.now(), start).toHours() < rules.getMinNoticeHours()) {
+            reasons.add("Booking requires at least " + rules.getMinNoticeHours() + " hours notice");
+        }
         if (booking.getPtProfile() != null) {
             Long ptId = booking.getPtProfile().getId();
             reasons.addAll(scheduleConflictValidator.checkPt(ptId, start, end));
@@ -132,9 +145,10 @@ public class BookingEligibilityChecker {
             reasons.addAll(scheduleConflictValidator.checkBranch(booking.getGymBranch().getId(), start, end));
             Integer capacity = booking.getGymBranch().getCapacity();
             if (capacity != null) {
+                // Loại trừ chính booking đang dời — khung giờ cũ có thể trùng khung mới.
                 long held = bookingRepository
-                        .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
-                                booking.getGymBranch().getId(), HOLDING_STATUSES, end, start);
+                        .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThanAndIdNot(
+                                booking.getGymBranch().getId(), HOLDING_STATUSES, end, start, booking.getId());
                 if (held >= capacity) {
                     reasons.add("Branch capacity is full for this time slot");
                 }

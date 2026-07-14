@@ -25,8 +25,6 @@ import com.fitmatch.service.support.EmailVerificationIssuer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,7 +43,6 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
-    private final UserDetailsService userDetailsService;
     private final EmailService emailService;
     private final EmailVerificationIssuer emailVerificationIssuer;
 
@@ -82,37 +79,26 @@ public class AuthServiceImpl implements AuthService {
         // UC-01: phát hành token xác minh email và gửi qua EmailService (stub).
         emailVerificationIssuer.issue(user);
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getUsername(), user.getRole().name());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUsername());
-
-        return AuthResponse.of(accessToken, refreshToken, jwtTokenProvider.getAccessTokenExpiration());
+        return issueTokens(user);
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        UserDetails userDetails;
-        try {
-            userDetails = userDetailsService.loadUserByUsername(request.getUsername());
-        } catch (Exception e) {
+        // UC-003: kiểm tra mật khẩu TRƯỚC khi tiết lộ trạng thái khóa
+        // (chống account enumeration nhưng vẫn trả 403 đúng cho tài khoản bị khóa).
+        User user = userRepository.findByUsername(request.getUsername()).orElse(null);
+        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.debug("Login failed for username: {}", request.getUsername());
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
-
-        if (!passwordEncoder.matches(request.getPassword(), userDetails.getPassword())) {
-            log.debug("Invalid password for username: {}", request.getUsername());
-            throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
+        if (user.getStatus() != com.fitmatch.common.enums.UserStatus.ACTIVE) {
+            log.info("Login blocked for non-active account: {} ({})", user.getUsername(), user.getStatus());
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
+                    "Account is " + user.getStatus().name().toLowerCase());
         }
 
-        String role = userDetails.getAuthorities().stream()
-                .findFirst()
-                .map(Object::toString)
-                .orElseThrow(() -> new BusinessException(ErrorCode.INTERNAL_ERROR, "User has no role"));
-
-        String accessToken = jwtTokenProvider.generateAccessToken(userDetails.getUsername(), role);
-        String refreshToken = jwtTokenProvider.generateRefreshToken(userDetails.getUsername());
-
         log.info("User logged in: {}", request.getUsername());
-        return AuthResponse.of(accessToken, refreshToken, jwtTokenProvider.getAccessTokenExpiration());
+        return issueTokens(user);
     }
 
     @Override
@@ -123,18 +109,25 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getUsername(), user.getRole().name());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getUsername());
+        // UC-003: refresh token phát hành trước lần logout/đổi mật khẩu gần nhất bị từ chối.
+        if (jwtTokenProvider.getVersionFromRefreshToken(request.getRefreshToken()) != user.getTokenVersion()) {
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "Refresh token has been revoked");
+        }
+        if (user.getStatus() != com.fitmatch.common.enums.UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
+                    "Account is " + user.getStatus().name().toLowerCase());
+        }
 
         log.debug("Token refreshed for user: {}", username);
-        return AuthResponse.of(accessToken, refreshToken, jwtTokenProvider.getAccessTokenExpiration());
+        return issueTokens(user);
     }
 
     @Override
+    @Transactional
     public void logout(String username) {
-        log.info("User logged out: {}", username);
-        // Stateless JWT — client must discard tokens.
-        // Token blacklisting via Redis can be added later.
+        // UC-003: stateless JWT — tăng tokenVersion để mọi access/refresh token cũ hết hiệu lực.
+        userRepository.findByUsername(username).ifPresent(this::revokeAllTokens);
+        log.info("User logged out (all tokens revoked): {}", username);
     }
 
     @Override
@@ -148,8 +141,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        userRepository.save(user);
-        log.info("Password changed for user: {}", username);
+        // UC-004: đổi mật khẩu vô hiệu hoá mọi phiên/token đang tồn tại.
+        revokeAllTokens(user);
+        log.info("Password changed for user: {} (all tokens revoked)", username);
     }
 
     @Override
@@ -220,9 +214,24 @@ public class AuthServiceImpl implements AuthService {
         User user = token.getUser();
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         token.setUsed(true);
-        userRepository.save(user);
+        // UC-004: reset mật khẩu vô hiệu hoá mọi phiên/token đang tồn tại.
+        revokeAllTokens(user);
         verificationTokenRepository.save(token);
-        log.info("Password reset completed for user: {}", user.getUsername());
+        log.info("Password reset completed for user: {} (all tokens revoked)", user.getUsername());
     }
 
+    /** Phát hành cặp access+refresh token gắn tokenVersion hiện tại của user. */
+    private AuthResponse issueTokens(User user) {
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getUsername(), user.getRole().name(), user.getTokenVersion());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(
+                user.getUsername(), user.getTokenVersion());
+        return AuthResponse.of(accessToken, refreshToken, jwtTokenProvider.getAccessTokenExpiration());
+    }
+
+    /** Tăng tokenVersion — mọi JWT đã phát hành trước đó (mang ver cũ) bị từ chối. */
+    private void revokeAllTokens(User user) {
+        user.setTokenVersion(user.getTokenVersion() + 1);
+        userRepository.save(user);
+    }
 }

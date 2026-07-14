@@ -31,10 +31,11 @@ public class CustomUserDetailsService implements UserDetailsService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "Account is " + user.getStatus().name().toLowerCase());
         }
 
-        return new org.springframework.security.core.userdetails.User(
+        return new AuthUserDetails(
                 user.getUsername(),
                 user.getPasswordHash(),
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name())),
+                user.getTokenVersion()
         );
     }
 }

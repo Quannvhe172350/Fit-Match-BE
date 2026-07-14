@@ -33,6 +33,11 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     List<Booking> findBySettlementStatusAndSettlementPendingAtBefore(
             SettlementStatus settlementStatus, LocalDateTime cutoff);
 
+    /** UC-041: đếm giữ chỗ trùng khung giờ, loại trừ chính booking đang dời lịch. */
+    long countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThanAndIdNot(
+            Long branchId, Collection<BookingStatus> statuses,
+            LocalDateTime end, LocalDateTime start, Long excludeId);
+
     /** UC-033: booking đang giữ chỗ của PT chồng lấn [start, end) — chống double-booking. */
     List<Booking> findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
             Long ptId, Collection<BookingStatus> statuses, LocalDateTime end, LocalDateTime start);

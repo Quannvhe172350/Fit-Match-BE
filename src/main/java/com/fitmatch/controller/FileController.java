@@ -34,6 +34,13 @@ public class FileController {
 
     private static final Set<String> ALLOWED_FOLDERS = Set.of("avatars", "documents", "certifications");
 
+    /** Whitelist MIME (ảnh + PDF) — chặn upload HTML/script/executable. */
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf");
+
+    /** Kích thước tối đa 10MB (khớp cấu hình multipart của Spring). */
+    private static final long MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024;
+
     private final StorageService storageService;
 
     @Operation(
@@ -51,6 +58,14 @@ public class FileController {
         if (!ALLOWED_FOLDERS.contains(folder)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "Invalid folder. Allowed: " + ALLOWED_FOLDERS);
+        }
+        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "File exceeds the 10MB size limit");
+        }
+        if (file.getContentType() == null || !ALLOWED_CONTENT_TYPES.contains(file.getContentType())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Unsupported file type. Allowed: JPEG, PNG, GIF, WEBP, PDF");
         }
         String original = StringUtils.cleanPath(file.getOriginalFilename() != null ? file.getOriginalFilename() : "file");
         String filename = UUID.randomUUID() + "_" + original;

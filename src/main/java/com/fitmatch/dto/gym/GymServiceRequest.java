@@ -31,6 +31,8 @@ public class GymServiceRequest {
     @DecimalMin(value = "0.0", message = "Price must be >= 0")
     private BigDecimal price;
 
+    /** UC-024: bắt buộc — booking cần thời lượng để giữ chỗ khung giờ. */
+    @NotNull(message = "Duration is required")
     @Positive(message = "Duration must be positive")
     private Integer durationMinutes;
 

@@ -37,8 +37,12 @@ public class CassoWebhookController {
             @RequestHeader(value = "Secure-Token", required = false) String secureToken,
             @RequestBody CassoWebhookRequest request) {
         String expected = paymentProperties.getCasso().getWebhookSecret();
-        // Secret rỗng/chưa cấu hình -> từ chối tất cả (fail-safe), tránh so khớp chuỗi rỗng.
-        if (expected == null || expected.isBlank() || !expected.equals(secureToken)) {
+        // Secret rỗng/chưa cấu hình -> từ chối tất cả (fail-safe).
+        // So sánh constant-time (MessageDigest.isEqual) chống timing side-channel.
+        if (expected == null || expected.isBlank() || secureToken == null
+                || !java.security.MessageDigest.isEqual(
+                        expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                        secureToken.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid webhook token");
         }
         int matched = paymentWebhookService.processCasso(request);

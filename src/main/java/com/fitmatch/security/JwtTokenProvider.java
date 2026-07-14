@@ -29,17 +29,30 @@ public class JwtTokenProvider {
             throw new IllegalStateException("JWT secret must be at least 256 bits (32 bytes) when Base64-decoded");
         }
         this.accessTokenKey = Keys.hmacShaKeyFor(keyBytes);
-        this.refreshTokenKey = Keys.hmacShaKeyFor(("refresh-" + jwtProperties.getSecret()).getBytes());
+        // Khoá refresh dẫn xuất từ key bytes đã decode (SHA-256(keyBytes || "refresh"))
+        // — cùng entropy với access key, không dùng chuỗi Base64 thô.
+        this.refreshTokenKey = Keys.hmacShaKeyFor(deriveRefreshKey(keyBytes));
         this.accessTokenExpiration = jwtProperties.getAccessTokenExpiration();
         this.refreshTokenExpiration = jwtProperties.getRefreshTokenExpiration();
     }
 
-    public String generateAccessToken(String username, String role) {
-        return buildToken(username, role, accessTokenExpiration, accessTokenKey);
+    private static byte[] deriveRefreshKey(byte[] keyBytes) {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            digest.update(keyBytes);
+            digest.update("refresh".getBytes());
+            return digest.digest();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
-    public String generateRefreshToken(String username) {
-        return buildToken(username, null, refreshTokenExpiration, refreshTokenKey);
+    public String generateAccessToken(String username, String role, int tokenVersion) {
+        return buildToken(username, role, tokenVersion, accessTokenExpiration, accessTokenKey);
+    }
+
+    public String generateRefreshToken(String username, int tokenVersion) {
+        return buildToken(username, null, tokenVersion, refreshTokenExpiration, refreshTokenKey);
     }
 
     public String getUsernameFromAccessToken(String token) {
@@ -53,6 +66,17 @@ public class JwtTokenProvider {
 
     public String getUsernameFromRefreshToken(String token) {
         return parseClaims(token, refreshTokenKey).getSubject();
+    }
+
+    /** Phiên bản token trong claim "ver" — token cũ (trước khi có claim) trả 0. */
+    public int getVersionFromAccessToken(String token) {
+        Integer ver = parseClaims(token, accessTokenKey).get("ver", Integer.class);
+        return ver != null ? ver : 0;
+    }
+
+    public int getVersionFromRefreshToken(String token) {
+        Integer ver = parseClaims(token, refreshTokenKey).get("ver", Integer.class);
+        return ver != null ? ver : 0;
     }
 
     public boolean validateAccessToken(String token) {
@@ -85,14 +109,15 @@ public class JwtTokenProvider {
         return accessTokenExpiration;
     }
 
-    private String buildToken(String subject, String role, long expiration, SecretKey key) {
+    private String buildToken(String subject, String role, int tokenVersion, long expiration, SecretKey key) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
 
         var builder = Jwts.builder()
                 .subject(subject)
                 .issuedAt(now)
-                .expiration(expiryDate);
+                .expiration(expiryDate)
+                .claim("ver", tokenVersion);
 
         if (role != null) {
             builder.claim("role", role);

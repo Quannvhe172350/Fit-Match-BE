@@ -10,6 +10,7 @@ import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.GymBookingService;
@@ -33,6 +34,7 @@ public class GymBookingServiceImpl implements GymBookingService {
 
     private final BookingRepository bookingRepository;
     private final PtProfileRepository ptProfileRepository;
+    private final GymBranchRepository gymBranchRepository;
     private final BookingEligibilityChecker bookingEligibilityChecker;
     private final BookingLifecycle bookingLifecycle;
     private final AuditService auditService;
@@ -112,6 +114,9 @@ public class GymBookingServiceImpl implements GymBookingService {
         }
         if (booking.getPtProfile() != null) {
             ptProfileRepository.lockById(booking.getPtProfile().getId());
+        }
+        if (booking.getGymBranch() != null) {
+            gymBranchRepository.lockById(booking.getGymBranch().getId());
         }
         List<String> issues = bookingEligibilityChecker.rescheduleIssues(booking, startAt, endAt);
         if (!issues.isEmpty()) {

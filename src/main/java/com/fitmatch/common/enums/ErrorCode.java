@@ -26,7 +26,9 @@ public enum ErrorCode {
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "Insufficient wallet balance"),
     DUPLICATE_WEBHOOK(HttpStatus.OK, "Webhook already processed"),
     LEGACY_ENDPOINT_DISABLED(HttpStatus.GONE,
-            "This endpoint belongs to the removed PT self-registration model. PTs are managed by their Gym (POST /api/gym/pts)");
+            "This endpoint belongs to the removed PT self-registration model. PTs are managed by their Gym (POST /api/gym/pts)"),
+    ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "Account is locked or inactive"),
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests - please try again later");
 
     private final HttpStatus status;
     private final String defaultMessage;

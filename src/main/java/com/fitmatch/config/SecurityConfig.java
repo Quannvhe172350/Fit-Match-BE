@@ -1,6 +1,9 @@
 package com.fitmatch.config;
 
+import com.fitmatch.security.AuthRateLimitFilter;
 import com.fitmatch.security.JwtAuthFilter;
+import com.fitmatch.security.RestAccessDeniedHandler;
+import com.fitmatch.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +31,9 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AuthRateLimitFilter authRateLimitFilter;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
+    private final RestAccessDeniedHandler restAccessDeniedHandler;
 
     @Value("${cors.allowed-origins:*}")
     private List<String> allowedOrigins;
@@ -85,7 +91,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/marketplace/**", "/api/public/**").permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                // UC-003: 401 trả mã cụ thể (TOKEN_EXPIRED/TOKEN_INVALID), 403 chuẩn JSON.
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(restAuthenticationEntryPoint)
+                        .accessDeniedHandler(restAccessDeniedHandler))
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Rate limit các endpoint auth trước khi vào xử lý JWT.
+                .addFilterBefore(authRateLimitFilter, JwtAuthFilter.class);
 
         return http.build();
     }

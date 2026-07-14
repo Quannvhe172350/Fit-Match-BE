@@ -42,6 +42,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String role = jwtTokenProvider.getRoleFromAccessToken(token);
 
                 var userDetails = userDetailsService.loadUserByUsername(username);
+                // UC-003/004: token phát hành trước lần logout/đổi mật khẩu gần nhất bị từ chối.
+                if (userDetails instanceof AuthUserDetails auth
+                        && auth.getTokenVersion() != jwtTokenProvider.getVersionFromAccessToken(token)) {
+                    throw new BusinessException(ErrorCode.TOKEN_INVALID, "Token has been revoked");
+                }
                 var authorities = Collections.singletonList(
                         new SimpleGrantedAuthority(role)
                 );
