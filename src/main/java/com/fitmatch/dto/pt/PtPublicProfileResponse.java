@@ -28,6 +28,10 @@ public class PtPublicProfileResponse {
     private Integer experienceYears;
     private List<CertificationResponse> certifications;
 
+    /** Điểm đánh giá trung bình (VISIBLE) và số lượt — UC-071. */
+    private java.math.BigDecimal averageRating;
+    private Long reviewCount;
+
     public static PtPublicProfileResponse of(PtProfile p, List<CertificationResponse> certifications) {
         return PtPublicProfileResponse.builder()
                 .id(p.getId())
@@ -38,5 +42,13 @@ public class PtPublicProfileResponse {
                 .experienceYears(p.getExperienceYears())
                 .certifications(certifications)
                 .build();
+    }
+
+    public static PtPublicProfileResponse of(PtProfile p, List<CertificationResponse> certifications,
+                                             java.math.BigDecimal avg, long count) {
+        PtPublicProfileResponse r = of(p, certifications);
+        r.setAverageRating(avg);
+        r.setReviewCount(count);
+        return r;
     }
 }

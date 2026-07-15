@@ -46,6 +46,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final TrainingPackageRepository trainingPackageRepository;
     private final GymMediaRepository gymMediaRepository;
     private final OperatingHourRepository operatingHourRepository;
+    private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
 
     @Override
     @Transactional(readOnly = true)
@@ -70,7 +71,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptProfileId));
         List<CertificationResponse> certs = ptCertificationRepository.findByPtProfile_Id(ptProfileId).stream()
                 .map(CertificationResponse::of).toList();
-        return PtPublicProfileResponse.of(profile, certs);
+        var rating = ratingAggregator.forPt(ptProfileId);
+        return PtPublicProfileResponse.of(profile, certs, rating.average(), rating.count());
     }
 
     @Override
@@ -85,7 +87,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public GymPublicProfileResponse getGymDetail(Long gymProfileId) {
-        return GymPublicProfileResponse.of(requireVisibleGym(gymProfileId));
+        var gym = requireVisibleGym(gymProfileId);
+        var rating = ratingAggregator.forGym(gymProfileId);
+        return GymPublicProfileResponse.of(gym, rating.average(), rating.count());
     }
 
     @Override

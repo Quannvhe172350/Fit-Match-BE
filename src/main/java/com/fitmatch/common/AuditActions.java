@@ -45,4 +45,6 @@ public final class AuditActions {
     public static final String PAYMENT_ORDER_EXPIRE = "PAYMENT_ORDER_EXPIRE";
     public static final String BOOKING_CHECK_IN = "BOOKING_CHECK_IN";
     public static final String ATTENDANCE_CORRECT = "ATTENDANCE_CORRECT";
+    public static final String REVIEW_MODERATE = "REVIEW_MODERATE";
+    public static final String REVIEW_REPORT_RESOLVE = "REVIEW_REPORT_RESOLVE";
 }

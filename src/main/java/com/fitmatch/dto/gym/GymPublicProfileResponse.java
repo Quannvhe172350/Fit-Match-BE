@@ -24,6 +24,10 @@ public class GymPublicProfileResponse {
     private String city;
     private String phone;
 
+    /** Điểm đánh giá trung bình (VISIBLE) và số lượt — UC-071; null ở list nếu chưa tính. */
+    private java.math.BigDecimal averageRating;
+    private Long reviewCount;
+
     public static GymPublicProfileResponse of(GymProfile g) {
         return GymPublicProfileResponse.builder()
                 .id(g.getId())
@@ -33,5 +37,12 @@ public class GymPublicProfileResponse {
                 .city(g.getCity())
                 .phone(g.getPhone())
                 .build();
+    }
+
+    public static GymPublicProfileResponse of(GymProfile g, java.math.BigDecimal avg, long count) {
+        GymPublicProfileResponse r = of(g);
+        r.setAverageRating(avg);
+        r.setReviewCount(count);
+        return r;
     }
 }

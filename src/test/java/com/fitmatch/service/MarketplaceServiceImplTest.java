@@ -32,6 +32,7 @@ class MarketplaceServiceImplTest {
     @Mock private com.fitmatch.repository.TrainingPackageRepository trainingPackageRepository;
     @Mock private com.fitmatch.repository.GymMediaRepository gymMediaRepository;
     @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
+    @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
     @InjectMocks private MarketplaceServiceImpl service;
 
     @Test
@@ -48,6 +49,9 @@ class MarketplaceServiceImplTest {
                 1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
                 .thenReturn(Optional.of(p));
         when(ptCertificationRepository.findByPtProfile_Id(1L)).thenReturn(List.of());
+        when(ratingAggregator.forPt(1L)).thenReturn(
+                new com.fitmatch.service.support.RatingAggregator.Rating(
+                        new java.math.BigDecimal("4.5"), 2));
 
         PtPublicProfileResponse res = service.getPtDetail(1L);
 
