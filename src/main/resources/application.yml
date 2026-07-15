@@ -4,7 +4,9 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mariadb://localhost:3306/fitmatch?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:123456}
+    # Không có default: buộc set DB_PASSWORD (hoặc chạy profile local có cấu hình riêng)
+    # thay vì để mật khẩu mặc định trong file tracked.
+    password: ${DB_PASSWORD}
     driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
@@ -24,7 +26,7 @@ spring:
     baseline-version: 1
 
 server:
-  port: 8080
+  port: 9898
 
 springdoc:
   swagger-ui:
@@ -33,10 +35,11 @@ springdoc:
     path: /v3/api-docs
 
 jwt:
-  # Bắt buộc cấu hình qua env (Base64, >= 32 bytes sau decode); không có default
-  # để app fail-fast thay vì chạy với secret ai cũng biết. Secret cũ trong git
-  # history coi như đã lộ — phải rotate.
-  secret: ${JWT_SECRET:}
+  # Bắt buộc cấu hình qua env (Base64, >= 32 bytes sau decode); KHÔNG có default
+  # để app fail-fast thay vì chạy với secret ai cũng biết. Profile local có secret
+  # riêng trong application-local.yml (đã gitignore). Secret cũ từng nằm trong git
+  # history coi như đã lộ — PHẢI rotate JWT_SECRET ở mọi môi trường.
+  secret: ${JWT_SECRET}
   access-token-expiration: 3600000
   refresh-token-expiration: 604800000
 
