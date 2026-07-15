@@ -24,4 +24,14 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     Page<Dispute> findByStatusOrderByIdDesc(DisputeStatus status, Pageable pageable);
 
     Page<Dispute> findAllByOrderByIdDesc(Pageable pageable);
+
+    /** UC-076: đếm tranh chấp theo trạng thái trong khoảng; gymId null = toàn nền tảng. */
+    @org.springframework.data.jpa.repository.Query(
+            "select d.status, count(d) from Dispute d "
+            + "where d.createdAt between :from and :to "
+            + "and (:gymId is null or d.booking.gymProfile.id = :gymId) group by d.status")
+    java.util.List<Object[]> countByStatusInRange(
+            @org.springframework.data.repository.query.Param("from") java.time.LocalDateTime from,
+            @org.springframework.data.repository.query.Param("to") java.time.LocalDateTime to,
+            @org.springframework.data.repository.query.Param("gymId") Long gymId);
 }

@@ -42,6 +42,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     long countByCustomerPackage_IdAndStatusInAndIdNot(
             Long customerPackageId, Collection<BookingStatus> statuses, Long excludeId);
 
+    /** UC-076: đếm booking theo trạng thái trong khoảng thời gian; gymId null = toàn nền tảng. */
+    @org.springframework.data.jpa.repository.Query(
+            "select b.status, count(b) from Booking b "
+            + "where b.createdAt between :from and :to "
+            + "and (:gymId is null or b.gymProfile.id = :gymId) group by b.status")
+    java.util.List<Object[]> countByStatusInRange(
+            @org.springframework.data.repository.query.Param("from") LocalDateTime from,
+            @org.springframework.data.repository.query.Param("to") LocalDateTime to,
+            @org.springframework.data.repository.query.Param("gymId") Long gymId);
+
     /** UC-033: booking đang giữ chỗ của PT chồng lấn [start, end) — chống double-booking. */
     List<Booking> findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
             Long ptId, Collection<BookingStatus> statuses, LocalDateTime end, LocalDateTime start);
