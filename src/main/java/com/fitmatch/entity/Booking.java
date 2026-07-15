@@ -14,6 +14,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -139,4 +140,14 @@ public class Booking extends BaseEntity {
     /** Thời điểm tiền vào pending settlement — mốc tính holding period (UC-059). */
     @Column(name = "settlement_pending_at")
     private LocalDateTime settlementPendingAt;
+
+    /**
+     * Optimistic lock: chống lost-update khi hai luồng thao tác đồng thời trên
+     * cùng booking (accept vs cancel, webhook vs cancel, double-checkout, double
+     * settlement release). Xem V33__bookings_version.sql.
+     */
+    @Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

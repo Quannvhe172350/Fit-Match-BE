@@ -57,6 +57,12 @@ public class PackageUsageServiceImpl implements PackageUsageService {
     }
 
     private void consume(CustomerPackage cp) {
+        // Defense-in-depth: không tiêu vượt tổng số buổi (race đã được chặn bằng
+        // pessimistic lock ở checkout, nhưng chốt thêm ở đây để không âm quỹ buổi).
+        if (cp.getSessionsUsed() >= cp.getSessionsTotal()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Customer package " + cp.getId() + " has no remaining sessions to consume");
+        }
         cp.setSessionsUsed(cp.getSessionsUsed() + 1);
         if (cp.getSessionsUsed() >= cp.getSessionsTotal()) {
             cp.setStatus(CustomerPackageStatus.EXHAUSTED);

@@ -47,6 +47,7 @@ public class BookingServiceImpl implements BookingService {
     private final PaymentService paymentService;
     private final RefundService refundService;
     private final com.fitmatch.service.PackageUsageService packageUsageService;
+    private final com.fitmatch.repository.CustomerPackageRepository customerPackageRepository;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.VoucherService voucherService;
     private final com.fitmatch.service.LoyaltyService loyaltyService;
@@ -129,8 +130,12 @@ public class BookingServiceImpl implements BookingService {
                     "Only a DRAFT booking can be checked out (current: " + booking.getStatus() + ")");
         }
 
-        // UC-033: khoá bản ghi PT rồi chi nhánh (thứ tự cố định, tránh deadlock)
-        // để tuần tự hoá giữ chỗ — chống double-booking / vượt capacity khi đồng thời.
+        // UC-049/033: khoá theo thứ tự cố định (gói -> PT -> chi nhánh) để tuần tự
+        // hoá giữ chỗ, tránh deadlock — chống race buổi cuối của gói và double-booking
+        // / vượt capacity khi nhiều booking checkout đồng thời.
+        if (booking.getCustomerPackage() != null) {
+            customerPackageRepository.lockById(booking.getCustomerPackage().getId());
+        }
         if (booking.getPtProfile() != null) {
             ptProfileRepository.lockById(booking.getPtProfile().getId());
         }
