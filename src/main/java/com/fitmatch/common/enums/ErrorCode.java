@@ -22,6 +22,7 @@ public enum ErrorCode {
     EMAIL_NOT_VERIFIED(HttpStatus.FORBIDDEN, "Email address has not been verified"),
     PROFILE_EXISTS(HttpStatus.CONFLICT, "Profile already exists for this user"),
     INVALID_STATE(HttpStatus.CONFLICT, "Operation not allowed in the current state"),
+    CONCURRENT_UPDATE(HttpStatus.CONFLICT, "The record was updated concurrently - please retry"),
     PAYMENT_ERROR(HttpStatus.BAD_REQUEST, "Payment processing error"),
     INSUFFICIENT_BALANCE(HttpStatus.CONFLICT, "Insufficient wallet balance"),
     DUPLICATE_WEBHOOK(HttpStatus.OK, "Webhook already processed"),

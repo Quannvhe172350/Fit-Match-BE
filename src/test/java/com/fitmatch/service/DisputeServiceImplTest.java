@@ -147,4 +147,62 @@ class DisputeServiceImplTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_STATE);
     }
+
+    // ---- P0-4: chống áp tài chính 2 lần qua vòng escalate -> resolve ----
+
+    @Test
+    void escalate_onResolvedDispute_throws() {
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.RESOLVED)
+                .booking(booking(SettlementStatus.PENDING_RELEASE, new BigDecimal("200.00")))
+                .frozenAmount(new BigDecimal("200.00")).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+
+        assertThatThrownBy(() -> service.escalate("mod", 1L, "reopen please"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+        assertThat(d.getStatus()).isEqualTo(DisputeStatus.RESOLVED);
+    }
+
+    @Test
+    void escalate_onOpenDispute_succeeds() {
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.OPEN)
+                .booking(booking(SettlementStatus.HELD, null)).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+
+        service.escalate("mod", 1L, "needs higher review");
+
+        assertThat(d.getStatus()).isEqualTo(DisputeStatus.ESCALATED);
+    }
+
+    @Test
+    void resolveThenEscalate_appliesFinancialsExactlyOnce() {
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.UNDER_REVIEW)
+                .booking(booking(SettlementStatus.DISPUTED, new BigDecimal("200.00")))
+                .frozenAmount(new BigDecimal("200.00")).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+
+        service.resolve("mod", 1L,
+                new ResolveDisputeRequest(DisputeResolution.REFUND_FULL, null, "ok"));
+        assertThatThrownBy(() -> service.escalate("mod", 1L, "try again"))
+                .isInstanceOf(BusinessException.class);
+
+        verify(financialApplier, org.mockito.Mockito.times(1))
+                .apply(any(Dispute.class), any(DisputeResolution.class), any());
+    }
+
+    @Test
+    void resolve_secondTimeOnResolved_throws() {
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.RESOLVED)
+                .booking(booking(SettlementStatus.PENDING_RELEASE, new BigDecimal("200.00")))
+                .frozenAmount(new BigDecimal("200.00")).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+
+        assertThatThrownBy(() -> service.resolve("mod", 1L,
+                new ResolveDisputeRequest(DisputeResolution.RELEASE_TO_GYM, null, "again")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+        verify(financialApplier, never()).apply(any(), any(), any());
+    }
 }

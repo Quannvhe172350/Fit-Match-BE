@@ -14,6 +14,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -78,4 +79,13 @@ public class Dispute extends BaseEntity {
 
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
+
+    /**
+     * Optimistic lock (UC-066/067): chống hai lệnh resolve song song cùng áp
+     * tài chính trên frozenAmount. Xem V32__disputes_version.sql.
+     */
+    @Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

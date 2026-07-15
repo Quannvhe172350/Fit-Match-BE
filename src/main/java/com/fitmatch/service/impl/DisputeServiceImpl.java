@@ -231,8 +231,13 @@ public class DisputeServiceImpl implements DisputeService {
     @Transactional
     public DisputeResponse escalate(String moderatorUsername, Long disputeId, String note) {
         Dispute dispute = requireDispute(disputeId);
-        if (dispute.getStatus() == DisputeStatus.CLOSED) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "A closed dispute cannot be escalated");
+        // Chỉ tranh chấp chưa quyết định mới escalate được. Chặn RESOLVED ->
+        // ESCALATED để không thể quay lại resolve() và áp tài chính lần hai
+        // trên cùng frozenAmount (UC-066/067).
+        if (dispute.getStatus() != DisputeStatus.OPEN
+                && dispute.getStatus() != DisputeStatus.UNDER_REVIEW) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Only an OPEN/UNDER_REVIEW dispute can be escalated (current: " + dispute.getStatus() + ")");
         }
         dispute.setStatus(DisputeStatus.ESCALATED);
         if (note != null) dispute.setModeratorNote(note);
