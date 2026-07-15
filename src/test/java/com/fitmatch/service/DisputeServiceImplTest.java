@@ -50,6 +50,7 @@ class DisputeServiceImplTest {
     @Mock private SettlementService settlementService;
     @Mock private DisputeFinancialApplier financialApplier;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private DisputeServiceImpl service;
 
     private Booking booking(SettlementStatus settlement, BigDecimal settlementAmount) {

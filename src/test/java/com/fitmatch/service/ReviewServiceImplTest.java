@@ -40,6 +40,7 @@ class ReviewServiceImplTest {
     @Mock private ReviewReportRepository reviewReportRepository;
     @Mock private BookingRepository bookingRepository;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private ReviewServiceImpl service;
 
     private Booking completedBooking() {

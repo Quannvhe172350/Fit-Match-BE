@@ -32,6 +32,7 @@ public class SettlementServiceImpl implements SettlementService {
     private final WalletService walletService;
     private final CommissionConfigService commissionConfigService;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     public void markHeld(Booking booking) {
@@ -82,6 +83,11 @@ public class SettlementServiceImpl implements SettlementService {
                 booking.getSettlementAmount(), config.getCommissionPercent());
         booking.setSettlementStatus(SettlementStatus.RELEASED);
         bookingRepository.save(booking);
+        // UC-059: báo Gym tiền đã về ví khả dụng (số ròng sau hoa hồng).
+        BigDecimal commission = booking.getSettlementAmount()
+                .multiply(config.getCommissionPercent())
+                .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        notificationDispatcher.settlementReleased(booking, booking.getSettlementAmount().subtract(commission));
         auditService.record(AuditActions.SETTLEMENT_RELEASE, "Booking", bookingId,
                 "Released " + booking.getSettlementAmount() + " to gym (commission "
                         + config.getCommissionPercent() + "%)");

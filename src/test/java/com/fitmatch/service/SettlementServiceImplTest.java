@@ -35,6 +35,7 @@ class SettlementServiceImplTest {
     @Mock private WalletService walletService;
     @Mock private CommissionConfigService commissionConfigService;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private SettlementServiceImpl service;
 
     private Booking heldBooking() {

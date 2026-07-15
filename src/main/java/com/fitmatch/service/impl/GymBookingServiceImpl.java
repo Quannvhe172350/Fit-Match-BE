@@ -43,6 +43,7 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final PaymentService paymentService;
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional(readOnly = true)
@@ -66,6 +67,7 @@ public class GymBookingServiceImpl implements GymBookingService {
         bookingLifecycle.transition(booking, BookingStatus.CONFIRMED,
                 "Accepted by gym " + gymUsername);
         bookingRepository.save(booking);
+        notificationDispatcher.bookingAccepted(booking);
         auditService.record(AuditActions.BOOKING_ACCEPT, "Booking", bookingId,
                 "Accepted by gym " + gymUsername);
         return BookingResponse.of(booking);
@@ -81,6 +83,7 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-038/055: gym từ chối booking đã giữ tiền -> tự mở yêu cầu hoàn toàn bộ.
         refundService.autoCreate(booking, "Gym rejected booking: " + reason);
         paymentService.cancelOrderIfPending(bookingId);
+        notificationDispatcher.bookingRejected(booking, reason);
         auditService.record(AuditActions.BOOKING_REJECT, "Booking", bookingId,
                 "Rejected by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);
@@ -143,6 +146,7 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-042/055: gym chủ động hủy -> khách được mở yêu cầu hoàn toàn bộ.
         refundService.autoCreate(booking, "Gym cancelled booking: " + reason);
         paymentService.cancelOrderIfPending(bookingId);
+        notificationDispatcher.bookingCancelledByGym(booking, reason);
         auditService.record(AuditActions.BOOKING_CANCEL_BY_GYM, "Booking", bookingId,
                 "Cancelled by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);
@@ -164,6 +168,7 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-049: no-show vẫn tiêu thụ buổi của gói (chính sách nền tảng).
         packageUsageService.onBookingFulfilled(booking);
         bookingRepository.save(booking);
+        notificationDispatcher.bookingNoShow(booking);
         auditService.record(AuditActions.BOOKING_NO_SHOW, "Booking", bookingId,
                 "No-show recorded by gym " + gymUsername);
         return BookingResponse.of(booking);
@@ -185,6 +190,7 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-049: kích hoạt gói (booking mua gói) hoặc trừ một buổi (buổi thuộc gói).
         packageUsageService.onBookingFulfilled(booking);
         bookingRepository.save(booking);
+        notificationDispatcher.bookingCompleted(booking);
         auditService.record(AuditActions.BOOKING_COMPLETE, "Booking", bookingId,
                 "Completed by gym " + gymUsername);
         return BookingResponse.of(booking);

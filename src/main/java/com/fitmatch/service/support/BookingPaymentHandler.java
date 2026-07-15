@@ -24,6 +24,7 @@ public class BookingPaymentHandler {
     private final WalletService walletService;
     private final BookingLifecycle bookingLifecycle;
     private final SettlementService settlementService;
+    private final NotificationDispatcher notificationDispatcher;
 
     @Transactional
     public void onPaymentConfirmed(Booking booking, BigDecimal paidAmount, String source) {
@@ -32,6 +33,9 @@ public class BookingPaymentHandler {
         settlementService.markHeld(booking);
         bookingLifecycle.transition(booking, BookingStatus.PENDING_GYM,
                 "Payment confirmed (" + source + ") - funds held, routed to gym");
+        // UC-053/037: báo khách đã thanh toán + báo Gym có booking mới cần xử lý.
+        notificationDispatcher.paymentHeld(booking);
+        notificationDispatcher.bookingRoutedToGym(booking);
         log.info("Booking {} payment confirmed via {} (held {})", booking.getId(), source, paidAmount);
     }
 }

@@ -61,6 +61,7 @@ public class DisputeServiceImpl implements DisputeService {
     private final SettlementService settlementService;
     private final DisputeFinancialApplier financialApplier;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional
@@ -88,6 +89,7 @@ public class DisputeServiceImpl implements DisputeService {
                 .status(DisputeStatus.OPEN)
                 .frozenAmount(frozen)
                 .build());
+        notificationDispatcher.disputeOpened(dispute, username);
         auditService.record(AuditActions.DISPUTE_OPEN, "Dispute", dispute.getId(),
                 "Opened by " + username + " (" + opener.getRole() + ") for booking " + booking.getId());
         log.info("Dispute {} opened for booking {} (frozen {})", dispute.getId(), booking.getId(), frozen);
@@ -203,6 +205,7 @@ public class DisputeServiceImpl implements DisputeService {
         dispute.setModeratorNote(request.getNote());
         dispute.setStatus(DisputeStatus.RESOLVED);
         dispute.setResolvedAt(LocalDateTime.now());
+        notificationDispatcher.disputeResolved(dispute);
         auditService.record(AuditActions.DISPUTE_RESOLVE, "Dispute", disputeId,
                 "Resolved " + request.getResolution() + " by " + moderatorUsername
                         + (request.getRefundAmount() != null ? " (refund " + request.getRefundAmount() + ")" : ""));

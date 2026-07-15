@@ -36,6 +36,7 @@ class RefundServiceImplTest {
     @Mock private WalletService walletService;
     @Mock private SettlementService settlementService;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private RefundServiceImpl service;
 
     private Booking booking(BookingStatus status, SettlementStatus settlement) {

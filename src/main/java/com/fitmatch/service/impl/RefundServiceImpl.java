@@ -41,6 +41,7 @@ public class RefundServiceImpl implements RefundService {
     private final WalletService walletService;
     private final SettlementService settlementService;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional
@@ -102,6 +103,9 @@ public class RefundServiceImpl implements RefundService {
                 + (note != null && !note.isBlank() ? " — " + note : ""));
         refundRequestRepository.save(request);
 
+        if (refund.compareTo(BigDecimal.ZERO) > 0) {
+            notificationDispatcher.refundExecuted(booking, refund);
+        }
         auditService.record(AuditActions.REFUND_EXECUTE, "RefundRequest", refundId,
                 "Refund " + refund + " executed by " + actorUsername
                         + " for booking " + booking.getId());

@@ -39,6 +39,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewReportRepository reviewReportRepository;
     private final BookingRepository bookingRepository;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional
@@ -144,6 +145,7 @@ public class ReviewServiceImpl implements ReviewService {
         review.setReply(request.getReply());
         review.setRepliedBy(gymUsername);
         review.setRepliedAt(LocalDateTime.now());
+        notificationDispatcher.reviewReplied(review);
         return ReviewResponse.of(review);
     }
 
@@ -170,6 +172,9 @@ public class ReviewServiceImpl implements ReviewService {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
         review.setStatus(request.getStatus());
+        if (request.getStatus() != com.fitmatch.common.enums.ReviewStatus.VISIBLE) {
+            notificationDispatcher.reviewModerated(review);
+        }
         auditService.record(AuditActions.REVIEW_MODERATE, "Review", reviewId,
                 "Set to " + request.getStatus() + " by " + moderatorUsername
                         + (request.getNote() != null ? ": " + request.getNote() : ""));
