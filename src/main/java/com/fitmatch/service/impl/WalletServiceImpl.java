@@ -65,6 +65,17 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     @Transactional
+    public void reverseToHeld(Long gymProfileId, Long bookingId, BigDecimal amount) {
+        Wallet w = lock(gymProfileId);
+        positive(amount);
+        require(w.getPendingBalance().compareTo(amount) >= 0, "Pending balance is insufficient to reverse");
+        w.setPendingBalance(w.getPendingBalance().subtract(amount));
+        w.setHeldBalance(w.getHeldBalance().add(amount));
+        record(w, WalletTxnType.DISPUTE_HOLD, amount, bookingId, "Pulled back to held for dispute");
+    }
+
+    @Override
+    @Transactional
     public void release(Long gymProfileId, Long bookingId, BigDecimal amount, BigDecimal commissionPercent) {
         Wallet w = lock(gymProfileId);
         positive(amount);

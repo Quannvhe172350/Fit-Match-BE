@@ -18,6 +18,9 @@ public enum SettlementStatus {
     /** Buổi tập hoàn tất / no-show — tiền ở pending, chờ hết holding period (UC-058). */
     PENDING_RELEASE,
 
+    /** Đang tranh chấp — tiền kéo về held, chặn auto-release tới khi giải quyết (UC-063/067). */
+    DISPUTED,
+
     /** Đã giải ngân về available của Gym, trừ hoa hồng (UC-059). */
     RELEASED,
 

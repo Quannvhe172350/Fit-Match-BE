@@ -24,6 +24,9 @@ public interface WalletService {
     /** UC-058: hoàn tất buổi tập — chuyển held sang pending settlement. */
     void moveToPending(Long gymProfileId, Long bookingId, BigDecimal amount);
 
+    /** UC-063: kéo tiền từ pending về held khi mở tranh chấp — bảo vệ khỏi auto-release. */
+    void reverseToHeld(Long gymProfileId, Long bookingId, BigDecimal amount);
+
     /** UC-059: giải ngân pending về available của Gym, trừ hoa hồng nền tảng. */
     void release(Long gymProfileId, Long bookingId, BigDecimal amount, BigDecimal commissionPercent);
 

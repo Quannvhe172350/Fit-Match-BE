@@ -27,5 +27,8 @@ public enum WalletTxnType {
     UNFREEZE,
 
     /** Rút tiền khỏi available của Gym. */
-    WITHDRAWAL
+    WITHDRAWAL,
+
+    /** Kéo tiền từ pending về held khi mở tranh chấp (UC-063/067) — bảo vệ khỏi auto-release. */
+    DISPUTE_HOLD
 }
