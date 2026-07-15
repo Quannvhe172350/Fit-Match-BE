@@ -39,6 +39,8 @@ public class BookingResponse {
     private String customerNote;
     private BigDecimal totalAmount;
     private BigDecimal payableAmount;
+    private BigDecimal discountAmount;
+    private String voucherCode;
     private boolean lateCancellation;
     private LocalDateTime createdAt;
 
@@ -65,6 +67,8 @@ public class BookingResponse {
                 .customerNote(b.getCustomerNote())
                 .totalAmount(b.getTotalAmount())
                 .payableAmount(b.getPayableAmount())
+                .discountAmount(b.getDiscountAmount())
+                .voucherCode(b.getVoucher() != null ? b.getVoucher().getCode() : null)
                 .lateCancellation(b.isLateCancellation())
                 .createdAt(b.getCreatedAt())
                 .build();

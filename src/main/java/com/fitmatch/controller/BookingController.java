@@ -59,6 +59,7 @@ public class BookingController {
     private final RefundService refundService;
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.SessionNoteService sessionNoteService;
+    private final com.fitmatch.service.VoucherService voucherService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -192,6 +193,28 @@ public class BookingController {
             @Valid @RequestBody CreateBookingRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Booking selection updated",
                 bookingService.updateSelection(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(
+            summary = "UC-073 — Áp voucher vào booking nháp",
+            description = "Actor: **Customer**. Booking DRAFT, không phải buổi từ gói. Trả booking với số tiền đã giảm. Lỗi: 404 mã không tồn tại; 409 voucher không hợp lệ/không đủ điều kiện.")
+    @PostMapping("/{id}/voucher")
+    public ResponseEntity<ApiResponse<BookingResponse>> applyVoucher(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody com.fitmatch.dto.voucher.ApplyVoucherRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Voucher applied",
+                voucherService.applyToBooking(userDetails.getUsername(), id, request.getCode())));
+    }
+
+    @Operation(
+            summary = "UC-073 — Gỡ voucher khỏi booking nháp",
+            description = "Actor: **Customer**.")
+    @DeleteMapping("/{id}/voucher")
+    public ResponseEntity<ApiResponse<BookingResponse>> removeVoucher(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Voucher removed",
+                voucherService.removeFromBooking(userDetails.getUsername(), id)));
     }
 
     @Operation(

@@ -96,6 +96,14 @@ public class Booking extends BaseEntity {
     @Column(name = "payable_amount", precision = 12, scale = 2)
     private BigDecimal payableAmount;
 
+    /** UC-073: voucher đã áp (nếu có) và số tiền giảm — chốt tại apply/checkout. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private Voucher voucher;
+
+    @Column(name = "discount_amount", precision = 12, scale = 2)
+    private BigDecimal discountAmount;
+
     /** Hủy muộn (trong cửa sổ mất phí) — dùng cho settlement/dispute (UC-043). */
     @Column(name = "late_cancellation", nullable = false)
     @Builder.Default

@@ -33,9 +33,14 @@ public class BookingPriceCalculator {
             rules = booking.getTrainingPackage().getBookingRules();
         }
 
-        BigDecimal payable = total;
+        // UC-073: voucher giảm trên tổng giá trị trước khi tính đặt cọc.
+        BigDecimal discount = booking.getDiscountAmount() != null
+                ? booking.getDiscountAmount() : BigDecimal.ZERO;
+        BigDecimal effectiveTotal = total.subtract(discount).max(BigDecimal.ZERO);
+
+        BigDecimal payable = effectiveTotal;
         if (rules != null && rules.getDepositPercent() != null) {
-            payable = total.multiply(BigDecimal.valueOf(rules.getDepositPercent()))
+            payable = effectiveTotal.multiply(BigDecimal.valueOf(rules.getDepositPercent()))
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         }
 
