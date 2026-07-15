@@ -104,6 +104,10 @@ public class Booking extends BaseEntity {
     @Column(name = "discount_amount", precision = 12, scale = 2)
     private BigDecimal discountAmount;
 
+    /** UC-073: số điểm thưởng đã dùng cho booking này (loại trừ lẫn nhau với voucher). */
+    @Column(name = "loyalty_points_used")
+    private Integer loyaltyPointsUsed;
+
     /** Hủy muộn (trong cửa sổ mất phí) — dùng cho settlement/dispute (UC-043). */
     @Column(name = "late_cancellation", nullable = false)
     @Builder.Default

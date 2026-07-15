@@ -49,6 +49,7 @@ public class BookingServiceImpl implements BookingService {
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.VoucherService voucherService;
+    private final com.fitmatch.service.LoyaltyService loyaltyService;
 
     @Override
     @Transactional
@@ -138,12 +139,20 @@ public class BookingServiceImpl implements BookingService {
         }
         bookingEligibilityChecker.assertEligible(booking);
 
-        // UC-073: chốt lại số giảm voucher (đề phòng đổi lựa chọn / voucher hết hạn).
-        voucherService.recomputeDiscount(booking);
-        // UC-034: chốt snapshot giá (đã trừ voucher).
+        // UC-073: chốt lại số giảm (voucher và điểm loại trừ lẫn nhau).
+        if (booking.getLoyaltyPointsUsed() != null) {
+            loyaltyService.recomputeDiscount(booking);
+        } else {
+            voucherService.recomputeDiscount(booking);
+        }
+        // UC-034: chốt snapshot giá (đã trừ giảm giá).
         bookingPriceCalculator.applyPricing(booking);
-        // UC-073: tiêu thụ một lượt voucher (khoá + kiểm tra giới hạn).
-        voucherService.consumeAtCheckout(booking);
+        // UC-073: tiêu thụ voucher/điểm (khoá + kiểm tra giới hạn/số dư).
+        if (booking.getLoyaltyPointsUsed() != null) {
+            loyaltyService.consumeAtCheckout(booking);
+        } else {
+            voucherService.consumeAtCheckout(booking);
+        }
 
         // UC-035: vào luồng thanh toán; miễn phí thì chuyển thẳng cho Gym (UC-037).
         if (booking.getPayableAmount() != null

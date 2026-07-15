@@ -44,6 +44,7 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    private final com.fitmatch.service.LoyaltyService loyaltyService;
 
     @Override
     @Transactional(readOnly = true)
@@ -189,6 +190,8 @@ public class GymBookingServiceImpl implements GymBookingService {
         settlementService.settleAfterFulfillment(booking, "session completed");
         // UC-049: kích hoạt gói (booking mua gói) hoặc trừ một buổi (buổi thuộc gói).
         packageUsageService.onBookingFulfilled(booking);
+        // UC-073: tích điểm thưởng theo số tiền đã trả.
+        loyaltyService.earnFromBooking(booking);
         bookingRepository.save(booking);
         notificationDispatcher.bookingCompleted(booking);
         auditService.record(AuditActions.BOOKING_COMPLETE, "Booking", bookingId,

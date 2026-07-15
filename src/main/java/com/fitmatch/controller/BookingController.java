@@ -60,6 +60,7 @@ public class BookingController {
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.SessionNoteService sessionNoteService;
     private final com.fitmatch.service.VoucherService voucherService;
+    private final com.fitmatch.service.LoyaltyService loyaltyService;
 
     @Operation(
             summary = "UC-031 — Tạo booking nháp",
@@ -215,6 +216,28 @@ public class BookingController {
             @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("Voucher removed",
                 voucherService.removeFromBooking(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
+            summary = "UC-073 — Dùng điểm thưởng cho booking nháp",
+            description = "Actor: **Customer**. Booking DRAFT, không phải buổi từ gói; loại trừ lẫn nhau với voucher. Lỗi: 409 không đủ điểm/không hợp lệ.")
+    @PostMapping("/{id}/loyalty")
+    public ResponseEntity<ApiResponse<BookingResponse>> applyLoyalty(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody com.fitmatch.dto.loyalty.ApplyLoyaltyRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Points applied",
+                loyaltyService.applyToBooking(userDetails.getUsername(), id, request.getPoints())));
+    }
+
+    @Operation(
+            summary = "UC-073 — Gỡ điểm thưởng khỏi booking nháp",
+            description = "Actor: **Customer**.")
+    @DeleteMapping("/{id}/loyalty")
+    public ResponseEntity<ApiResponse<BookingResponse>> removeLoyalty(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Points removed",
+                loyaltyService.removeFromBooking(userDetails.getUsername(), id)));
     }
 
     @Operation(
