@@ -55,7 +55,12 @@ public class SecurityConfig {
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));
-        config.setAllowCredentials(true);
+        // P1-9: KHÔNG cho phép credentials khi origin là wildcard "*" — nếu không
+        // Spring sẽ reflect mọi Origin kèm credentials. Auth dùng Bearer header
+        // (không cookie) nên tắt credentials ở chế độ wildcard là an toàn; cấu hình
+        // origin cụ thể qua CORS_ALLOWED_ORIGINS thì mới bật credentials.
+        boolean wildcard = allowedOrigins.contains("*");
+        config.setAllowCredentials(!wildcard);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
@@ -85,8 +90,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Webhook đối soát Casso — xác thực bằng Secure-Token header trong controller.
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
-                        // Tải file công khai (ảnh/tài liệu đã upload); upload vẫn yêu cầu đăng nhập.
-                        .requestMatchers(HttpMethod.GET, "/api/files/**").permitAll()
+                        // P1-8: chỉ avatar và chứng chỉ PT là công khai; tài liệu KYC
+                        // (giấy phép kinh doanh/định danh trong folder documents) yêu cầu
+                        // đăng nhập — không để lộ cho khách vãng lai qua URL.
+                        .requestMatchers(HttpMethod.GET, "/api/files/avatars/**",
+                                "/api/files/certifications/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/files/documents/**").authenticated()
                         // Marketplace browse & public content là công khai (Guest/Customer).
                         .requestMatchers(HttpMethod.GET, "/api/marketplace/**", "/api/public/**").permitAll()
                         .anyRequest().authenticated()

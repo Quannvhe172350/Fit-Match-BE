@@ -96,6 +96,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
                     "Account is " + user.getStatus().name().toLowerCase());
         }
+        // UC-001/002 (P1-11): tài khoản phải xác minh email mới đủ điều kiện cho các
+        // hành động được bảo vệ. Kiểm tra sau mật khẩu/khoá để không lộ trạng thái.
+        if (!user.isEmailVerified()) {
+            log.info("Login blocked for unverified email: {}", user.getUsername());
+            throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         log.info("User logged in: {}", request.getUsername());
         return issueTokens(user);

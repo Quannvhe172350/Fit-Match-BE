@@ -84,6 +84,32 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void login_unverifiedEmail_returnsEmailNotVerified() {
+        // P1-11: active + đúng mật khẩu nhưng chưa verify email -> chặn login.
+        User u = user(UserStatus.ACTIVE, 0); // helper build với emailVerified=false
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("john", "secret")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.EMAIL_NOT_VERIFIED);
+    }
+
+    @Test
+    void login_verifiedActive_succeeds() {
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setEmailVerified(true);
+        stubTokenIssue();
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+
+        var res = service.login(new LoginRequest("john", "secret"));
+
+        assertThat(res.getAccessToken()).isEqualTo("access");
+    }
+
+    @Test
     void logout_revokesAllTokensByBumpingVersion() {
         User u = user(UserStatus.ACTIVE, 3);
         when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));

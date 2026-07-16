@@ -80,10 +80,10 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
+        // P1-12: KHÔNG tin X-Forwarded-For do client tự gửi — nếu tin, attacker đổi
+        // header mỗi request để né rate limit. Dùng IP socket thật. Khi triển khai
+        // sau reverse proxy, cấu hình server.forward-headers-strategy=framework|native
+        // để getRemoteAddr() trả IP client thật một cách an toàn.
         return request.getRemoteAddr();
     }
 
