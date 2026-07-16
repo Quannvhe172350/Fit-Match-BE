@@ -75,4 +75,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     /** P1-16: đếm booking đang giữ chỗ trong tương lai của một PT. */
     long countByPtProfile_IdAndStatusInAndStartAtGreaterThan(
             Long ptId, Collection<BookingStatus> statuses, LocalDateTime after);
+
+    /** P1-18 (UC-023): đếm booking của một PT theo trạng thái (monitor performance). */
+    long countByPtProfile_IdAndStatus(Long ptId, BookingStatus status);
 }

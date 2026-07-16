@@ -87,6 +87,15 @@ public class GymPtController {
     }
 
     @Operation(
+            summary = "UC-023 — Hiệu suất & chất lượng PT",
+            description = "Actor: **Gym Operator**. Tổng hợp điểm đánh giá, số buổi hoàn tất/hủy/vắng mặt và số tranh chấp của một PT. Lỗi: 404 PT không thuộc Gym.")
+    @GetMapping("/{id}/performance")
+    public ResponseEntity<ApiResponse<com.fitmatch.dto.pt.PtPerformanceResponse>> performance(
+            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(service.getPerformance(userDetails.getUsername(), id)));
+    }
+
+    @Operation(
             summary = "UC-019 — Cập nhật hồ sơ PT của Gym",
             description = "Actor: **Gym Operator**. Cập nhật một phần hồ sơ PT (displayName/bio/specialization/serviceArea/experienceYears). Lỗi: 404 PT không thuộc Gym.")
     @PutMapping("/{id}")

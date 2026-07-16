@@ -139,6 +139,50 @@ public class GymProfileServiceImpl implements GymProfileService {
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<GymDocumentDto> listDocuments(String username) {
+        GymProfile profile = requireOwnProfile(username);
+        return gymDocumentRepository.findByGymProfile_Id(profile.getId()).stream()
+                .map(GymDocumentDto::of).toList();
+    }
+
+    @Override
+    @Transactional
+    public GymDocumentDto addDocument(String username, GymDocumentDto request) {
+        GymProfile profile = requireOwnProfile(username);
+        assertDocumentsEditable(profile);
+        GymDocument saved = gymDocumentRepository.save(GymDocument.builder()
+                .gymProfile(profile)
+                .documentType(request.getDocumentType())
+                .fileUrl(request.getFileUrl())
+                .build());
+        log.info("Gym {} added verification document {}", username, saved.getId());
+        return GymDocumentDto.of(saved);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDocument(String username, Long documentId) {
+        GymDocument doc = gymDocumentRepository
+                .findByIdAndGymProfile_User_Username(documentId, username)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym document", documentId));
+        assertDocumentsEditable(doc.getGymProfile());
+        gymDocumentRepository.delete(doc);
+        log.info("Gym {} deleted verification document {}", username, documentId);
+    }
+
+    /** UC-012: chỉ sửa tài liệu khi hồ sơ chưa/đang duyệt hoặc cần bổ sung (không phải APPROVED/SUSPENDED). */
+    private void assertDocumentsEditable(GymProfile profile) {
+        if (profile.getVerificationStatus() == VerificationStatus.APPROVED
+                || profile.getVerificationStatus() == VerificationStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Verification documents can only be changed while the application is draft, "
+                            + "pending, or requires additional info (current: "
+                            + profile.getVerificationStatus() + ")");
+        }
+    }
+
     private List<GymDocument> saveDocuments(GymProfile profile, SubmitGymRegistrationRequest request) {
         List<GymDocument> documents = request.getDocuments().stream()
                 .map(d -> GymDocument.builder()

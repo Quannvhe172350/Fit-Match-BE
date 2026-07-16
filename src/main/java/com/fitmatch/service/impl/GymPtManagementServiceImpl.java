@@ -37,6 +37,8 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final GymProfileResolver gymProfileResolver;
     private final AuditService auditService;
     private final com.fitmatch.repository.BookingRepository bookingRepository;
+    private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
+    private final com.fitmatch.repository.DisputeRepository disputeRepository;
 
     @Override
     @Transactional
@@ -149,6 +151,20 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
                 "Status set to " + status + " by gym " + gymUsername);
         log.info("PT {} status set to {} by gym {}", ptId, status, gymUsername);
         return GymPtResponse.of(profile);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.fitmatch.dto.pt.PtPerformanceResponse getPerformance(String gymUsername, Long ptId) {
+        PtProfile pt = requireOwnedPt(gymUsername, ptId);
+        var rating = ratingAggregator.forPt(ptId);
+        return new com.fitmatch.dto.pt.PtPerformanceResponse(
+                pt.getId(), pt.getDisplayName(),
+                rating.average(), rating.count(),
+                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.COMPLETED),
+                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.CANCELLED),
+                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.NO_SHOW),
+                disputeRepository.countByBooking_PtProfile_Id(ptId));
     }
 
     /** PT phải thuộc Gym của operator đang đăng nhập (chống IDOR). */

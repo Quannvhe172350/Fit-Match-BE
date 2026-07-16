@@ -20,4 +20,14 @@ public interface GymProfileService {
 
     /** UC-018: hiển thị / ẩn hồ sơ Gym trên marketplace (chỉ khi APPROVED). */
     GymProfileResponse updateVisibility(String username, boolean visible);
+
+    /** UC-012 (P1-20): danh sách tài liệu xác minh của Gym. */
+    java.util.List<com.fitmatch.dto.gym.GymDocumentDto> listDocuments(String username);
+
+    /** UC-012 (P1-20): thêm một tài liệu (chỉ khi hồ sơ chưa/đang duyệt hoặc cần bổ sung). */
+    com.fitmatch.dto.gym.GymDocumentDto addDocument(String username,
+                                                    com.fitmatch.dto.gym.GymDocumentDto request);
+
+    /** UC-012 (P1-20): xoá một tài liệu (chỉ khi hồ sơ chưa/đang duyệt hoặc cần bổ sung). */
+    void deleteDocument(String username, Long documentId);
 }

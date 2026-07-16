@@ -15,6 +15,9 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     /** Còn tranh chấp chưa đóng cho booking — chống mở trùng. */
     boolean existsByBooking_IdAndStatusIn(Long bookingId, List<DisputeStatus> statuses);
 
+    /** P1-18 (UC-023): đếm tranh chấp liên quan tới một PT (monitor performance). */
+    long countByBooking_PtProfile_Id(Long ptId);
+
     Page<Dispute> findByBooking_Customer_UsernameOrderByIdDesc(String username, Pageable pageable);
 
     Page<Dispute> findByBooking_GymProfile_User_UsernameOrderByIdDesc(String username, Pageable pageable);

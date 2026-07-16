@@ -25,4 +25,7 @@ public interface GymPtManagementService {
      * SUSPENDED và không tự đặt SUSPENDED.
      */
     GymPtResponse updateStatus(String gymUsername, Long ptId, com.fitmatch.common.enums.PtStatus status);
+
+    /** UC-023 (P1-18): tổng hợp hiệu suất/chất lượng của một PT (rating, buổi, tranh chấp). */
+    com.fitmatch.dto.pt.PtPerformanceResponse getPerformance(String gymUsername, Long ptId);
 }

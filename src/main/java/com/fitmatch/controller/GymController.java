@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -87,5 +88,38 @@ public class GymController {
             @Valid @RequestBody UpdateGymVisibilityRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Gym visibility updated",
                 gymProfileService.updateVisibility(userDetails.getUsername(), request.getVisible())));
+    }
+
+    @Operation(
+            summary = "UC-012 — Danh sách tài liệu xác minh của Gym",
+            description = "Actor: **Gym Operator**. Xem các tài liệu KYC đã nộp của chính Gym.")
+    @GetMapping("/documents")
+    public ResponseEntity<ApiResponse<java.util.List<com.fitmatch.dto.gym.GymDocumentDto>>> listDocuments(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success("Documents",
+                gymProfileService.listDocuments(userDetails.getUsername())));
+    }
+
+    @Operation(
+            summary = "UC-012 — Thêm tài liệu xác minh",
+            description = "Actor: **Gym Operator**. Thêm một tài liệu khi hồ sơ chưa/đang duyệt hoặc cần bổ sung. Lỗi: 409 nếu hồ sơ đã APPROVED/SUSPENDED.")
+    @PostMapping("/documents")
+    public ResponseEntity<ApiResponse<com.fitmatch.dto.gym.GymDocumentDto>> addDocument(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody com.fitmatch.dto.gym.GymDocumentDto request) {
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(ApiResponse.success("Document added",
+                        gymProfileService.addDocument(userDetails.getUsername(), request)));
+    }
+
+    @Operation(
+            summary = "UC-012 — Xoá tài liệu xác minh",
+            description = "Actor: **Gym Operator**. Xoá tài liệu của chính Gym khi hồ sơ chưa/đang duyệt hoặc cần bổ sung.")
+    @DeleteMapping("/documents/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteDocument(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @org.springframework.web.bind.annotation.PathVariable Long id) {
+        gymProfileService.deleteDocument(userDetails.getUsername(), id);
+        return ResponseEntity.ok(ApiResponse.success("Document deleted", null));
     }
 }
