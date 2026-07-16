@@ -33,6 +33,7 @@ class GymProfileServiceImplTest {
     @Mock private GymProfileRepository gymProfileRepository;
     @Mock private GymDocumentRepository gymDocumentRepository;
     @Mock private UserRepository userRepository;
+    @Mock private com.fitmatch.repository.GymBranchRepository gymBranchRepository;
     @InjectMocks private GymProfileServiceImpl service;
 
     private SubmitGymRegistrationRequest request() {

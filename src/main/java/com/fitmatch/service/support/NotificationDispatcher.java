@@ -86,6 +86,18 @@ public class NotificationDispatcher {
                 "/profile/bookings");
     }
 
+    // ----- Gym verification (UC-013/014) -----
+
+    /** UC-013/014: thông báo cho Gym Operator kết quả duyệt/đình chỉ hồ sơ. */
+    public void gymVerificationDecided(GymProfile profile, String decision, String note) {
+        if (profile == null) return;
+        notificationService.notify(profile.getUser(), NotificationCategory.ACCOUNT,
+                "Kết quả duyệt hồ sơ phòng gym",
+                "Hồ sơ phòng gym của bạn: " + decision
+                        + (note != null && !note.isBlank() ? " — " + note : "") + ".",
+                "/gym/profile");
+    }
+
     // ----- Payment / Settlement (UC-053/056/059) -----
 
     /** UC-036/053: tiền đã được giữ cho booking. */

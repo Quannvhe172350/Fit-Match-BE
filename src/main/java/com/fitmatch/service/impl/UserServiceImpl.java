@@ -29,6 +29,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
+    private static final java.util.Set<String> ALLOWED_AVATAR_TYPES = java.util.Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/webp");
+
     private final UserRepository userRepository;
     private final StorageService storageService;
     private final PasswordEncoder passwordEncoder;
@@ -99,21 +103,39 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
-        String originalFilename = file.getOriginalFilename();
-        String ext = (originalFilename != null && originalFilename.contains("."))
-                ? originalFilename.substring(originalFilename.lastIndexOf('.'))
-                : ".jpg";
-        String filename = UUID.randomUUID() + ext;
-
-        // Xoá avatar cũ trên GCS nếu có
-        if (user.getAvatarUrl() != null) {
-            storageService.delete(user.getAvatarUrl());
+        // P1-23: validate ảnh (rỗng/kích thước/loại) — trước đây nhận mọi file kể cả
+        // .html/.exe. Chỉ ảnh, tối đa 5MB.
+        if (file.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Avatar file must not be empty");
+        }
+        if (file.getSize() > MAX_AVATAR_SIZE_BYTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Avatar exceeds the 5MB size limit");
+        }
+        if (file.getContentType() == null || !ALLOWED_AVATAR_TYPES.contains(file.getContentType())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Unsupported avatar type. Allowed: JPEG, PNG, GIF, WEBP");
         }
 
-        // Lưu public URL thẳng vào DB
+        String ext = switch (file.getContentType()) {
+            case "image/png" -> ".png";
+            case "image/gif" -> ".gif";
+            case "image/webp" -> ".webp";
+            default -> ".jpg";
+        };
+        String filename = UUID.randomUUID() + ext;
+
+        // Upload mới TRƯỚC rồi mới xoá cũ — nếu upload lỗi thì avatar cũ còn nguyên.
         String publicUrl = storageService.upload("avatars", filename, file);
+        String oldUrl = user.getAvatarUrl();
         user.setAvatarUrl(publicUrl);
         user = userRepository.save(user);
+        if (oldUrl != null) {
+            try {
+                storageService.delete(oldUrl);
+            } catch (Exception e) {
+                log.warn("Failed to delete old avatar {}: {}", oldUrl, e.getMessage());
+            }
+        }
 
         log.info("Avatar uploaded for user: {}", username);
         return UserMapper.toResponse(user);

@@ -62,7 +62,10 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
         }
 
         // Thay toàn bộ lịch tuần (replace-all) để tránh trạng thái nửa vời.
+        // P1-22: flush ngay sau delete để Hibernate không sắp xếp INSERT trước
+        // DELETE (cùng khoá uk_operating_hours_branch_day) gây 500 khi cập nhật lại.
         operatingHourRepository.deleteByGymBranch_Id(branchId);
+        operatingHourRepository.flush();
         List<OperatingHour> saved = operatingHourRepository.saveAll(request.getHours().stream()
                 .map(dto -> OperatingHour.builder()
                         .gymBranch(branch)

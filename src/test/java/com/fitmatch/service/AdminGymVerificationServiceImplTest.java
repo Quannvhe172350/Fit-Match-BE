@@ -29,6 +29,7 @@ class AdminGymVerificationServiceImplTest {
     @Mock private GymDocumentRepository gymDocumentRepository;
     @Mock private UserRepository userRepository;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private AdminGymVerificationServiceImpl service;
 
     @Test

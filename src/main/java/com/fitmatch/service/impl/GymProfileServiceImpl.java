@@ -30,6 +30,7 @@ public class GymProfileServiceImpl implements GymProfileService {
     private final GymProfileRepository gymProfileRepository;
     private final GymDocumentRepository gymDocumentRepository;
     private final UserRepository userRepository;
+    private final com.fitmatch.repository.GymBranchRepository gymBranchRepository;
 
     @Override
     @Transactional
@@ -124,6 +125,13 @@ public class GymProfileServiceImpl implements GymProfileService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Only an APPROVED gym can change marketplace visibility (current: "
                             + profile.getVerificationStatus() + ")");
+        }
+        // UC-018 (P1-21): chỉ được publish khi hồ sơ "đủ điều kiện" — tối thiểu có
+        // một chi nhánh đang hoạt động (để khách đặt lịch được), tránh lên
+        // marketplace ở trạng thái trống.
+        if (visible && gymBranchRepository.findByGymProfile_IdAndActiveTrue(profile.getId()).isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot publish: the gym needs at least one active branch first");
         }
         profile.setActive(visible);
         gymProfileRepository.save(profile);

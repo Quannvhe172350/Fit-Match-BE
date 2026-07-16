@@ -31,6 +31,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
     private final GymDocumentRepository gymDocumentRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional(readOnly = true)
@@ -62,6 +63,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
 
         auditService.record(AuditActions.GYM_VERIFY_APPROVE, "GymProfile", profileId,
                 "Approved by " + actorUsername + ", user " + user.getUsername() + " promoted to ROLE_GYM_OPERATOR");
+                notificationDispatcher.gymVerificationDecided(profile, "đã được DUYỆT", null);
         log.info("Gym verification {} approved by {}", profileId, actorUsername);
         return toResponse(profile);
     }
@@ -77,6 +79,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
 
         auditService.record(AuditActions.GYM_VERIFY_REJECT, "GymProfile", profileId,
                 "Rejected by " + actorUsername + ": " + reason);
+                notificationDispatcher.gymVerificationDecided(profile, "bị TỪ CHỐI", reason);
         log.info("Gym verification {} rejected by {}", profileId, actorUsername);
         return toResponse(profile);
     }
@@ -91,6 +94,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
 
         auditService.record(AuditActions.GYM_VERIFY_REQUEST_INFO, "GymProfile", profileId,
                 "Additional info requested by " + actorUsername + ": " + note);
+                notificationDispatcher.gymVerificationDecided(profile, "cần BỔ SUNG thông tin", note);
         log.info("Gym verification {} returned for additional info by {}", profileId, actorUsername);
         return toResponse(profile);
     }
@@ -110,6 +114,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
 
         auditService.record(AuditActions.GYM_SUSPEND, "GymProfile", profileId,
                 "Suspended by " + actorUsername + ": " + reason);
+                notificationDispatcher.gymVerificationDecided(profile, "bị ĐÌNH CHỈ", reason);
         log.info("Gym {} suspended by {}", profileId, actorUsername);
         return toResponse(profile);
     }
@@ -129,6 +134,7 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
 
         auditService.record(AuditActions.GYM_REACTIVATE, "GymProfile", profileId,
                 "Reactivated by " + actorUsername);
+                notificationDispatcher.gymVerificationDecided(profile, "được KÍCH HOẠT lại", null);
         log.info("Gym {} reactivated by {}", profileId, actorUsername);
         return toResponse(profile);
     }

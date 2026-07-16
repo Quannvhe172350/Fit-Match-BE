@@ -43,6 +43,10 @@ public class BookingPriceCalculator {
             payable = effectiveTotal.multiply(BigDecimal.valueOf(rules.getDepositPercent()))
                     .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         }
+        // P1-26: làm tròn về số nguyên VND (không có đơn vị lẻ) để số tiền QR
+        // (dùng toBigInteger) khớp đúng order.amount — nếu không, đặt cọc lẻ đồng
+        // khiến webhook luôn thấy "trả thiếu" và booking không bao giờ được xác nhận.
+        payable = payable.setScale(0, RoundingMode.HALF_UP);
 
         booking.setTotalAmount(total);
         booking.setPayableAmount(payable);

@@ -161,6 +161,13 @@ public class GymBookingServiceImpl implements GymBookingService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "No-show can only be recorded after the session start time");
         }
+        // P1-24: khách đã check-in thì không được đánh no-show — phải đi qua hiệu
+        // chỉnh điểm danh (UC-050) kèm lý do + audit, tránh nuốt tiền của khách oan.
+        if (booking.getCheckedInAt() != null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot mark no-show: customer has already checked in "
+                            + "(use attendance correction instead)");
+        }
         bookingLifecycle.transition(booking, BookingStatus.NO_SHOW,
                 "Marked as no-show by gym " + gymUsername);
         // UC-043: khách không đến -> theo chính sách nền tảng, tiền giữ được chuyển
