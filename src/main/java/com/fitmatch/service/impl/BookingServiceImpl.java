@@ -51,6 +51,7 @@ public class BookingServiceImpl implements BookingService {
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.VoucherService voucherService;
     private final com.fitmatch.service.LoyaltyService loyaltyService;
+    private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
 
     @Override
     @Transactional
@@ -213,6 +214,7 @@ public class BookingServiceImpl implements BookingService {
     public BookingResponse cancel(String customerUsername, Long bookingId, String reason) {
         Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        BookingStatus statusBeforeCancel = booking.getStatus();
 
         // UC-042/043: hủy CONFIRMED trong cửa sổ mất phí -> đánh dấu hủy muộn.
         if (booking.getStatus() == BookingStatus.CONFIRMED && booking.getStartAt() != null) {
@@ -226,6 +228,8 @@ public class BookingServiceImpl implements BookingService {
         }
         bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
                 "Cancelled by customer" + (reason != null ? ": " + reason : ""));
+        // UC-073: hoàn điểm/voucher đã tiêu ở checkout (nếu booking đã qua checkout).
+        promotionRefunder.releaseOnCancellation(booking, statusBeforeCancel);
         bookingRepository.save(booking);
         // UC-042/055: booking đã giữ tiền -> mở yêu cầu hoàn (Finance quyết định
         // mức hoàn; hủy muộn được ghi chú để cân nhắc giữ phí theo chính sách).

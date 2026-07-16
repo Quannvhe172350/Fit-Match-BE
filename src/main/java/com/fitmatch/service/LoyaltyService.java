@@ -26,4 +26,11 @@ public interface LoyaltyService {
 
     /** Trừ điểm thật khi checkout (khoá tài khoản + kiểm tra số dư). */
     void consumeAtCheckout(Booking booking);
+
+    /**
+     * Hoàn lại số điểm đã REDEEM khi booking bị hủy/từ chối sau checkout mà không
+     * hoàn tất dịch vụ (UC-073). Không ném lỗi vào luồng chính. Idempotency do
+     * caller đảm bảo qua cờ {@code promoReleased}.
+     */
+    void refundToBooking(Booking booking);
 }

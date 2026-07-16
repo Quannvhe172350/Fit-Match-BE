@@ -45,6 +45,7 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     private final com.fitmatch.service.LoyaltyService loyaltyService;
+    private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
 
     @Override
     @Transactional(readOnly = true)
@@ -85,8 +86,11 @@ public class GymBookingServiceImpl implements GymBookingService {
     @Transactional
     public BookingResponse reject(String gymUsername, Long bookingId, String reason) {
         Booking booking = requireOwned(gymUsername, bookingId);
+        BookingStatus statusBeforeReject = booking.getStatus();
         bookingLifecycle.transition(booking, BookingStatus.REJECTED,
                 "Rejected by gym: " + reason);
+        // UC-073: hoàn điểm/voucher đã tiêu ở checkout (lỗi thuộc gym).
+        promotionRefunder.releaseOnCancellation(booking, statusBeforeReject);
         bookingRepository.save(booking);
         // UC-038/055: gym từ chối booking đã giữ tiền -> tự mở yêu cầu hoàn toàn bộ.
         refundService.autoCreate(booking, "Gym rejected booking: " + reason);
@@ -148,8 +152,11 @@ public class GymBookingServiceImpl implements GymBookingService {
     @Transactional
     public BookingResponse cancel(String gymUsername, Long bookingId, String reason) {
         Booking booking = requireOwned(gymUsername, bookingId);
+        BookingStatus statusBeforeCancel = booking.getStatus();
         bookingLifecycle.transition(booking, BookingStatus.CANCELLED,
                 "Cancelled by gym: " + reason);
+        // UC-073: hoàn điểm/voucher đã tiêu ở checkout.
+        promotionRefunder.releaseOnCancellation(booking, statusBeforeCancel);
         bookingRepository.save(booking);
         // UC-042/055: gym chủ động hủy -> khách được mở yêu cầu hoàn toàn bộ.
         refundService.autoCreate(booking, "Gym cancelled booking: " + reason);

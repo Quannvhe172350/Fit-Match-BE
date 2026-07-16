@@ -114,6 +114,15 @@ public class Booking extends BaseEntity {
     @Builder.Default
     private boolean lateCancellation = false;
 
+    /**
+     * UC-073 (P1 batch 2): đã hoàn điểm thưởng / trả lại lượt voucher cho booking
+     * này khi nó bị hủy/từ chối sau checkout. Cờ idempotent — chỉ hoàn đúng một
+     * lần dù có nhiều đường hủy đi qua. Xem V35__bookings_promo_released.sql.
+     */
+    @Column(name = "promo_released", nullable = false)
+    @Builder.Default
+    private boolean promoReleased = false;
+
     /** UC-046: thời điểm khách check-in vào buổi tập (null = chưa check-in). */
     @Column(name = "checked_in_at")
     private LocalDateTime checkedInAt;

@@ -128,6 +128,21 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 "Redeemed for booking #" + booking.getId());
     }
 
+    @Override
+    @Transactional
+    public void refundToBooking(Booking booking) {
+        try {
+            Integer points = booking.getLoyaltyPointsUsed();
+            if (points == null || points <= 0) return;
+            LoyaltyAccount account = lock(getOrCreate(booking.getCustomer().getUsername()).getId());
+            adjust(account, LoyaltyTxnType.REFUND, points, booking.getId(),
+                    "Refunded from cancelled booking #" + booking.getId());
+            log.info("Loyalty refunded {} points for cancelled booking {}", points, booking.getId());
+        } catch (Exception e) {
+            log.warn("Loyalty refund failed for booking {}: {}", booking.getId(), e.getMessage());
+        }
+    }
+
     // ---------- helpers ----------
 
     private BigDecimal pointsToDiscount(int points, BigDecimal total) {

@@ -56,9 +56,14 @@ public class PackageUsageServiceImpl implements PackageUsageService {
                 cp.getId(), purchase.getId(), total);
     }
 
-    private void consume(CustomerPackage cp) {
-        // Defense-in-depth: không tiêu vượt tổng số buổi (race đã được chặn bằng
-        // pessimistic lock ở checkout, nhưng chốt thêm ở đây để không âm quỹ buổi).
+    private void consume(CustomerPackage ref) {
+        // P1-6: khoá lại bản ghi trước khi đọc-ghi sessionsUsed. Trước fix này
+        // consume() thao tác trên entity đã load sẵn (không lock) nên hai booking
+        // cùng gói hoàn tất đồng thời cùng đọc used=N rồi cùng ghi N+1 -> lost
+        // update (khách được thừa buổi). Khoá pessimistic + @Version tuần tự hoá.
+        CustomerPackage cp = customerPackageRepository.lockById(ref.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Customer package", ref.getId()));
+        // Defense-in-depth: không tiêu vượt tổng số buổi.
         if (cp.getSessionsUsed() >= cp.getSessionsTotal()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Customer package " + cp.getId() + " has no remaining sessions to consume");

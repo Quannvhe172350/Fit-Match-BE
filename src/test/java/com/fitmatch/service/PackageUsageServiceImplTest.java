@@ -64,6 +64,8 @@ class PackageUsageServiceImplTest {
                 .build();
         Booking session = Booking.builder().id(11L).customerPackage(cp)
                 .trainingPackage(pkg(2, null)).build();
+        // P1-6: consume() nay khoá lại bản ghi (lockById) trước khi tiêu buổi.
+        when(customerPackageRepository.lockById(1L)).thenReturn(Optional.of(cp));
         when(customerPackageRepository.save(any(CustomerPackage.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.onBookingFulfilled(session);

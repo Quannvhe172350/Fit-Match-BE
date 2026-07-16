@@ -64,4 +64,13 @@ public class WithdrawalRequest extends BaseEntity {
 
     @Column(name = "review_note", length = 500)
     private String reviewNote;
+
+    /**
+     * Optimistic lock (P1 batch 2): chống hai admin cùng mark-paid/approve một
+     * yêu cầu rút -> payout trừ frozen hai lần, ăn vào reserve của lệnh khác. Xem V36.
+     */
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

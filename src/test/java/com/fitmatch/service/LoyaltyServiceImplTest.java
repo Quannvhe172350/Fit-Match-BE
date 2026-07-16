@@ -92,6 +92,36 @@ class LoyaltyServiceImplTest {
     }
 
     @Test
+    void refundToBooking_creditsPointsBack() {
+        Booking b = draft();
+        b.setLoyaltyPointsUsed(30);
+        LoyaltyAccount acc = LoyaltyAccount.builder().id(1L).user(john).pointsBalance(20).build();
+        when(accountRepository.findByUser_Username("john")).thenReturn(Optional.of(acc));
+        when(accountRepository.lockById(1L)).thenReturn(Optional.of(acc));
+        when(accountRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.refundToBooking(b);
+
+        // 20 + 30 điểm hoàn = 50.
+        assertThat(acc.getPointsBalance()).isEqualTo(50);
+        ArgumentCaptor<com.fitmatch.entity.LoyaltyTransaction> cap =
+                ArgumentCaptor.forClass(com.fitmatch.entity.LoyaltyTransaction.class);
+        verify(transactionRepository).save(cap.capture());
+        assertThat(cap.getValue().getType()).isEqualTo(LoyaltyTxnType.REFUND);
+        assertThat(cap.getValue().getPoints()).isEqualTo(30);
+    }
+
+    @Test
+    void refundToBooking_noPointsUsed_noop() {
+        Booking b = draft(); // loyaltyPointsUsed == null
+
+        service.refundToBooking(b);
+
+        verify(accountRepository, org.mockito.Mockito.never()).save(any());
+        verify(transactionRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
     void consumeAtCheckout_deductsPoints() {
         Booking b = draft();
         b.setLoyaltyPointsUsed(30);

@@ -71,4 +71,13 @@ public class GymProfile extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = false;
+
+    /**
+     * Optimistic lock (P1 batch 2): chống hai admin cùng xử lý một hồ sơ (approve
+     * vs reject) ghi đè quyết định của nhau. Xem V36.
+     */
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

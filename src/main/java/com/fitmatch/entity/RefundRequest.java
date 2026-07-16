@@ -57,4 +57,13 @@ public class RefundRequest extends BaseEntity {
 
     @Column(name = "decision_note", length = 500)
     private String decisionNote;
+
+    /**
+     * Optimistic lock (P1 batch 2): chống hai admin cùng approve/execute một
+     * yêu cầu hoàn -> double refund trên cùng khoản held. Xem V36.
+     */
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

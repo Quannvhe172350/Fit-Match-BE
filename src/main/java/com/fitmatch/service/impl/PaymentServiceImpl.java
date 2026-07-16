@@ -28,6 +28,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentProperties paymentProperties;
     private final com.fitmatch.service.support.BookingLifecycle bookingLifecycle;
+    private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
 
     @Override
     @Transactional
@@ -91,6 +92,10 @@ public class PaymentServiceImpl implements PaymentService {
             if (booking.getStatus() == com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT) {
                 bookingLifecycle.transition(booking, com.fitmatch.common.enums.BookingStatus.CANCELLED,
                         "Payment window expired");
+                // UC-073: hoàn điểm/voucher đã tiêu ở checkout — khách chưa trả
+                // tiền mà để QR hết hạn không được phép mất điểm/lượt voucher.
+                promotionRefunder.releaseOnCancellation(booking,
+                        com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT);
                 cancelledBookings++;
             }
             log.info("Payment order {} expired (booking {})", order.getId(), booking.getId());

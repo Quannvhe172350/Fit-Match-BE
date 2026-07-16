@@ -40,4 +40,11 @@ public interface VoucherService {
 
     /** Tiêu thụ một lượt voucher khi checkout (khoá + tăng usedCount, kiểm tra giới hạn). */
     void consumeAtCheckout(Booking booking);
+
+    /**
+     * Trả lại một lượt voucher (giảm usedCount) khi booking bị hủy/từ chối sau
+     * checkout (UC-073). Không ném lỗi vào luồng chính. Idempotency do caller
+     * đảm bảo qua cờ {@code promoReleased}.
+     */
+    void releaseFromBooking(Booking booking);
 }

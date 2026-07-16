@@ -72,4 +72,14 @@ public class CustomerPackage extends BaseEntity {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private CustomerPackageStatus status = CustomerPackageStatus.ACTIVE;
+
+    /**
+     * Optimistic lock (P1-6): chống lost-update khi hai booking cùng gói được
+     * hoàn tất đồng thời cùng ghi {@code sessionsUsed}. Kết hợp với pessimistic
+     * lock ở {@code lockById}. Xem V36__optimistic_lock_batch.sql.
+     */
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }

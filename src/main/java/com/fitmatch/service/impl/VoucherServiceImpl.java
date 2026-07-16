@@ -171,6 +171,22 @@ public class VoucherServiceImpl implements VoucherService {
         voucherRepository.save(v);
     }
 
+    @Override
+    @Transactional
+    public void releaseFromBooking(Booking booking) {
+        try {
+            if (booking.getVoucher() == null) return;
+            Voucher v = voucherRepository.lockById(booking.getVoucher().getId()).orElseThrow();
+            if (v.getUsedCount() > 0) {
+                v.setUsedCount(v.getUsedCount() - 1);
+                voucherRepository.save(v);
+                log.info("Voucher {} usage released for cancelled booking {}", v.getCode(), booking.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Voucher release failed for booking {}: {}", booking.getId(), e.getMessage());
+        }
+    }
+
     // ---------- helpers ----------
 
     private void assertUsable(Voucher v) {

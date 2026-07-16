@@ -139,4 +139,26 @@ class VoucherServiceImplTest {
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_STATE);
     }
+
+    @Test
+    void releaseFromBooking_decrementsUsedCount() {
+        Voucher v = percent(10, null);
+        v.setUsedCount(3);
+        Booking booking = Booking.builder().id(10L).voucher(v).build();
+        when(voucherRepository.lockById(1L)).thenReturn(Optional.of(v));
+        when(voucherRepository.save(any(Voucher.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.releaseFromBooking(booking);
+
+        assertThat(v.getUsedCount()).isEqualTo(2);
+    }
+
+    @Test
+    void releaseFromBooking_noVoucher_noop() {
+        Booking booking = Booking.builder().id(10L).build();
+
+        service.releaseFromBooking(booking);
+
+        org.mockito.Mockito.verify(voucherRepository, org.mockito.Mockito.never()).save(any());
+    }
 }

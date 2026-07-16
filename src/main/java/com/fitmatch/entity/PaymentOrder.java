@@ -67,4 +67,13 @@ public class PaymentOrder extends BaseEntity {
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    /**
+     * Optimistic lock (P1 batch 2): chống hai webhook khác external_id cùng khớp
+     * một order xử lý song song -> hold hai lần. Xem V36.
+     */
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    @Builder.Default
+    private long version = 0L;
 }
