@@ -142,6 +142,13 @@ public class Booking extends BaseEntity {
     private LocalDateTime settlementPendingAt;
 
     /**
+     * UC-072 (P1-7): % hoa hồng chốt tại thời điểm chuyển sang pending settlement —
+     * để giải ngân không bị áp hồi tố khi Admin đổi cấu hình hoa hồng về sau.
+     */
+    @Column(name = "commission_percent", precision = 5, scale = 2)
+    private BigDecimal commissionPercent;
+
+    /**
      * Optimistic lock: chống lost-update khi hai luồng thao tác đồng thời trên
      * cùng booking (accept vs cancel, webhook vs cancel, double-checkout, double
      * settlement release). Xem V33__bookings_version.sql.

@@ -55,6 +55,8 @@ public class SettlementServiceImpl implements SettlementService {
         booking.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
         booking.setSettlementAmount(heldAmount);
         booking.setSettlementPendingAt(LocalDateTime.now());
+        // P1-7: chốt % hoa hồng hiện hành để giải ngân về sau không bị áp hồi tố.
+        booking.setCommissionPercent(commissionConfigService.currentConfig().getCommissionPercent());
         auditService.record(AuditActions.SETTLEMENT_PENDING, "Booking", booking.getId(),
                 "Moved " + heldAmount + " to pending settlement (" + reason + ")");
     }
@@ -78,21 +80,24 @@ public class SettlementServiceImpl implements SettlementService {
             // Idempotent: job có thể chạy trùng — bỏ qua nếu đã release/đổi trạng thái.
             return;
         }
-        CommissionConfig config = commissionConfigService.currentConfig();
+        // P1-7: dùng % hoa hồng đã chốt lúc chuyển pending; booking cũ (null) fallback config hiện hành.
+        BigDecimal commissionPercent = booking.getCommissionPercent() != null
+                ? booking.getCommissionPercent()
+                : commissionConfigService.currentConfig().getCommissionPercent();
         walletService.release(booking.getGymProfile().getId(), booking.getId(),
-                booking.getSettlementAmount(), config.getCommissionPercent());
+                booking.getSettlementAmount(), commissionPercent);
         booking.setSettlementStatus(SettlementStatus.RELEASED);
         bookingRepository.save(booking);
         // UC-059: báo Gym tiền đã về ví khả dụng (số ròng sau hoa hồng).
         BigDecimal commission = booking.getSettlementAmount()
-                .multiply(config.getCommissionPercent())
+                .multiply(commissionPercent)
                 .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
         notificationDispatcher.settlementReleased(booking, booking.getSettlementAmount().subtract(commission));
         auditService.record(AuditActions.SETTLEMENT_RELEASE, "Booking", bookingId,
                 "Released " + booking.getSettlementAmount() + " to gym (commission "
-                        + config.getCommissionPercent() + "%)");
+                        + commissionPercent + "%)");
         log.info("Booking {} settlement released ({}), commission {}%",
-                bookingId, booking.getSettlementAmount(), config.getCommissionPercent());
+                bookingId, booking.getSettlementAmount(), commissionPercent);
     }
 
     /** Số tiền thực đã giữ = số tiền đơn thanh toán PAID; fallback payableAmount. */

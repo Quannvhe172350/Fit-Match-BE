@@ -59,6 +59,13 @@ public class GymBookingServiceImpl implements GymBookingService {
     @Transactional
     public BookingResponse accept(String gymUsername, Long bookingId, Long ptId) {
         Booking booking = requireOwned(gymUsername, bookingId);
+        // P1-13: gym bị đình chỉ/ẩn không được nhận booking mới.
+        if (booking.getGymProfile().getVerificationStatus()
+                != com.fitmatch.common.enums.VerificationStatus.APPROVED
+                || !booking.getGymProfile().isActive()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Gym is not active/approved and cannot accept bookings");
+        }
         if (ptId != null) {
             applyPt(gymUsername, booking, ptId);
         } else if (booking.getPtProfile() != null) {

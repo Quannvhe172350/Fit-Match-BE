@@ -36,6 +36,7 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final PasswordEncoder passwordEncoder;
     private final GymProfileResolver gymProfileResolver;
     private final AuditService auditService;
+    private final com.fitmatch.repository.BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -127,6 +128,18 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         if (profile.getStatus() == PtStatus.SUSPENDED) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "PT is suspended by platform admin; only an admin can lift the suspension");
+        }
+        // P1-16: không cho tắt PT khi còn booking giữ chỗ tương lai — tránh bỏ rơi
+        // khách đã đặt (gym phải reassign/hủy trước).
+        if (status == PtStatus.INACTIVE) {
+            long future = bookingRepository.countByPtProfile_IdAndStatusInAndStartAtGreaterThan(
+                    ptId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
+                    java.time.LocalDateTime.now());
+            if (future > 0) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Cannot deactivate PT: " + future + " upcoming booking(s) assigned. "
+                                + "Reassign or cancel them first.");
+            }
         }
         profile.setStatus(status);
         profile.setActive(status == PtStatus.ACTIVE);

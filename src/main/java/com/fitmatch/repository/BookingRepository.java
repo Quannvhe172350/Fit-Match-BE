@@ -67,4 +67,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
     /** UC-045: admin xem toàn hệ thống theo trạng thái. */
     Page<Booking> findByStatus(BookingStatus status, Pageable pageable);
+
+    /** P1-16/17: đếm booking đang giữ chỗ trong tương lai của một chi nhánh. */
+    long countByGymBranch_IdAndStatusInAndStartAtGreaterThan(
+            Long branchId, Collection<BookingStatus> statuses, LocalDateTime after);
+
+    /** P1-16: đếm booking đang giữ chỗ trong tương lai của một PT. */
+    long countByPtProfile_IdAndStatusInAndStartAtGreaterThan(
+            Long ptId, Collection<BookingStatus> statuses, LocalDateTime after);
 }

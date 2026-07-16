@@ -53,6 +53,9 @@ class SettlementServiceImplTest {
         when(paymentOrderRepository.findByBooking_Id(10L)).thenReturn(Optional.of(
                 PaymentOrder.builder().booking(booking)
                         .amount(new BigDecimal("200.00")).status(PaymentStatus.PAID).build()));
+        // P1-7: settle chốt % hoa hồng hiện hành vào booking.
+        when(commissionConfigService.currentConfig())
+                .thenReturn(CommissionConfig.builder().commissionPercent(new BigDecimal("15.00")).build());
 
         service.settleAfterFulfillment(booking, "session completed");
 
@@ -60,6 +63,7 @@ class SettlementServiceImplTest {
         assertThat(booking.getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
         assertThat(booking.getSettlementAmount()).isEqualByComparingTo("200.00");
         assertThat(booking.getSettlementPendingAt()).isNotNull();
+        assertThat(booking.getCommissionPercent()).isEqualByComparingTo("15.00");
     }
 
     @Test

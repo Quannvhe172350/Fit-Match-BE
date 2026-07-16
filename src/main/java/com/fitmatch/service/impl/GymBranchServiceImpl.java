@@ -2,9 +2,12 @@ package com.fitmatch.service.impl;
 
 import com.fitmatch.dto.gym.BranchRequest;
 import com.fitmatch.dto.gym.BranchResponse;
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymProfile;
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.service.GymBranchService;
 import com.fitmatch.service.support.GymProfileResolver;
@@ -22,6 +25,7 @@ public class GymBranchServiceImpl implements GymBranchService {
 
     private final GymBranchRepository branchRepository;
     private final GymProfileResolver gymProfileResolver;
+    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -58,6 +62,16 @@ public class GymBranchServiceImpl implements GymBranchService {
     @Transactional
     public void deactivate(String username, Long id) {
         GymBranch branch = requireOwned(username, id);
+        // P1-17: không cho tắt chi nhánh khi còn booking giữ chỗ trong tương lai —
+        // tránh bỏ rơi khách đã đặt (dời/hủy trước).
+        long future = bookingRepository.countByGymBranch_IdAndStatusInAndStartAtGreaterThan(
+                id, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
+                java.time.LocalDateTime.now());
+        if (future > 0) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot deactivate branch: it has " + future
+                            + " upcoming booking(s). Reschedule or cancel them first.");
+        }
         branch.setActive(false);
         branchRepository.save(branch);
         log.info("Gym {} deactivated branch {}", username, id);

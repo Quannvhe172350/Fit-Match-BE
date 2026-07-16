@@ -34,8 +34,24 @@ public class DisputeFinancialApplier {
         BigDecimal held = dispute.getFrozenAmount() != null ? dispute.getFrozenAmount() : BigDecimal.ZERO;
         Long gymId = booking.getGymProfile().getId();
 
-        // Không có tiền giữ (booking miễn phí / chưa thanh toán) -> chỉ ghi nhận quyết định.
+        // P1-5: không còn tiền giữ để áp dụng.
         if (held.compareTo(BigDecimal.ZERO) <= 0) {
+            boolean refundLike = resolution == DisputeResolution.REFUND_FULL
+                    || resolution == DisputeResolution.REFUND_PARTIAL
+                    || resolution == DisputeResolution.SPLIT
+                    || resolution == DisputeResolution.PENALTY;
+            // Tiền đã kết toán trước khi mở tranh chấp: KHÔNG được đè trạng thái
+            // RELEASED/REFUNDED (mất dấu vết) và KHÔNG "thành công" âm thầm việc hoàn.
+            if (booking.getSettlementStatus() == SettlementStatus.RELEASED
+                    || booking.getSettlementStatus() == SettlementStatus.REFUNDED) {
+                if (refundLike) {
+                    throw new BusinessException(ErrorCode.INVALID_STATE,
+                            "Funds already settled (" + booking.getSettlementStatus()
+                                    + "); this resolution needs a manual clawback — cannot auto-refund");
+                }
+                return; // NO_ACTION/RELEASE_TO_GYM: giữ nguyên trạng thái đã kết toán.
+            }
+            // Booking miễn phí/gói/chưa thanh toán: chỉ ghi nhận quyết định.
             booking.setSettlementStatus(SettlementStatus.NONE);
             bookingRepository.save(booking);
             return;

@@ -28,6 +28,7 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
     private final BlockedTimeRepository blockedTimeRepository;
     private final PtProfileRepository ptProfileRepository;
     private final GymBranchRepository gymBranchRepository;
+    private final com.fitmatch.repository.BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -49,11 +50,13 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
             PtProfile pt = ptProfileRepository
                     .findByIdAndGymProfile_User_Username(request.getPtId(), gymUsername)
                     .orElseThrow(() -> new ResourceNotFoundException("PT profile", request.getPtId()));
+            assertNoOverlappingPtBooking(pt.getId(), request);
             builder.ptProfile(pt);
         } else {
             GymBranch branch = gymBranchRepository
                     .findByIdAndGymProfile_User_Username(request.getBranchId(), gymUsername)
                     .orElseThrow(() -> new ResourceNotFoundException("Gym branch", request.getBranchId()));
+            assertNoOverlappingBranchBooking(branch.getId(), request);
             builder.gymBranch(branch);
         }
 
@@ -71,6 +74,7 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "A suspended PT cannot manage blocked time");
         }
+        assertNoOverlappingPtBooking(pt.getId(), request);
         BlockedTime saved = blockedTimeRepository.save(BlockedTime.builder()
                 .ptProfile(pt)
                 .startAt(request.getStartAt())
@@ -130,6 +134,34 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
     private void validateRange(BlockedTimeRequest request) {
         if (!request.getStartAt().isBefore(request.getEndAt())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "startAt must be before endAt");
+        }
+    }
+
+    // P1-15: không cho tạo khoảng chặn đè lên booking đang giữ chỗ (PENDING/CONFIRMED)
+    // — nếu không sẽ có "PT/chi nhánh nghỉ nhưng booking vẫn CONFIRMED", khách đến
+    // nơi đóng cửa. Gym phải dời/hủy các booking đó trước.
+    private void assertNoOverlappingPtBooking(Long ptId, BlockedTimeRequest request) {
+        boolean overlap = !bookingRepository
+                .findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                        ptId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
+                        request.getEndAt(), request.getStartAt())
+                .isEmpty();
+        if (overlap) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot block this period: the PT has active bookings overlapping it "
+                            + "(reschedule or cancel them first)");
+        }
+    }
+
+    private void assertNoOverlappingBranchBooking(Long branchId, BlockedTimeRequest request) {
+        long overlap = bookingRepository
+                .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                        branchId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
+                        request.getEndAt(), request.getStartAt());
+        if (overlap > 0) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot block this period: the branch has active bookings overlapping it "
+                            + "(reschedule or cancel them first)");
         }
     }
 
