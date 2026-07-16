@@ -104,6 +104,8 @@ public class VoucherServiceImpl implements VoucherService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Voucher does not apply to this booking (min amount not met or no discount)");
         }
+        // UC-073: voucher và điểm thưởng loại trừ lẫn nhau — áp voucher thì gỡ điểm.
+        booking.setLoyaltyPointsUsed(null);
         booking.setVoucher(voucher);
         booking.setDiscountAmount(discount);
         bookingRepository.save(booking);

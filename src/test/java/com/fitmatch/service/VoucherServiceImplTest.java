@@ -77,6 +77,25 @@ class VoucherServiceImplTest {
     }
 
     @Test
+    void applyToBooking_clearsPreviouslyAppliedLoyaltyPoints() {
+        // P1-14: voucher và điểm loại trừ lẫn nhau — áp voucher phải gỡ điểm đã set,
+        // nếu không checkout sẽ ưu tiên điểm và âm thầm bỏ qua voucher.
+        Booking booking = Booking.builder().id(10L).status(BookingStatus.DRAFT)
+                .customer(User.builder().username("john").build())
+                .gymService(GymService.builder().id(1L).price(new BigDecimal("200.00")).build())
+                .loyaltyPointsUsed(50)
+                .build();
+        when(bookingRepository.findByIdAndCustomer_Username(10L, "john")).thenReturn(Optional.of(booking));
+        when(voucherRepository.findByCodeIgnoreCase("SALE")).thenReturn(Optional.of(percent(10, null)));
+        when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.applyToBooking("john", 10L, "SALE");
+
+        assertThat(booking.getLoyaltyPointsUsed()).isNull();
+        assertThat(booking.getVoucher()).isNotNull();
+    }
+
+    @Test
     void applyToBooking_expiredVoucher_throws() {
         Booking booking = Booking.builder().id(10L).status(BookingStatus.DRAFT)
                 .customer(User.builder().username("john").build())

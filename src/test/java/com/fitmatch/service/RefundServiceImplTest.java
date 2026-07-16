@@ -131,6 +131,22 @@ class RefundServiceImplTest {
     }
 
     @Test
+    void approveAndExecute_bookingUnderDispute_throwsAndDoesNotRefund() {
+        // P1-2: booking bị kéo sang DISPUTED sau khi mở tranh chấp -> không được
+        // execute refund này nữa (tránh refundFromHeld hai lần trên cùng khoản held).
+        Booking b = booking(BookingStatus.CANCELLED, SettlementStatus.DISPUTED);
+        RefundRequest request = RefundRequest.builder()
+                .id(1L).booking(b).amount(new BigDecimal("200.00")).status(RefundStatus.PENDING).build();
+        when(refundRequestRepository.findById(1L)).thenReturn(Optional.of(request));
+
+        assertThatThrownBy(() -> service.approveAndExecute(1L, null, "ok", "finance"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+        verify(walletService, never()).refundFromHeld(any(), any(), any());
+    }
+
+    @Test
     void reject_returnsSettlementToHeld() {
         Booking b = booking(BookingStatus.CANCELLED, SettlementStatus.REFUND_PENDING);
         RefundRequest request = RefundRequest.builder()

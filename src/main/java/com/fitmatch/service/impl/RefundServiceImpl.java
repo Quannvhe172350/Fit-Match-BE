@@ -75,6 +75,15 @@ public class RefundServiceImpl implements RefundService {
                                             String note, String actorUsername) {
         RefundRequest request = requirePending(refundId);
         Booking booking = request.getBooking();
+        // P1-2: chặn double-spend giữa refund flow và dispute flow. Khi mở tranh
+        // chấp, booking bị kéo sang DISPUTED (tiền do DisputeFinancialApplier xử
+        // lý). Nếu settlement không còn REFUND_PENDING thì không được execute refund
+        // này nữa — tránh refundFromHeld hai lần trên cùng khoản held.
+        if (booking.getSettlementStatus() != SettlementStatus.REFUND_PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot execute refund: booking settlement is " + booking.getSettlementStatus()
+                            + " (expected REFUND_PENDING; the booking may be under dispute)");
+        }
         BigDecimal refund = approvedAmount != null ? approvedAmount : request.getAmount();
         if (refund.compareTo(request.getAmount()) > 0) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
