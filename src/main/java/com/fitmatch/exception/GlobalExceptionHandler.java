@@ -3,7 +3,10 @@ package com.fitmatch.exception;
 import com.fitmatch.common.enums.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -12,6 +15,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -72,10 +76,47 @@ public class GlobalExceptionHandler {
         return build(ErrorCode.CONCURRENT_UPDATE, ErrorCode.CONCURRENT_UPDATE.getDefaultMessage(), request);
     }
 
+    /**
+     * P2: vi phạm ràng buộc DB (unique/FK) — vd đua đăng ký cùng email/username.
+     * Trả 409 thay vì 500, và KHÔNG lộ tên constraint/câu SQL ra client.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Data integrity violation on path {}: {}", request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        return build(ErrorCode.INVALID_STATE,
+                "The request conflicts with existing data (duplicate or constraint violation)", request);
+    }
+
+    /** P2: sai kiểu tham số path/query (vd id không phải số) — 400 thay vì 500. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.warn("Argument type mismatch on path {}: parameter '{}'", request.getRequestURI(), ex.getName());
+        return build(ErrorCode.VALIDATION_ERROR, "Invalid value for parameter '" + ex.getName() + "'", request);
+    }
+
+    /** P2: vi phạm @Validated trên tham số method (vd @RequestParam) — 400. */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
+        log.warn("Constraint violation on path {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(ErrorCode.VALIDATION_ERROR, "One or more request parameters are invalid", request);
+    }
+
+    /**
+     * P2: sort/filter theo field không tồn tại (vd guest ?sort=passwordHash) — 400
+     * thay vì 500, và không lộ tên field/entity nội bộ.
+     */
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handlePropertyReference(PropertyReferenceException ex, HttpServletRequest request) {
+        log.warn("Invalid sort/property reference on path {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(ErrorCode.VALIDATION_ERROR, "Invalid sort or filter field", request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleException(Exception ex, HttpServletRequest request) {
+        // Log đầy đủ phía server; client chỉ nhận thông báo chung — KHÔNG lộ
+        // ex.getMessage() (có thể chứa tên constraint/SQL/field nội bộ).
         log.error("Unexpected error on path {}: {}", request.getRequestURI(), ex.getMessage(), ex);
-        return build(ErrorCode.INTERNAL_ERROR, ex.getMessage(), request);
+        return build(ErrorCode.INTERNAL_ERROR, ErrorCode.INTERNAL_ERROR.getDefaultMessage(), request);
     }
 
     private ResponseEntity<ErrorResponse> build(ErrorCode errorCode, String message, HttpServletRequest request) {

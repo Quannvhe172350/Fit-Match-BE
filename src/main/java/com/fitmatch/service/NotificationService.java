@@ -15,6 +15,13 @@ public interface NotificationService {
     /** Gửi thông báo tới một user; tôn trọng NotificationPreference; nuốt mọi lỗi. */
     void notify(User user, NotificationCategory category, String title, String body, String link);
 
+    /**
+     * Gửi thông báo theo username (tra cứu user trong giao dịch riêng). Dùng bởi
+     * {@link com.fitmatch.service.support.NotificationEventListener} sau khi
+     * giao dịch nghiệp vụ commit — tránh entity lazy detached.
+     */
+    void notify(String username, NotificationCategory category, String title, String body, String link);
+
     PageResponse<NotificationResponse> list(String username, Pageable pageable);
 
     long unreadCount(String username);

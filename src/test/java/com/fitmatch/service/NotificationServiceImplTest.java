@@ -6,6 +6,7 @@ import com.fitmatch.entity.NotificationPreference;
 import com.fitmatch.entity.User;
 import com.fitmatch.repository.NotificationPreferenceRepository;
 import com.fitmatch.repository.NotificationRepository;
+import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,9 +26,28 @@ class NotificationServiceImplTest {
 
     @Mock private NotificationRepository notificationRepository;
     @Mock private NotificationPreferenceRepository preferenceRepository;
+    @Mock private UserRepository userRepository;
     @InjectMocks private NotificationServiceImpl service;
 
     private final User user = User.builder().username("john").build();
+
+    @Test
+    void notifyByUsername_looksUpUserAndStores() {
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(user));
+
+        service.notify("john", NotificationCategory.BOOKING, "t", "b", "/x");
+
+        verify(notificationRepository).save(any(Notification.class));
+    }
+
+    @Test
+    void notifyByUsername_unknownUser_noop() {
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+
+        service.notify("ghost", NotificationCategory.BOOKING, "t", "b", "/x");
+
+        verify(notificationRepository, never()).save(any());
+    }
 
     @Test
     void notify_transactionalCategory_alwaysStored() {
@@ -58,7 +78,7 @@ class NotificationServiceImplTest {
 
     @Test
     void notify_nullUser_noop() {
-        service.notify(null, NotificationCategory.BOOKING, "t", "b", "/x");
+        service.notify((User) null, NotificationCategory.BOOKING, "t", "b", "/x");
 
         verify(notificationRepository, never()).save(any());
     }

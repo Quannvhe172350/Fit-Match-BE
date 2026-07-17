@@ -27,7 +27,9 @@ import java.util.List;
  */
 @Slf4j
 @Component
-@Profile({"local", "dev"})
+// P2: chỉ seed ở 'local'. Trước đây bật cả 'dev' -> nếu 'dev' là staging truy
+// cập được từ ngoài thì tồn tại tài khoản ADMIN với mật khẩu cứng (ai cũng biết).
+@Profile("local")
 @RequiredArgsConstructor
 public class DevDataSeeder implements ApplicationRunner {
 
