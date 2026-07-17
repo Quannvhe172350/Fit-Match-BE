@@ -34,8 +34,10 @@ public class AdminPtManagementServiceImpl implements AdminPtManagementService {
 
     @Override
     @Transactional
-    public GymPtResponse suspend(Long ptId, String reason, String actorUsername) {
-        PtProfile profile = requirePt(ptId);
+    public GymPtResponse suspend(Long userId, String reason, String actorUsername) {
+        // P0-3 (audit 2026-07-17): tra theo User.id — caller là trang quản lý user;
+        // trước đây tra PtProfile.id khiến admin đình chỉ nhầm PT khác (2 dãy id độc lập).
+        PtProfile profile = requirePtByUser(userId);
         if (profile.getStatus() == PtStatus.SUSPENDED) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "PT is already suspended");
         }
@@ -48,23 +50,23 @@ public class AdminPtManagementServiceImpl implements AdminPtManagementService {
         // gym), nhưng phải báo Gym + khách của các booking tương lai để dời/hủy —
         // tránh "PT bị đình chỉ vì an toàn vẫn phục vụ buổi đã đặt".
         List<Booking> affected = bookingRepository.findByPtProfile_IdAndStatusInAndStartAtGreaterThan(
-                ptId, BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
+                profile.getId(), BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
         for (Booking b : affected) {
             notificationDispatcher.ptSuspendedAffectsBooking(b, reason);
         }
 
-        auditService.record(AuditActions.PT_SUSPEND, "PtProfile", ptId,
+        auditService.record(AuditActions.PT_SUSPEND, "PtProfile", profile.getId(),
                 "Suspended by " + actorUsername + ": " + reason
                         + " (" + affected.size() + " upcoming booking(s) flagged for reassignment)");
-        log.info("PT {} suspended by {} ({} upcoming bookings notified)",
-                ptId, actorUsername, affected.size());
+        log.info("PT profile {} (user {}) suspended by {} ({} upcoming bookings notified)",
+                profile.getId(), userId, actorUsername, affected.size());
         return GymPtResponse.of(profile);
     }
 
     @Override
     @Transactional
-    public GymPtResponse reactivate(Long ptId, String actorUsername) {
-        PtProfile profile = requirePt(ptId);
+    public GymPtResponse reactivate(Long userId, String actorUsername) {
+        PtProfile profile = requirePtByUser(userId);
         if (profile.getStatus() != PtStatus.SUSPENDED) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Only a SUSPENDED PT can be reactivated (current: " + profile.getStatus() + ")");
@@ -74,14 +76,14 @@ public class AdminPtManagementServiceImpl implements AdminPtManagementService {
         profile.setActive(true);
         ptProfileRepository.save(profile);
 
-        auditService.record(AuditActions.PT_REACTIVATE, "PtProfile", ptId,
+        auditService.record(AuditActions.PT_REACTIVATE, "PtProfile", profile.getId(),
                 "Reactivated by " + actorUsername);
-        log.info("PT {} reactivated by {}", ptId, actorUsername);
+        log.info("PT profile {} (user {}) reactivated by {}", profile.getId(), userId, actorUsername);
         return GymPtResponse.of(profile);
     }
 
-    private PtProfile requirePt(Long ptId) {
-        return ptProfileRepository.findById(ptId)
-                .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
+    private PtProfile requirePtByUser(Long userId) {
+        return ptProfileRepository.findByUser_Id(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("PT profile for user", userId));
     }
 }

@@ -20,6 +20,9 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
 
     Optional<PtProfile> findByUser_Username(String username);
 
+    /** UC-021 (P0-3): tra hồ sơ PT theo User.id — dùng cho admin thao tác từ trang quản lý user. */
+    Optional<PtProfile> findByUser_Id(Long userId);
+
     boolean existsByUser_Username(String username);
 
     Optional<PtProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);

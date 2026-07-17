@@ -32,23 +32,23 @@ public class AdminPtController {
 
     @Operation(
             summary = "UC-021 — Đình chỉ PT",
-            description = "Actor: **Admin**. Đình chỉ PT (sự cố chất lượng/an toàn) -> SUSPENDED, ẩn khỏi marketplace, không nhận booking; Gym không tự gỡ được. Lỗi: 409 đã SUSPENDED; 404 không tồn tại.")
-    @PostMapping("/{id}/suspend")
+            description = "Actor: **Admin**. `{userId}` là **User.id** của tài khoản PT (khớp trang quản lý user), KHÔNG phải PtProfile.id. Đình chỉ PT (sự cố chất lượng/an toàn) -> SUSPENDED, ẩn khỏi marketplace, không nhận booking; Gym không tự gỡ được. Lỗi: 409 đã SUSPENDED; 404 user không có hồ sơ PT.")
+    @PostMapping("/{userId}/suspend")
     public ResponseEntity<ApiResponse<GymPtResponse>> suspend(
-            @PathVariable Long id,
+            @PathVariable Long userId,
             @Valid @RequestBody RejectRequest request,
             @AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.ok(ApiResponse.success("PT suspended",
-                service.suspend(id, request.getReason(), actor.getUsername())));
+                service.suspend(userId, request.getReason(), actor.getUsername())));
     }
 
     @Operation(
             summary = "UC-021 — Gỡ đình chỉ PT",
-            description = "Actor: **Admin**. SUSPENDED -> ACTIVE. Lỗi: 409 không ở SUSPENDED; 404 không tồn tại.")
-    @PostMapping("/{id}/reactivate")
+            description = "Actor: **Admin**. `{userId}` là **User.id** của tài khoản PT. SUSPENDED -> ACTIVE. Lỗi: 409 không ở SUSPENDED; 404 user không có hồ sơ PT.")
+    @PostMapping("/{userId}/reactivate")
     public ResponseEntity<ApiResponse<GymPtResponse>> reactivate(
-            @PathVariable Long id, @AuthenticationPrincipal UserDetails actor) {
+            @PathVariable Long userId, @AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.ok(ApiResponse.success("PT reactivated",
-                service.reactivate(id, actor.getUsername())));
+                service.reactivate(userId, actor.getUsername())));
     }
 }
