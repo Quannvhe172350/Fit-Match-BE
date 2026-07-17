@@ -50,4 +50,29 @@ public class FavoriteController {
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(favoriteService.listPtFavorites(userDetails.getUsername())));
     }
+
+    // ── A-11 (audit 2026-07-17): service + DB hỗ trợ GYM từ đầu nhưng chưa expose endpoint ──
+
+    @Operation(summary = "UC-19 — Thêm Gym vào yêu thích", description = "Actor: **Customer**. Lỗi: 404 Gym không hiển thị; 400 đã có trong yêu thích.")
+    @PostMapping("/gyms/{gymProfileId}")
+    public ResponseEntity<ApiResponse<Void>> addGym(@AuthenticationPrincipal UserDetails userDetails,
+                                                    @PathVariable Long gymProfileId) {
+        favoriteService.addGymFavorite(userDetails.getUsername(), gymProfileId);
+        return ResponseEntity.ok(ApiResponse.success("Gym added to favorites", null));
+    }
+
+    @Operation(summary = "UC-20 — Bỏ Gym khỏi yêu thích", description = "Actor: **Customer**. Lỗi: 404 nếu không có trong yêu thích.")
+    @DeleteMapping("/gyms/{gymProfileId}")
+    public ResponseEntity<ApiResponse<Void>> removeGym(@AuthenticationPrincipal UserDetails userDetails,
+                                                       @PathVariable Long gymProfileId) {
+        favoriteService.removeGymFavorite(userDetails.getUsername(), gymProfileId);
+        return ResponseEntity.ok(ApiResponse.success("Gym removed from favorites", null));
+    }
+
+    @Operation(summary = "UC-21 — Danh sách Gym yêu thích", description = "Actor: **Customer**. Trả về hồ sơ công khai của các Gym đã yêu thích.")
+    @GetMapping("/gyms")
+    public ResponseEntity<ApiResponse<List<com.fitmatch.dto.gym.GymPublicProfileResponse>>> listGyms(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(favoriteService.listGymFavorites(userDetails.getUsername())));
+    }
 }
