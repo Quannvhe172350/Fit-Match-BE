@@ -20,7 +20,10 @@ public class SmtpEmailService implements EmailService {
         this.frontendUrl = frontendUrl;
     }
 
+    // Phase 5: gửi email ngoài luồng request (executor "email-*") — request
+    // register/forgot-password không còn chờ SMTP; lỗi gửi được log, không nổ 500.
     @Override
+    @org.springframework.scheduling.annotation.Async("emailExecutor")
     public void sendVerificationEmail(String to, String token) {
         String link = frontendUrl + "/verify-email?token=" + token;
         send(to, "FitMatch — Xác thực tài khoản của bạn", buildVerificationHtml(link));
@@ -28,6 +31,7 @@ public class SmtpEmailService implements EmailService {
     }
 
     @Override
+    @org.springframework.scheduling.annotation.Async("emailExecutor")
     public void sendPasswordResetEmail(String to, String token) {
         String link = frontendUrl + "/reset-password?token=" + token;
         send(to, "FitMatch — Đặt lại mật khẩu", buildPasswordResetHtml(link));
