@@ -53,7 +53,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     /** UC-076: đếm booking theo trạng thái trong khoảng thời gian; gymId null = toàn nền tảng. */
     @org.springframework.data.jpa.repository.Query(
             "select b.status, count(b) from Booking b "
-            + "where b.createdAt between :from and :to "
+            + "where b.createdAt >= :from and b.createdAt < :to "
             + "and (:gymId is null or b.gymProfile.id = :gymId) group by b.status")
     java.util.List<Object[]> countByStatusInRange(
             @org.springframework.data.repository.query.Param("from") LocalDateTime from,

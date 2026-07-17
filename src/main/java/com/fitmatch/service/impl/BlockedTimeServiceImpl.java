@@ -140,7 +140,12 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
     // P1-15: không cho tạo khoảng chặn đè lên booking đang giữ chỗ (PENDING/CONFIRMED)
     // — nếu không sẽ có "PT/chi nhánh nghỉ nhưng booking vẫn CONFIRMED", khách đến
     // nơi đóng cửa. Gym phải dời/hủy các booking đó trước.
+    // B-30 (audit 2026-07-17): khóa PESSIMISTIC_WRITE bản ghi PT/branch TRƯỚC khi
+    // kiểm tra overlap — checkout giữ cùng lock nên hai phía được tuần tự hoá,
+    // hết race "cả hai cùng pass rồi commit" tạo booking CONFIRMED trong khoảng chặn.
     private void assertNoOverlappingPtBooking(Long ptId, BlockedTimeRequest request) {
+        ptProfileRepository.lockById(ptId)
+                .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
         boolean overlap = !bookingRepository
                 .findByPtProfile_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
                         ptId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
@@ -154,6 +159,8 @@ public class BlockedTimeServiceImpl implements BlockedTimeService {
     }
 
     private void assertNoOverlappingBranchBooking(Long branchId, BlockedTimeRequest request) {
+        gymBranchRepository.lockById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym branch", branchId));
         long overlap = bookingRepository
                 .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
                         branchId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,

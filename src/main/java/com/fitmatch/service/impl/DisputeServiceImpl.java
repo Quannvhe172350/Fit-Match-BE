@@ -182,6 +182,8 @@ public class DisputeServiceImpl implements DisputeService {
                     "Only an OPEN/ESCALATED dispute can move to review (current: " + dispute.getStatus() + ")");
         }
         dispute.setStatus(DisputeStatus.UNDER_REVIEW);
+        // D-12 (audit 2026-07-17): claim case — người bấm "Bắt đầu xem xét" là người phụ trách.
+        dispute.setAssignedModerator(moderatorUsername);
         auditService.record(AuditActions.DISPUTE_REVIEW, "Dispute", disputeId,
                 "Review started by " + moderatorUsername);
         return DisputeResponse.of(dispute);

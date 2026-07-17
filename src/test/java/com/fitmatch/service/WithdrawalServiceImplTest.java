@@ -33,9 +33,13 @@ class WithdrawalServiceImplTest {
     @Mock private WalletService walletService;
     @Mock private GymProfileResolver gymProfileResolver;
     @Mock private AuditService auditService;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private WithdrawalServiceImpl service;
 
-    private final GymProfile gym = GymProfile.builder().id(5L).build();
+    private final GymProfile gym = GymProfile.builder()
+            .id(5L)
+            .user(com.fitmatch.entity.User.builder().id(9L).username("gym").build())
+            .build();
     private final Wallet wallet = Wallet.builder().id(7L).gymProfile(gym).build();
 
     private WithdrawalRequest request(WithdrawalStatus status) {

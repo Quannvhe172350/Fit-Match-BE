@@ -42,6 +42,32 @@ public class NotificationDispatcher {
         return b.getPtProfile() != null ? b.getPtProfile().getUser() : null;
     }
 
+    // ----- E-15/BE-14 (audit 2026-07-17): các flow trước đây thiếu thông báo -----
+
+    /** UC-042: khách tự hủy — gym (và PT nếu đã gán) phải biết lịch trống ra. */
+    public void bookingCancelledByCustomer(Booking b, String reason) {
+        String body = "Khách đã hủy booking #" + b.getId()
+                + (reason != null && !reason.isBlank() ? ": " + reason : ".");
+        dispatch(gymUser(b), NotificationCategory.BOOKING, "Khách hủy lịch đặt", body, "/gym/bookings");
+        dispatch(ptUser(b), NotificationCategory.BOOKING, "Buổi tập bị khách hủy", body, "/trainer/bookings");
+    }
+
+    /** UC-062: kết quả xử lý yêu cầu rút tiền — gym không còn phải tự vào kiểm tra. */
+    public void withdrawalDecided(User gymUser, Long withdrawalId, String decision, String detail) {
+        dispatch(gymUser, NotificationCategory.PAYMENT,
+                "Yêu cầu rút tiền #" + withdrawalId + " " + decision,
+                detail,
+                "/gym/withdrawals");
+    }
+
+    /** UC-044: slot trống ra (booking hủy/từ chối) — báo khách đang chờ cùng dịch vụ/gói. */
+    public void waitlistSlotOpened(User customer, String itemName) {
+        dispatch(customer, NotificationCategory.BOOKING,
+                "Đã có chỗ trống",
+                "Khung giờ cho \"" + itemName + "\" vừa trống ra — đặt ngay trước khi hết chỗ.",
+                "/profile/bookings");
+    }
+
     // ----- Booking (UC-037/038/040/049) -----
 
     /** UC-037: booking được chuyển tới Gym xử lý. */

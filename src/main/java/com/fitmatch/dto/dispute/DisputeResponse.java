@@ -29,6 +29,8 @@ public class DisputeResponse {
     private BigDecimal refundAmount;
     private BigDecimal frozenAmount;
     private String moderatorNote;
+    /** D-12: moderator đang phụ trách (claim khi startReview). */
+    private String assignedModerator;
     private LocalDateTime resolvedAt;
     private LocalDateTime createdAt;
 
@@ -50,6 +52,7 @@ public class DisputeResponse {
                 .refundAmount(d.getRefundAmount())
                 .frozenAmount(d.getFrozenAmount())
                 .moderatorNote(d.getModeratorNote())
+                .assignedModerator(d.getAssignedModerator())
                 .resolvedAt(d.getResolvedAt())
                 .createdAt(d.getCreatedAt())
                 .build();

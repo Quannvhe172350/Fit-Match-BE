@@ -52,6 +52,8 @@ public class BookingServiceImpl implements BookingService {
     private final com.fitmatch.service.VoucherService voucherService;
     private final com.fitmatch.service.LoyaltyService loyaltyService;
     private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    private final com.fitmatch.service.support.WaitlistSlotNotifier waitlistSlotNotifier;
 
     @Override
     @Transactional
@@ -238,6 +240,12 @@ public class BookingServiceImpl implements BookingService {
                 + (reason != null ? ": " + reason : ""));
         // Đơn VietQR chưa trả tiền thì đóng lại (UC-054).
         paymentService.cancelOrderIfPending(bookingId);
+        // E-15 (audit 2026-07-17): trước đây khách tự hủy mà gym/PT không hề được báo.
+        notificationDispatcher.bookingCancelledByCustomer(booking, reason);
+        // UC-044: slot trống ra -> báo khách đang chờ cùng dịch vụ/gói.
+        if (statusBeforeCancel == BookingStatus.CONFIRMED || statusBeforeCancel == BookingStatus.PENDING_GYM) {
+            waitlistSlotNotifier.onSlotFreed(booking);
+        }
         return BookingResponse.of(booking);
     }
 

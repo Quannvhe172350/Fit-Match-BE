@@ -85,13 +85,19 @@ public class ScheduleConflictValidator {
         if (hours.isEmpty()) {
             reasons.add("Branch has no operating hours configured for this day");
         } else {
-            OperatingHour hour = hours.get(0);
+            // BE-17 (audit 2026-07-17): trước đây chỉ xét hours.get(0) — sai nếu một ngày
+            // có nhiều khung mở cửa (vd sáng + chiều). Booking hợp lệ khi nằm TRỌN trong
+            // BẤT KỲ khung đang mở nào.
             LocalTime startTime = start.toLocalTime();
             LocalTime endTime = end.toLocalTime();
-            if (hour.isClosed()) {
-                reasons.add("Branch is closed on this day");
-            } else if (startTime.isBefore(hour.getOpenTime()) || endTime.isAfter(hour.getCloseTime())) {
-                reasons.add("Requested time is outside branch operating hours");
+            boolean withinAnyOpenWindow = hours.stream()
+                    .filter(h -> !h.isClosed())
+                    .anyMatch(h -> !startTime.isBefore(h.getOpenTime()) && !endTime.isAfter(h.getCloseTime()));
+            if (!withinAnyOpenWindow) {
+                boolean allClosed = hours.stream().allMatch(OperatingHour::isClosed);
+                reasons.add(allClosed
+                        ? "Branch is closed on this day"
+                        : "Requested time is outside branch operating hours");
             }
         }
 

@@ -44,6 +44,7 @@ public class GymBookingServiceImpl implements GymBookingService {
     private final com.fitmatch.service.PackageUsageService packageUsageService;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    private final com.fitmatch.service.support.WaitlistSlotNotifier waitlistSlotNotifier;
     private final com.fitmatch.service.LoyaltyService loyaltyService;
     private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
 
@@ -96,6 +97,8 @@ public class GymBookingServiceImpl implements GymBookingService {
         refundService.autoCreate(booking, "Gym rejected booking: " + reason);
         paymentService.cancelOrderIfPending(bookingId);
         notificationDispatcher.bookingRejected(booking, reason);
+        // UC-044 (E-15): slot trống ra -> báo khách đang chờ cùng dịch vụ/gói.
+        waitlistSlotNotifier.onSlotFreed(booking);
         auditService.record(AuditActions.BOOKING_REJECT, "Booking", bookingId,
                 "Rejected by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);
@@ -162,6 +165,8 @@ public class GymBookingServiceImpl implements GymBookingService {
         refundService.autoCreate(booking, "Gym cancelled booking: " + reason);
         paymentService.cancelOrderIfPending(bookingId);
         notificationDispatcher.bookingCancelledByGym(booking, reason);
+        // UC-044 (E-15): slot trống ra -> báo khách đang chờ cùng dịch vụ/gói.
+        waitlistSlotNotifier.onSlotFreed(booking);
         auditService.record(AuditActions.BOOKING_CANCEL_BY_GYM, "Booking", bookingId,
                 "Cancelled by gym " + gymUsername + ": " + reason);
         return BookingResponse.of(booking);

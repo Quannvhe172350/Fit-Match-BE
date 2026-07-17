@@ -18,7 +18,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
     /** UC-076: tổng số tiền theo loại bút toán trong khoảng; gymId null = toàn nền tảng. */
     @org.springframework.data.jpa.repository.Query(
             "select t.type, coalesce(sum(t.amount), 0) from WalletTransaction t "
-            + "where t.createdAt between :from and :to "
+            + "where t.createdAt >= :from and t.createdAt < :to "
             + "and (:gymId is null or t.wallet.gymProfile.id = :gymId) group by t.type")
     List<Object[]> sumByTypeInRange(
             @org.springframework.data.repository.query.Param("from") java.time.LocalDateTime from,

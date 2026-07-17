@@ -31,6 +31,12 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     private final WalletService walletService;
     private final GymProfileResolver gymProfileResolver;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+
+    /** E-15: chủ ví (gym operator) — người cần biết kết quả xử lý lệnh rút. */
+    private com.fitmatch.entity.User ownerOf(WithdrawalRequest request) {
+        return request.getWallet().getGymProfile().getUser();
+    }
 
     @Override
     @Transactional
@@ -80,6 +86,9 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         withdrawalRequestRepository.save(request);
         auditService.record(AuditActions.WITHDRAWAL_APPROVE, "WithdrawalRequest", id,
                 "Approved by " + actorUsername);
+        // E-15 (audit 2026-07-17): trước đây gym không được báo kết quả lệnh rút.
+        notificationDispatcher.withdrawalDecided(ownerOf(request), id, "đã được duyệt",
+                "Lệnh rút " + request.getAmount() + " đ đã được duyệt — chờ chuyển khoản.");
         return WithdrawalResponse.of(request);
     }
 
@@ -93,6 +102,10 @@ public class WithdrawalServiceImpl implements WithdrawalService {
         withdrawalRequestRepository.save(request);
         auditService.record(AuditActions.WITHDRAWAL_REJECT, "WithdrawalRequest", id,
                 "Rejected by " + actorUsername + (note != null ? ": " + note : ""));
+        notificationDispatcher.withdrawalDecided(ownerOf(request), id, "bị từ chối",
+                "Lệnh rút " + request.getAmount() + " đ bị từ chối"
+                        + (note != null && !note.isBlank() ? ": " + note : ".")
+                        + " Số tiền đã trở lại khả dụng.");
         return WithdrawalResponse.of(request);
     }
 
@@ -113,6 +126,8 @@ public class WithdrawalServiceImpl implements WithdrawalService {
                 "Paid out by " + actorUsername + " (" + request.getAmount()
                         + ", ref=" + payoutReference.trim() + ")");
         log.info("Withdrawal {} paid out ({}, ref={})", id, request.getAmount(), payoutReference.trim());
+        notificationDispatcher.withdrawalDecided(ownerOf(request), id, "đã chi trả",
+                "Đã chuyển khoản " + request.getAmount() + " đ (mã GD: " + payoutReference.trim() + ").");
         return WithdrawalResponse.of(request);
     }
 

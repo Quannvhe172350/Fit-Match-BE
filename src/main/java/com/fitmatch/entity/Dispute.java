@@ -77,6 +77,10 @@ public class Dispute extends BaseEntity {
     @Column(name = "moderator_note", length = 1000)
     private String moderatorNote;
 
+    /** D-12 (V39): moderator nhận xử lý case khi startReview — hai người không dẫm chân nhau. */
+    @Column(name = "assigned_moderator", length = 50)
+    private String assignedModerator;
+
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
