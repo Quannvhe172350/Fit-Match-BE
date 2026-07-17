@@ -22,5 +22,6 @@ public interface WithdrawalService {
 
     WithdrawalResponse reject(Long id, String note, String actorUsername);
 
-    WithdrawalResponse markPaid(Long id, String note, String actorUsername);
+    /** D-11: payoutReference (mã giao dịch chuyển khoản) bắt buộc để đối soát sao kê. */
+    WithdrawalResponse markPaid(Long id, String payoutReference, String note, String actorUsername);
 }

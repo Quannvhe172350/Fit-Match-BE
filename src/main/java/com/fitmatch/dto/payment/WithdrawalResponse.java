@@ -20,6 +20,7 @@ public class WithdrawalResponse {
     private String accountHolder;
     private WithdrawalStatus status;
     private String reviewNote;
+    private String payoutReference;
     private String requestedBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -33,6 +34,7 @@ public class WithdrawalResponse {
                 .accountHolder(r.getAccountHolder())
                 .status(r.getStatus())
                 .reviewNote(r.getReviewNote())
+                .payoutReference(r.getPayoutReference())
                 .requestedBy(r.getCreatedBy())
                 .createdAt(r.getCreatedAt())
                 .updatedAt(r.getUpdatedAt())

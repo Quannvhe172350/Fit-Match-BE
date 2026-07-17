@@ -75,14 +75,14 @@ public class AdminWithdrawalController {
 
     @Operation(
             summary = "UC-062 — Xác nhận đã chi trả",
-            description = "Actor: **Admin/Finance**. APPROVED -> PAID sau khi đã chuyển khoản thủ công cho Gym; tiền rời nền tảng. Lỗi: 409 sai trạng thái.")
+            description = "Actor: **Admin/Finance**. APPROVED -> PAID sau khi đã chuyển khoản thủ công cho Gym; tiền rời nền tảng. D-11: bắt buộc `payoutReference` (mã giao dịch chuyển khoản) để đối soát sao kê. Lỗi: 400 thiếu payoutReference; 409 sai trạng thái.")
     @PostMapping("/{id}/mark-paid")
     public ResponseEntity<ApiResponse<WithdrawalResponse>> markPaid(
             @PathVariable Long id,
-            @Valid @RequestBody(required = false) DecisionNoteRequest request,
+            @Valid @RequestBody com.fitmatch.dto.payment.MarkPaidRequest request,
             @AuthenticationPrincipal UserDetails actor) {
         return ResponseEntity.ok(ApiResponse.success("Withdrawal paid",
-                withdrawalService.markPaid(id, request != null ? request.getNote() : null,
+                withdrawalService.markPaid(id, request.getPayoutReference(), request.getNote(),
                         actor.getUsername())));
     }
 }

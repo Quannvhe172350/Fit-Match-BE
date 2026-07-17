@@ -98,15 +98,21 @@ public class WithdrawalServiceImpl implements WithdrawalService {
 
     @Override
     @Transactional
-    public WithdrawalResponse markPaid(Long id, String note, String actorUsername) {
+    public WithdrawalResponse markPaid(Long id, String payoutReference, String note, String actorUsername) {
+        // D-11: mã giao dịch chuyển khoản bắt buộc — không có thì không đối soát được sao kê.
+        if (payoutReference == null || payoutReference.isBlank()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Payout reference is required");
+        }
         WithdrawalRequest request = requireStatus(id, WithdrawalStatus.APPROVED);
         walletService.payoutWithdrawal(gymIdOf(request), request.getAmount());
         request.setStatus(WithdrawalStatus.PAID);
+        request.setPayoutReference(payoutReference.trim());
         request.setReviewNote(note);
         withdrawalRequestRepository.save(request);
         auditService.record(AuditActions.WITHDRAWAL_PAID, "WithdrawalRequest", id,
-                "Paid out by " + actorUsername + " (" + request.getAmount() + ")");
-        log.info("Withdrawal {} paid out ({})", id, request.getAmount());
+                "Paid out by " + actorUsername + " (" + request.getAmount()
+                        + ", ref=" + payoutReference.trim() + ")");
+        log.info("Withdrawal {} paid out ({}, ref={})", id, request.getAmount(), payoutReference.trim());
         return WithdrawalResponse.of(request);
     }
 

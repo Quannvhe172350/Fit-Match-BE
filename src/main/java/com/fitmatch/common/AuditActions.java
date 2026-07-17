@@ -47,6 +47,8 @@ public final class AuditActions {
     public static final String ATTENDANCE_CORRECT = "ATTENDANCE_CORRECT";
     public static final String REVIEW_MODERATE = "REVIEW_MODERATE";
     public static final String REVIEW_REPORT_RESOLVE = "REVIEW_REPORT_RESOLVE";
+    public static final String WALLET_FREEZE = "WALLET_FREEZE";
+    public static final String WALLET_UNFREEZE = "WALLET_UNFREEZE";
     public static final String DISPUTE_OPEN = "DISPUTE_OPEN";
     public static final String DISPUTE_REVIEW = "DISPUTE_REVIEW";
     public static final String DISPUTE_RESOLVE = "DISPUTE_RESOLVE";

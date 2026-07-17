@@ -65,6 +65,10 @@ public class WithdrawalRequest extends BaseEntity {
     @Column(name = "review_note", length = 500)
     private String reviewNote;
 
+    /** D-11: mã giao dịch chuyển khoản thực tế — bắt buộc khi mark-paid để đối soát sao kê (V37). */
+    @Column(name = "payout_reference", length = 100)
+    private String payoutReference;
+
     /**
      * Optimistic lock (P1 batch 2): chống hai admin cùng mark-paid/approve một
      * yêu cầu rút -> payout trừ frozen hai lần, ăn vào reserve của lệnh khác. Xem V36.

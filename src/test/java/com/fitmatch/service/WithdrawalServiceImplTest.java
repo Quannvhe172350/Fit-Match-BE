@@ -76,10 +76,20 @@ class WithdrawalServiceImplTest {
         when(withdrawalRequestRepository.findById(1L))
                 .thenReturn(Optional.of(request(WithdrawalStatus.APPROVED)));
 
-        WithdrawalResponse res = service.markPaid(1L, "txn 998877", "finance");
+        WithdrawalResponse res = service.markPaid(1L, "FT2026071799", "txn 998877", "finance");
 
         verify(walletService).payoutWithdrawal(5L, new BigDecimal("500.00"));
         assertThat(res.getStatus()).isEqualTo(WithdrawalStatus.PAID);
+        assertThat(res.getPayoutReference()).isEqualTo("FT2026071799");
+    }
+
+    @Test
+    void markPaid_withoutPayoutReference_throwsValidation() {
+        // D-11: không có mã giao dịch chuyển khoản thì không đối soát được sao kê.
+        assertThatThrownBy(() -> service.markPaid(1L, "  ", null, "finance"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.VALIDATION_ERROR);
     }
 
     @Test
@@ -87,7 +97,7 @@ class WithdrawalServiceImplTest {
         when(withdrawalRequestRepository.findById(1L))
                 .thenReturn(Optional.of(request(WithdrawalStatus.PENDING)));
 
-        assertThatThrownBy(() -> service.markPaid(1L, null, "finance"))
+        assertThatThrownBy(() -> service.markPaid(1L, "FT123", null, "finance"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_STATE);
