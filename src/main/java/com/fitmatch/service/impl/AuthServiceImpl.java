@@ -48,7 +48,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public void register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new BusinessException(ErrorCode.USERNAME_EXISTS,
                     "Username '" + request.getUsername() + "' is already taken");
@@ -67,6 +67,7 @@ public class AuthServiceImpl implements AuthService {
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
+                .fullName(request.getFullName())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .phone(request.getPhone())
                 .role(accountType.getRole())
@@ -79,14 +80,18 @@ public class AuthServiceImpl implements AuthService {
         // UC-01: phát hành token xác minh email và gửi qua EmailService (stub).
         emailVerificationIssuer.issue(user);
 
-        return issueTokens(user);
+        // BE-2 (audit 2026-07-17): KHÔNG issueTokens ở đây — user phải verify email
+        // rồi login; token cấp lúc đăng ký từng cho phép gọi API bảo vệ khi chưa verify.
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
         // UC-003: kiểm tra mật khẩu TRƯỚC khi tiết lộ trạng thái khóa
         // (chống account enumeration nhưng vẫn trả 403 đúng cho tài khoản bị khóa).
-        User user = userRepository.findByUsername(request.getUsername()).orElse(null);
+        // A-4 (audit 2026-07-17): chấp nhận cả username lẫn email — FE label là "Email".
+        User user = userRepository.findByUsername(request.getUsername())
+                .or(() -> userRepository.findByEmail(request.getUsername()))
+                .orElse(null);
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.debug("Login failed for username: {}", request.getUsername());
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);

@@ -27,6 +27,10 @@ public class RegisterRequest {
     @Email(message = "Email must be valid")
     private String email;
 
+    /** A-5: họ tên hiển thị (tiếng Việt có dấu) — tách khỏi username (regex ASCII). */
+    @Size(max = 100, message = "Full name must not exceed 100 characters")
+    private String fullName;
+
     @NotBlank(message = "Password is required")
     @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
     private String password;

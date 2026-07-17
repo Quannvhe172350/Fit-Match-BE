@@ -45,10 +45,11 @@ public class AuthController {
                     """)
     @SecurityRequirements // public
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
+    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+        authService.register(request);
+        // BE-2: không trả token — user phải verify email rồi login.
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Registration successful. Please verify your email.", response));
+                .body(ApiResponse.success("Registration successful. Please verify your email.", null));
     }
 
     @Operation(

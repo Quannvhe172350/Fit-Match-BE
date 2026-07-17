@@ -12,7 +12,11 @@ import com.fitmatch.dto.auth.VerifyEmailRequest;
 
 public interface AuthService {
 
-    AuthResponse register(RegisterRequest request);
+    /**
+     * UC-001. KHÔNG phát hành token (BE-2, audit 2026-07-17): login đã chặn
+     * EMAIL_NOT_VERIFIED nên token cấp lúc đăng ký là đường vòng qua chính sách verify.
+     */
+    void register(RegisterRequest request);
 
     AuthResponse login(LoginRequest request);
 

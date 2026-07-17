@@ -62,6 +62,38 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void register_doesNotIssueTokens_andSendsVerification() {
+        // BE-2 (audit 2026-07-17): token cấp lúc đăng ký là đường vòng qua chính sách
+        // verify email (login chặn EMAIL_NOT_VERIFIED nhưng token register thì không).
+        when(userRepository.existsByUsername("john")).thenReturn(false);
+        when(userRepository.existsByEmail("john@x.com")).thenReturn(false);
+        when(passwordEncoder.encode("secret")).thenReturn("hash");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.register(com.fitmatch.dto.auth.RegisterRequest.builder()
+                .username("john").email("john@x.com").password("secret")
+                .fullName("Nguyễn Văn A").build());
+
+        org.mockito.Mockito.verify(emailVerificationIssuer).issue(any(User.class));
+        org.mockito.Mockito.verifyNoInteractions(jwtTokenProvider);
+    }
+
+    @Test
+    void login_byEmail_succeeds() {
+        // A-4: FE label là "Email" — BE chấp nhận cả username lẫn email.
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setEmailVerified(true);
+        stubTokenIssue();
+        when(userRepository.findByUsername("john@x.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("john@x.com")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+
+        var res = service.login(new LoginRequest("john@x.com", "secret"));
+
+        assertThat(res.getAccessToken()).isEqualTo("access");
+    }
+
+    @Test
     void login_wrongPassword_returnsInvalidCredentials() {
         when(userRepository.findByUsername("john")).thenReturn(Optional.of(user(UserStatus.ACTIVE, 0)));
         when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
