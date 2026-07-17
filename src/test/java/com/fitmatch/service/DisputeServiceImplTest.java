@@ -120,6 +120,59 @@ class DisputeServiceImplTest {
                 .isInstanceOf(com.fitmatch.exception.ResourceNotFoundException.class);
     }
 
+    // ── D-18 (quyết định 2026-07-17, phương án A): cửa sổ mở tranh chấp N ngày ──
+
+    @Test
+    void open_beyondWindow_throws() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "openWindowDays", 14L);
+        Booking b = booking(SettlementStatus.HELD, null);
+        b.setEndAt(java.time.LocalDateTime.now().minusDays(15)); // quá hạn 14 ngày
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(b));
+        when(disputeRepository.existsByBooking_IdAndStatusIn(eq(10L), anyList())).thenReturn(false);
+
+        assertThatThrownBy(() -> service.open("john", new OpenDisputeRequest(10L, "too late")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+    }
+
+    @Test
+    void open_withinWindow_succeeds() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "openWindowDays", 14L);
+        Booking b = booking(SettlementStatus.HELD, null);
+        b.setEndAt(java.time.LocalDateTime.now().minusDays(13)); // còn trong hạn
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(b));
+        when(disputeRepository.existsByBooking_IdAndStatusIn(eq(10L), anyList())).thenReturn(false);
+        when(settlementService.heldAmountOf(b)).thenReturn(new BigDecimal("150.00"));
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(User.builder().username("john").role(Role.ROLE_CUSTOMER).build()));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.open("john", new OpenDisputeRequest(10L, "issue in time"));
+
+        assertThat(b.getSettlementStatus()).isEqualTo(SettlementStatus.DISPUTED);
+    }
+
+    @Test
+    void open_cancelledBooking_windowAnchorsOnUpdatedAt() {
+        // REJECTED/CANCELLED: buổi có thể chưa từng diễn ra -> neo theo lúc bị hủy.
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "openWindowDays", 14L);
+        Booking b = booking(SettlementStatus.HELD, null);
+        b.setStatus(BookingStatus.CANCELLED);
+        b.setEndAt(java.time.LocalDateTime.now().minusDays(60)); // endAt cũ không được dùng
+        b.setUpdatedAt(java.time.LocalDateTime.now().minusDays(2)); // vừa hủy 2 ngày trước
+        when(bookingRepository.findById(10L)).thenReturn(Optional.of(b));
+        when(disputeRepository.existsByBooking_IdAndStatusIn(eq(10L), anyList())).thenReturn(false);
+        when(settlementService.heldAmountOf(b)).thenReturn(new BigDecimal("150.00"));
+        when(userRepository.findByUsername("john"))
+                .thenReturn(Optional.of(User.builder().username("john").role(Role.ROLE_CUSTOMER).build()));
+        when(disputeRepository.save(any(Dispute.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.open("john", new OpenDisputeRequest(10L, "cancelled but charged"));
+
+        assertThat(b.getSettlementStatus()).isEqualTo(SettlementStatus.DISPUTED);
+    }
+
     @Test
     void resolve_delegatesToApplierAndSetsResolved() {
         Dispute d = Dispute.builder().id(1L).status(DisputeStatus.UNDER_REVIEW)

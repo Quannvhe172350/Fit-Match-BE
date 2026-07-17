@@ -49,6 +49,11 @@ cors:
 app:
   base-url: ${APP_BASE_URL:http://localhost:9898}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  # D-18 (chốt 2026-07-17, phương án A): số ngày được mở tranh chấp kể từ khi buổi tập
+  # kết thúc (hoặc từ lúc booking bị hủy/từ chối). Đổi ở đây thì sửa cả
+  # DISPUTE_WINDOW_DAYS phía FE (booking-pages) cho khớp thông báo/ẩn nút.
+  dispute:
+    open-window-days: ${DISPUTE_OPEN_WINDOW_DAYS:14}
   mail:
     from: ${MAIL_FROM:noreply@fitmatch.app}
   gcs:

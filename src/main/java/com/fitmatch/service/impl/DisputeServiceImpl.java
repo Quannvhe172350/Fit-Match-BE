@@ -53,6 +53,15 @@ public class DisputeServiceImpl implements DisputeService {
     private static final List<DisputeStatus> OPEN_STATES =
             List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW, DisputeStatus.ESCALATED);
 
+    /**
+     * D-18 (quyết định nghiệp vụ 2026-07-17, phương án A): chỉ được MỞ tranh chấp
+     * trong N ngày kể từ mốc neo — endAt (buổi tập kết thúc) với booking đã/đang
+     * diễn ra, hoặc updatedAt (thời điểm bị hủy/từ chối) với REJECTED/CANCELLED.
+     * Quá hạn: liên hệ hỗ trợ (tiền đã RELEASED vẫn được guard chống đòi tự động).
+     */
+    @org.springframework.beans.factory.annotation.Value("${app.dispute.open-window-days:14}")
+    private long openWindowDays;
+
     private final DisputeRepository disputeRepository;
     private final DisputeEvidenceRepository evidenceRepository;
     private final BookingRepository bookingRepository;
@@ -75,6 +84,7 @@ public class DisputeServiceImpl implements DisputeService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "An unresolved dispute already exists for this booking");
         }
+        assertWithinDisputeWindow(booking);
 
         // UC-063: bảo vệ tiền — kéo pending về held nếu cần, đánh dấu DISPUTED để
         // scheduler không auto-release trong lúc tranh chấp.
@@ -94,6 +104,31 @@ public class DisputeServiceImpl implements DisputeService {
                 "Opened by " + username + " (" + opener.getRole() + ") for booking " + booking.getId());
         log.info("Dispute {} opened for booking {} (frozen {})", dispute.getId(), booking.getId(), frozen);
         return DisputeResponse.of(dispute);
+    }
+
+    /**
+     * D-18: mốc neo của cửa sổ khiếu nại.
+     * - REJECTED/CANCELLED: buổi có thể chưa từng diễn ra -> tính từ lúc bị hủy/từ chối (updatedAt).
+     * - Còn lại (CONFIRMED/COMPLETED/NO_SHOW): tính từ endAt; booking CONFIRMED trong
+     *   tương lai (endAt > now) luôn trong cửa sổ.
+     */
+    private void assertWithinDisputeWindow(Booking booking) {
+        java.time.LocalDateTime anchor;
+        if (booking.getStatus() == com.fitmatch.common.enums.BookingStatus.REJECTED
+                || booking.getStatus() == com.fitmatch.common.enums.BookingStatus.CANCELLED) {
+            anchor = booking.getUpdatedAt();
+        } else {
+            anchor = booking.getEndAt() != null ? booking.getEndAt() : booking.getUpdatedAt();
+        }
+        if (anchor == null) {
+            return; // dữ liệu cũ thiếu mốc — không chặn oan
+        }
+        java.time.LocalDateTime deadline = anchor.plusDays(openWindowDays);
+        if (java.time.LocalDateTime.now().isAfter(deadline)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Dispute window has closed (" + openWindowDays
+                            + " days). Please contact support for assistance.");
+        }
     }
 
     /** Kéo tiền của booking về held và đặt settlement DISPUTED; trả về số tiền được bảo vệ. */
