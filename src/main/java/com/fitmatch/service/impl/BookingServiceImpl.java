@@ -203,6 +203,9 @@ public class BookingServiceImpl implements BookingService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Cannot reschedule: " + String.join("; ", issues));
         }
+        // C-9 (chính sách chốt 2026-07-17): khách dời lịch booking CONFIRMED giữ nguyên
+        // CONFIRMED, KHÔNG cần gym duyệt lại — eligibility checker đã đảm bảo khung giờ
+        // mới hợp lệ (giờ mở cửa, lịch PT, capacity); gym được báo qua notification.
         String note = "Rescheduled by customer from " + booking.getStartAt() + " to " + startAt;
         booking.setStartAt(startAt);
         booking.setEndAt(endAt);

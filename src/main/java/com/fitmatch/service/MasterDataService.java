@@ -2,13 +2,12 @@ package com.fitmatch.service;
 
 import com.fitmatch.dto.admin.ServiceCategoryRequest;
 import com.fitmatch.dto.admin.ServiceCategoryResponse;
-import com.fitmatch.dto.admin.SystemConfigRequest;
-import com.fitmatch.dto.admin.SystemConfigResponse;
 
 import java.util.List;
 
 /**
- * UC-078: Admin quản lý master data (danh mục dịch vụ) và tham số cấu hình hệ thống.
+ * UC-078: Admin quản lý master data (danh mục dịch vụ).
+ * E-8 (quyết định 2026-07-17): system-configs đã gỡ — write-only, không logic nào đọc.
  */
 public interface MasterDataService {
 
@@ -17,8 +16,4 @@ public interface MasterDataService {
     ServiceCategoryResponse updateCategory(Long id, ServiceCategoryRequest request, String actorUsername);
 
     List<ServiceCategoryResponse> listCategories(boolean includeInactive);
-
-    SystemConfigResponse upsertConfig(SystemConfigRequest request, String actorUsername);
-
-    List<SystemConfigResponse> listConfigs();
 }

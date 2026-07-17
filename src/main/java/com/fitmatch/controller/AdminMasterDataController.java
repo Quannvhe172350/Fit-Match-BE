@@ -3,8 +3,6 @@ package com.fitmatch.controller;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.admin.ServiceCategoryRequest;
 import com.fitmatch.dto.admin.ServiceCategoryResponse;
-import com.fitmatch.dto.admin.SystemConfigRequest;
-import com.fitmatch.dto.admin.SystemConfigResponse;
 import com.fitmatch.service.MasterDataService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -67,20 +65,7 @@ public class AdminMasterDataController {
         return ResponseEntity.ok(ApiResponse.success(masterDataService.listCategories(includeInactive)));
     }
 
-    @Operation(summary = "UC-078 — Đặt tham số cấu hình hệ thống (upsert)",
-            description = "Actor: **Admin**. Tạo mới hoặc ghi đè theo configKey (UPPER_SNAKE_CASE).")
-    @PutMapping("/system-configs")
-    public ResponseEntity<ApiResponse<SystemConfigResponse>> upsertConfig(
-            @Valid @RequestBody SystemConfigRequest request,
-            @AuthenticationPrincipal UserDetails actor) {
-        return ResponseEntity.ok(ApiResponse.success("Config saved",
-                masterDataService.upsertConfig(request, actor.getUsername())));
-    }
-
-    @Operation(summary = "UC-078 — Danh sách cấu hình hệ thống",
-            description = "Actor: **Admin**.")
-    @GetMapping("/system-configs")
-    public ResponseEntity<ApiResponse<List<SystemConfigResponse>>> listConfigs() {
-        return ResponseEntity.ok(ApiResponse.success(masterDataService.listConfigs()));
-    }
+    // E-8 (quyết định nghiệp vụ 2026-07-17): gỡ system-configs — kho key-value
+    // write-only, không logic BE nào đọc; các tham số vận hành thật nằm ở
+    // CommissionConfig (UC-072) và BookingRules per-service/package (UC-026).
 }

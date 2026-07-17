@@ -24,7 +24,6 @@ public final class AuditActions {
     public static final String PT_SUSPEND = "PT_SUSPEND";
     public static final String PT_REACTIVATE = "PT_REACTIVATE";
     public static final String MASTER_DATA_CHANGE = "MASTER_DATA_CHANGE";
-    public static final String SYSTEM_CONFIG_CHANGE = "SYSTEM_CONFIG_CHANGE";
     public static final String BOOKING_PAYMENT_HOLD = "BOOKING_PAYMENT_HOLD";
     public static final String BOOKING_ACCEPT = "BOOKING_ACCEPT";
     public static final String BOOKING_REJECT = "BOOKING_REJECT";

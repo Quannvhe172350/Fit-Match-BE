@@ -192,7 +192,9 @@ public class GymBookingServiceImpl implements GymBookingService {
         // UC-043: khách không đến -> theo chính sách nền tảng, tiền giữ được chuyển
         // cho Gym (qua pending settlement, vẫn có holding period để khiếu nại).
         settlementService.settleAfterFulfillment(booking, "no-show");
-        // UC-049: no-show vẫn tiêu thụ buổi của gói (chính sách nền tảng).
+        // UC-049 (C-17, chính sách CHỐT 2026-07-17): no-show vẫn tiêu 1 buổi của gói —
+        // giữ chỗ mà vắng mặt là đã dùng quyền lợi; correct-attendance flip
+        // NO_SHOW<->COMPLETED không điều chỉnh buổi vì cả hai trạng thái đều tiêu.
         packageUsageService.onBookingFulfilled(booking);
         bookingRepository.save(booking);
         notificationDispatcher.bookingNoShow(booking);

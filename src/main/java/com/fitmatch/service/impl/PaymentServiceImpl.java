@@ -78,6 +78,9 @@ public class PaymentServiceImpl implements PaymentService {
                 });
     }
 
+    // D-7 (chính sách chốt 2026-07-17): KHÔNG có luồng retry cho đơn EXPIRED —
+    // booking bị hủy kèm hoàn promo, khách chậm chuyển khoản đặt booking mới
+    // (TTL 24h đủ rộng; giữ chỗ vô hạn sẽ khóa slot của khách khác).
     @Override
     @Transactional
     public int expireOverdueOrders() {

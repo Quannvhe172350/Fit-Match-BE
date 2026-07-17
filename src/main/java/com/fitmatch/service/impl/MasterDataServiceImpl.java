@@ -4,14 +4,10 @@ import com.fitmatch.common.AuditActions;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.dto.admin.ServiceCategoryRequest;
 import com.fitmatch.dto.admin.ServiceCategoryResponse;
-import com.fitmatch.dto.admin.SystemConfigRequest;
-import com.fitmatch.dto.admin.SystemConfigResponse;
 import com.fitmatch.entity.ServiceCategory;
-import com.fitmatch.entity.SystemConfig;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.ServiceCategoryRepository;
-import com.fitmatch.repository.SystemConfigRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.MasterDataService;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +23,6 @@ import java.util.List;
 public class MasterDataServiceImpl implements MasterDataService {
 
     private final ServiceCategoryRepository serviceCategoryRepository;
-    private final SystemConfigRepository systemConfigRepository;
     private final AuditService auditService;
 
     @Override
@@ -72,23 +67,6 @@ public class MasterDataServiceImpl implements MasterDataService {
         return categories.stream().map(ServiceCategoryResponse::of).toList();
     }
 
-    @Override
-    @Transactional
-    public SystemConfigResponse upsertConfig(SystemConfigRequest request, String actorUsername) {
-        SystemConfig config = systemConfigRepository.findByConfigKey(request.getConfigKey())
-                .orElseGet(() -> SystemConfig.builder().configKey(request.getConfigKey()).build());
-        config.setConfigValue(request.getConfigValue());
-        config.setDescription(request.getDescription());
-        config = systemConfigRepository.save(config);
-        auditService.record(AuditActions.SYSTEM_CONFIG_CHANGE, "SystemConfig", config.getId(),
-                "Config " + request.getConfigKey() + " set by " + actorUsername);
-        log.info("System config {} updated by {}", request.getConfigKey(), actorUsername);
-        return SystemConfigResponse.of(config);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<SystemConfigResponse> listConfigs() {
-        return systemConfigRepository.findAll().stream().map(SystemConfigResponse::of).toList();
-    }
+    // E-8 (quyết định nghiệp vụ 2026-07-17): upsertConfig/listConfigs đã gỡ cùng
+    // bảng system_configs (V40) — kho key-value write-only, không logic nào tiêu thụ.
 }
