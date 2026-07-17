@@ -8,14 +8,19 @@ import com.fitmatch.entity.AvailabilitySlot;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.entity.Booking;
 import com.fitmatch.repository.AvailabilitySlotRepository;
+import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.service.PtAvailabilityService;
+import com.fitmatch.service.support.BookingEligibilityChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Comparator;
 import java.util.List;
 
@@ -26,6 +31,7 @@ public class PtAvailabilityServiceImpl implements PtAvailabilityService {
 
     private final AvailabilitySlotRepository availabilitySlotRepository;
     private final PtProfileRepository ptProfileRepository;
+    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -90,6 +96,12 @@ public class PtAvailabilityServiceImpl implements PtAvailabilityService {
             }
         }
 
+        // P1-15 (C-2): không cho thu hẹp lịch bỏ rơi booking đang giữ chỗ tương lai.
+        // Mỗi booking HOLDING tương lai của PT phải vẫn nằm trong lịch rảnh MỚI;
+        // nếu không, khách đã đặt sẽ rơi ngoài lịch (PT "nghỉ" nhưng booking vẫn
+        // CONFIRMED). Gym/PT phải dời/hủy các booking đó trước.
+        assertUpcomingBookingsCoveredBySlots(pt.getId(), sorted);
+
         availabilitySlotRepository.deleteByPtProfile_Id(pt.getId());
         List<AvailabilitySlot> saved = availabilitySlotRepository.saveAll(slots.stream()
                 .map(s -> AvailabilitySlot.builder()
@@ -106,5 +118,28 @@ public class PtAvailabilityServiceImpl implements PtAvailabilityService {
     private PtProfile requireOwnPt(String username) {
         return ptProfileRepository.findByUser_Username(username)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile for user", username));
+    }
+
+    /** Mỗi booking giữ chỗ tương lai của PT phải nằm trọn trong một slot mới cùng thứ. */
+    private void assertUpcomingBookingsCoveredBySlots(Long ptId, List<AvailabilitySlotDto> newSlots) {
+        List<Booking> upcoming = bookingRepository.findByPtProfile_IdAndStatusInAndStartAtGreaterThan(
+                ptId, BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
+        for (Booking b : upcoming) {
+            if (b.getStartAt() == null || b.getEndAt() == null) {
+                continue;
+            }
+            int day = b.getStartAt().getDayOfWeek().getValue();
+            LocalTime bStart = b.getStartAt().toLocalTime();
+            LocalTime bEnd = b.getEndAt().toLocalTime();
+            boolean covered = newSlots.stream().anyMatch(s ->
+                    s.getDayOfWeek() != null && s.getDayOfWeek() == day
+                            && !bStart.isBefore(s.getStartTime())
+                            && !bEnd.isAfter(s.getEndTime()));
+            if (!covered) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Cannot narrow availability: booking #" + b.getId() + " at " + b.getStartAt()
+                                + " would fall outside the new schedule. Reschedule or cancel it first.");
+            }
+        }
     }
 }

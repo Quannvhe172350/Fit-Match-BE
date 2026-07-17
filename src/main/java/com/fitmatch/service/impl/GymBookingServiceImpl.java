@@ -204,6 +204,15 @@ public class GymBookingServiceImpl implements GymBookingService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Booking can only be completed after the session start time");
         }
+        // UC-047/049: không cho hoàn tất buổi khách chưa từng check-in — nếu không
+        // gym có thể COMPLETED một buổi khách vắng mặt để thu tiền + trừ buổi gói
+        // + cộng điểm. Đối xứng với no-show (chặn khi ĐÃ check-in). Gym có thể
+        // check-in hộ khách trước, hoặc dùng no-show / correct-attendance.
+        if (booking.getCheckedInAt() == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot complete a booking without check-in. Record customer attendance "
+                            + "(check-in) first, or mark no-show.");
+        }
         bookingLifecycle.transition(booking, BookingStatus.COMPLETED,
                 "Completed by gym " + gymUsername);
         booking.setCompletedAt(java.time.LocalDateTime.now());

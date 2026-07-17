@@ -86,6 +86,24 @@ public class NotificationDispatcher {
                 "/profile/bookings");
     }
 
+    /**
+     * P1-16 (UC-021): PT bị đình chỉ nhưng còn booking tương lai — báo cho Gym
+     * Operator (chịu trách nhiệm reassign/hủy) và khách hàng của buổi bị ảnh hưởng.
+     */
+    public void ptSuspendedAffectsBooking(Booking b, String reason) {
+        notificationService.notify(gymUser(b), NotificationCategory.BOOKING,
+                "PT bị đình chỉ — cần xử lý booking",
+                "PT của booking #" + b.getId() + " đã bị đình chỉ"
+                        + (reason != null && !reason.isBlank() ? ": " + reason : "")
+                        + ". Vui lòng phân công PT khác hoặc hủy buổi này.",
+                "/gym/bookings");
+        notificationService.notify(b.getCustomer(), NotificationCategory.BOOKING,
+                "Buổi tập cần được sắp xếp lại",
+                "PT của booking #" + b.getId() + " tạm thời không thể phục vụ. "
+                        + "Phòng gym sẽ liên hệ để sắp xếp lại.",
+                "/profile/bookings");
+    }
+
     // ----- Gym verification (UC-013/014) -----
 
     /** UC-013/014: thông báo cho Gym Operator kết quả duyệt/đình chỉ hồ sơ. */

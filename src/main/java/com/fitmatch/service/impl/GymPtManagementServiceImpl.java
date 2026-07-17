@@ -62,6 +62,10 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
                 .phone(request.getPhone())
                 .role(Role.ROLE_PT)
                 .status(UserStatus.ACTIVE)
+                // N-1: Gym chịu trách nhiệm email PT (do Gym nhập) -> đánh dấu đã
+                // xác thực để PT đăng nhập được ngay. Nếu để false, verify-gate
+                // (P1-11) chặn login mà không ai phát token cho PT.
+                .emailVerified(true)
                 .build());
 
         PtProfile profile = ptProfileRepository.save(PtProfile.builder()

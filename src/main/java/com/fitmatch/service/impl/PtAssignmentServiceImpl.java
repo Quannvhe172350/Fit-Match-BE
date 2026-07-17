@@ -10,17 +10,20 @@ import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.TrainingPackage;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
+import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.PtAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.service.PtAssignmentService;
+import com.fitmatch.service.support.BookingEligibilityChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -35,6 +38,7 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
     private final GymBranchRepository gymBranchRepository;
     private final GymServiceRepository gymServiceRepository;
     private final TrainingPackageRepository trainingPackageRepository;
+    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -88,6 +92,16 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
         PtAssignment assignment = ptAssignmentRepository
                 .findByIdAndPtProfile_GymProfile_User_Username(assignmentId, gymUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("PT assignment", assignmentId));
+        // P1-16: không gỡ phân công khi PT còn booking giữ chỗ tương lai — nếu
+        // không booking sẽ trỏ tới PT không còn được gán (bỏ rơi). Gym phải
+        // reassign/hủy các booking đó trước (đồng nhất với chặn ở deactivate PT).
+        long future = bookingRepository.countByPtProfile_IdAndStatusInAndStartAtGreaterThan(
+                ptId, BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
+        if (future > 0) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot remove assignment: PT has " + future + " upcoming booking(s). "
+                            + "Reassign or cancel them first.");
+        }
         ptAssignmentRepository.delete(assignment);
         log.info("Gym {} removed assignment {} of PT {}", gymUsername, assignmentId, ptId);
     }
