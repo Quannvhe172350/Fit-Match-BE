@@ -43,38 +43,37 @@ public class BookingEligibilityChecker {
         boolean hasService = booking.getGymService() != null;
         boolean hasPackage = booking.getTrainingPackage() != null;
         if (hasService == hasPackage) {
-            reasons.add("Exactly one of service or package must be selected");
+            reasons.add("Phải chọn đúng một trong hai: dịch vụ hoặc gói tập");
         }
 
         // Gym phải APPROVED + đang hiển thị.
         if (booking.getGymProfile().getVerificationStatus() != VerificationStatus.APPROVED
                 || !booking.getGymProfile().isActive()) {
-            reasons.add("Gym is not available for booking");
+            reasons.add("Phòng gym hiện không nhận đặt lịch");
         }
 
         // Catalog phải PUBLISHED — trừ buổi tập từ gói đã mua (khách vẫn còn quyền
         // dùng buổi kể cả khi gym đã ẩn/ngừng bán gói).
         boolean packageSession = booking.getCustomerPackage() != null;
         if (hasService && booking.getGymService().getStatus() != CatalogStatus.PUBLISHED) {
-            reasons.add("Service is not published");
+            reasons.add("Dịch vụ này hiện chưa được mở bán");
         }
         if (hasPackage && !packageSession
                 && booking.getTrainingPackage().getStatus() != CatalogStatus.PUBLISHED) {
-            reasons.add("Package is not published");
+            reasons.add("Gói tập này hiện chưa được mở bán");
         }
 
         // UC-049: gói đã mua phải còn hiệu lực và còn buổi (kể cả buổi đang giữ chỗ).
         if (packageSession) {
             var cp = booking.getCustomerPackage();
             if (cp.getStatus() != com.fitmatch.common.enums.CustomerPackageStatus.ACTIVE) {
-                reasons.add("Customer package is " + cp.getStatus());
+                reasons.add("Gói đã mua không còn hiệu lực (trạng thái: " + cp.getStatus() + ")");
             } else {
                 long holding = bookingRepository.countByCustomerPackage_IdAndStatusInAndIdNot(
                         cp.getId(), HOLDING_STATUSES, booking.getId());
                 if (cp.getSessionsUsed() + holding >= cp.getSessionsTotal()) {
-                    reasons.add("No remaining sessions in the purchased package (used "
-                            + cp.getSessionsUsed() + ", holding " + holding
-                            + " of " + cp.getSessionsTotal() + ")");
+                    reasons.add("Gói đã mua không còn buổi trống (đã dùng " + cp.getSessionsUsed()
+                            + ", đang giữ chỗ " + holding + " trên tổng " + cp.getSessionsTotal() + " buổi)");
                 }
             }
         }
@@ -83,10 +82,10 @@ public class BookingEligibilityChecker {
         LocalDateTime start = booking.getStartAt();
         LocalDateTime end = booking.getEndAt();
         if (start == null || end == null) {
-            reasons.add("startAt and endAt are required");
+            reasons.add("Vui lòng chọn thời gian bắt đầu và kết thúc");
         } else {
             if (!start.isAfter(LocalDateTime.now())) {
-                reasons.add("startAt must be in the future");
+                reasons.add("Thời gian bắt đầu phải ở tương lai");
             }
             // Notice tối thiểu theo booking rules (UC-026).
             BookingRules rules = hasService && booking.getGymService() != null
@@ -96,7 +95,7 @@ public class BookingEligibilityChecker {
             if (rules != null && rules.getMinNoticeHours() != null) {
                 long noticeHours = Duration.between(LocalDateTime.now(), start).toHours();
                 if (noticeHours < rules.getMinNoticeHours()) {
-                    reasons.add("Booking requires at least " + rules.getMinNoticeHours() + " hours notice");
+                    reasons.add("Lịch đặt cần báo trước ít nhất " + rules.getMinNoticeHours() + " giờ");
                 }
             }
         }
@@ -115,14 +114,24 @@ public class BookingEligibilityChecker {
                         .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
                                 booking.getGymBranch().getId(), HOLDING_STATUSES, end, start);
                 if (held >= capacity) {
-                    reasons.add("Branch capacity is full for this time slot");
+                    reasons.add("Khung giờ này đã kín chỗ tại chi nhánh");
                 }
+            }
+        }
+
+        // UC-030 (phía khách): một khách chỉ được giữ 1 booking cho 1 khung giờ.
+        if (start != null && end != null && booking.getCustomer() != null) {
+            long overlapping = bookingRepository
+                    .countByCustomer_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThanAndIdNot(
+                            booking.getCustomer().getId(), HOLDING_STATUSES, end, start, booking.getId());
+            if (overlapping > 0) {
+                reasons.add("Bạn đã có lịch đặt khác trùng khung giờ này");
             }
         }
 
         if (!reasons.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Booking is not eligible: " + String.join("; ", reasons));
+                    "Không thể đặt lịch: " + String.join("; ", reasons));
         }
     }
 
@@ -133,12 +142,12 @@ public class BookingEligibilityChecker {
     public List<String> rescheduleIssues(Booking booking, LocalDateTime start, LocalDateTime end) {
         List<String> reasons = new ArrayList<>();
         if (!start.isAfter(LocalDateTime.now())) {
-            reasons.add("startAt must be in the future");
+            reasons.add("Thời gian bắt đầu phải ở tương lai");
         }
         // UC-041: dời lịch vẫn phải tôn trọng trạng thái Gym và notice tối thiểu.
         if (booking.getGymProfile().getVerificationStatus() != VerificationStatus.APPROVED
                 || !booking.getGymProfile().isActive()) {
-            reasons.add("Gym is not available for booking");
+            reasons.add("Phòng gym hiện không nhận đặt lịch");
         }
         BookingRules rules = booking.getGymService() != null
                 ? booking.getGymService().getBookingRules()
@@ -146,7 +155,7 @@ public class BookingEligibilityChecker {
                         ? booking.getTrainingPackage().getBookingRules() : null);
         if (rules != null && rules.getMinNoticeHours() != null
                 && Duration.between(LocalDateTime.now(), start).toHours() < rules.getMinNoticeHours()) {
-            reasons.add("Booking requires at least " + rules.getMinNoticeHours() + " hours notice");
+            reasons.add("Lịch đặt cần báo trước ít nhất " + rules.getMinNoticeHours() + " giờ");
         }
         if (booking.getPtProfile() != null) {
             Long ptId = booking.getPtProfile().getId();
@@ -157,7 +166,7 @@ public class BookingEligibilityChecker {
                     .filter(b -> !b.getId().equals(booking.getId()))
                     .toList().isEmpty();
             if (overlapping) {
-                reasons.add("PT already has a booking in this time slot");
+                reasons.add("PT đã có lịch đặt trong khung giờ này");
             }
         }
         if (booking.getGymBranch() != null) {
@@ -169,8 +178,17 @@ public class BookingEligibilityChecker {
                         .countByGymBranch_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThanAndIdNot(
                                 booking.getGymBranch().getId(), HOLDING_STATUSES, end, start, booking.getId());
                 if (held >= capacity) {
-                    reasons.add("Branch capacity is full for this time slot");
+                    reasons.add("Khung giờ này đã kín chỗ tại chi nhánh");
                 }
+            }
+        }
+        // UC-030 (phía khách): khung giờ mới không được trùng lịch đặt khác của chính khách.
+        if (booking.getCustomer() != null) {
+            long overlapping = bookingRepository
+                    .countByCustomer_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThanAndIdNot(
+                            booking.getCustomer().getId(), HOLDING_STATUSES, end, start, booking.getId());
+            if (overlapping > 0) {
+                reasons.add("Bạn đã có lịch đặt khác trùng khung giờ này");
             }
         }
         return reasons;
@@ -193,7 +211,7 @@ public class BookingEligibilityChecker {
                         && ptAssignmentRepository.existsByPtProfile_IdAndGymBranch_Id(
                                 ptId, booking.getGymBranch().getId()));
         if (!assigned) {
-            reasons.add("PT is not assigned to the selected service/package/branch");
+            reasons.add("PT chưa được gán cho dịch vụ/gói/chi nhánh đã chọn");
         }
         LocalDateTime start = booking.getStartAt();
         LocalDateTime end = booking.getEndAt();
@@ -205,7 +223,7 @@ public class BookingEligibilityChecker {
                     .filter(b -> !b.getId().equals(booking.getId()))
                     .toList().isEmpty();
             if (overlapping) {
-                reasons.add("PT already has a booking in this time slot");
+                reasons.add("PT đã có lịch đặt trong khung giờ này");
             }
         }
         return reasons;

@@ -38,6 +38,15 @@ public class SmtpEmailService implements EmailService {
         log.info("Password reset email sent to {}", to);
     }
 
+    // Bug 9 (UC-075): email thông báo giao dịch (booking/thanh toán).
+    @Override
+    @org.springframework.scheduling.annotation.Async("emailExecutor")
+    public void sendNotificationEmail(String to, String title, String body, String link) {
+        String cta = link != null && !link.isBlank() ? frontendUrl + link : frontendUrl;
+        send(to, "FitMatch — " + title, buildNotificationHtml(title, body, cta));
+        log.info("Notification email sent to {} ({})", to, title);
+    }
+
     private void send(String to, String subject, String html) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -71,6 +80,23 @@ public class SmtpEmailService implements EmailService {
                   </p>
                 </div>
                 """.formatted(link);
+    }
+
+    private String buildNotificationHtml(String title, String body, String ctaLink) {
+        return """
+                <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+                  <h2 style="color:#1B2A3E;margin-bottom:8px">%s</h2>
+                  <p style="color:#64748B;line-height:1.6">%s</p>
+                  <a href="%s"
+                     style="display:inline-block;margin-top:24px;padding:12px 28px;background:#2563EB;color:#fff;
+                            border-radius:6px;text-decoration:none;font-weight:600">
+                    Xem chi tiết
+                  </a>
+                  <p style="margin-top:24px;font-size:12px;color:#94A3B8">
+                    Bạn nhận được email này vì đã bật "Email thông báo" trong cài đặt FitMatch.
+                  </p>
+                </div>
+                """.formatted(title, body, ctaLink);
     }
 
     private String buildPasswordResetHtml(String link) {

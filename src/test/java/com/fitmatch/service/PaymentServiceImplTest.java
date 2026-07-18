@@ -41,6 +41,7 @@ class PaymentServiceImplTest {
     @Mock private PaymentProperties paymentProperties;
     @Mock private BookingLifecycle bookingLifecycle;
     @Mock private BookingPromotionRefunder promotionRefunder;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private PaymentServiceImpl service;
 
     @Test

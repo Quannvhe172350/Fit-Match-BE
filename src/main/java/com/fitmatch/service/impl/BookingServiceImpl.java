@@ -55,6 +55,11 @@ public class BookingServiceImpl implements BookingService {
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     private final com.fitmatch.service.support.WaitlistSlotNotifier waitlistSlotNotifier;
 
+    /** UC-030 (phía khách): trạng thái chiếm khung giờ khi tạo nháp — gồm cả nháp cũ để không dồn nháp trùng. */
+    private static final java.util.Set<BookingStatus> ACTIVE_SLOT_STATUSES = java.util.Set.of(
+            BookingStatus.DRAFT, BookingStatus.PENDING_PAYMENT,
+            BookingStatus.PENDING_GYM, BookingStatus.CONFIRMED);
+
     @Override
     @Transactional
     public BookingResponse createDraft(String customerUsername, CreateBookingRequest request) {
@@ -62,6 +67,19 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", customerUsername));
 
         Selection selection = resolveSelection(request, null, customerUsername);
+
+        // UC-030 (phía khách): chặn tạo lịch trùng khung giờ với lịch đang có
+        // (kể cả nháp) — trước đây mỗi lần checkout lỗi để lại 1 nháp trùng nhau.
+        if (request.getStartAt() != null && request.getEndAt() != null) {
+            long overlapping = bookingRepository
+                    .countByCustomer_IdAndStatusInAndStartAtLessThanAndEndAtGreaterThan(
+                            customer.getId(), ACTIVE_SLOT_STATUSES,
+                            request.getEndAt(), request.getStartAt());
+            if (overlapping > 0) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Bạn đã có lịch đặt trùng khung giờ này. Vui lòng dùng lịch đó hoặc hủy nó trước khi tạo lịch mới.");
+            }
+        }
 
         Booking booking = bookingRepository.save(Booking.builder()
                 .customer(customer)

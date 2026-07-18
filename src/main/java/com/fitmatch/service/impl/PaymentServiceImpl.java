@@ -29,6 +29,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentProperties paymentProperties;
     private final com.fitmatch.service.support.BookingLifecycle bookingLifecycle;
     private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     @Transactional
@@ -99,6 +100,8 @@ public class PaymentServiceImpl implements PaymentService {
                 // tiền mà để QR hết hạn không được phép mất điểm/lượt voucher.
                 promotionRefunder.releaseOnCancellation(booking,
                         com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT);
+                // Bug 9: trước đây booking bị hủy âm thầm — khách không hề được báo.
+                notificationDispatcher.paymentExpired(booking);
                 cancelledBookings++;
             }
             log.info("Payment order {} expired (booking {})", order.getId(), booking.getId());

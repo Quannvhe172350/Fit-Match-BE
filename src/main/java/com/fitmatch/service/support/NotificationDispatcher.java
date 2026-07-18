@@ -163,6 +163,24 @@ public class NotificationDispatcher {
                 "/profile/payments");
     }
 
+    /** Bug 9 (UC-054): đơn VietQR hết hạn — booking bị hủy, báo khách rõ ràng. */
+    public void paymentExpired(Booking b) {
+        dispatch(b.getCustomer(), NotificationCategory.PAYMENT,
+                "Hết hạn thanh toán",
+                "Booking #" + b.getId() + " đã bị hủy vì quá hạn thanh toán. "
+                        + "Điểm/voucher đã dùng (nếu có) được hoàn lại — bạn có thể đặt lịch mới.",
+                "/profile/bookings");
+    }
+
+    /** Bug 9 (UC-053): thanh toán thất bại/không khớp (thiếu tiền, chuyển sau khi hết hạn...). */
+    public void paymentFailed(Booking b, String reason) {
+        dispatch(b.getCustomer(), NotificationCategory.PAYMENT,
+                "Thanh toán thất bại",
+                "Thanh toán cho booking #" + b.getId() + " chưa được ghi nhận: " + reason
+                        + ". Vui lòng liên hệ hỗ trợ nếu bạn đã chuyển khoản.",
+                "/profile/payments");
+    }
+
     /** UC-056/067: đã hoàn tiền cho khách. */
     public void refundExecuted(Booking b, BigDecimal amount) {
         dispatch(b.getCustomer(), NotificationCategory.PAYMENT,

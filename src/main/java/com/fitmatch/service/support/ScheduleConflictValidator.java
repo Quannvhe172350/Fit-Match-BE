@@ -44,7 +44,7 @@ public class ScheduleConflictValidator {
         }
 
         if (pt.getStatus() != PtStatus.ACTIVE) {
-            reasons.add("PT is not active (current status: " + pt.getStatus() + ")");
+            reasons.add("PT hiện không hoạt động (trạng thái: " + pt.getStatus() + ")");
         }
 
         int day = start.getDayOfWeek().getValue();
@@ -54,12 +54,12 @@ public class ScheduleConflictValidator {
                 !start.toLocalTime().isBefore(s.getStartTime())
                         && !end.toLocalTime().isAfter(s.getEndTime()));
         if (!insideAvailability) {
-            reasons.add("Requested time is outside PT weekly availability");
+            reasons.add("Khung giờ nằm ngoài lịch rảnh hàng tuần của PT");
         }
 
         if (!blockedTimeRepository
                 .findByPtProfile_IdAndStartAtLessThanAndEndAtGreaterThan(ptId, end, start).isEmpty()) {
-            reasons.add("PT has blocked/busy time in this period");
+            reasons.add("PT bận trong khoảng thời gian này");
         }
         return reasons;
     }
@@ -74,7 +74,7 @@ public class ScheduleConflictValidator {
         }
 
         if (!branch.isActive()) {
-            reasons.add("Branch is not active");
+            reasons.add("Chi nhánh đang ngừng hoạt động");
         }
 
         int day = start.getDayOfWeek().getValue();
@@ -83,7 +83,7 @@ public class ScheduleConflictValidator {
                 .filter(h -> h.getDayOfWeek() == day)
                 .toList();
         if (hours.isEmpty()) {
-            reasons.add("Branch has no operating hours configured for this day");
+            reasons.add("Chi nhánh chưa cấu hình giờ hoạt động cho ngày này — vui lòng chọn ngày khác hoặc liên hệ phòng gym");
         } else {
             // BE-17 (audit 2026-07-17): trước đây chỉ xét hours.get(0) — sai nếu một ngày
             // có nhiều khung mở cửa (vd sáng + chiều). Booking hợp lệ khi nằm TRỌN trong
@@ -96,14 +96,14 @@ public class ScheduleConflictValidator {
             if (!withinAnyOpenWindow) {
                 boolean allClosed = hours.stream().allMatch(OperatingHour::isClosed);
                 reasons.add(allClosed
-                        ? "Branch is closed on this day"
-                        : "Requested time is outside branch operating hours");
+                        ? "Chi nhánh đóng cửa vào ngày này"
+                        : "Khung giờ nằm ngoài giờ mở cửa của chi nhánh");
             }
         }
 
         if (!blockedTimeRepository
                 .findByGymBranch_IdAndStartAtLessThanAndEndAtGreaterThan(branchId, end, start).isEmpty()) {
-            reasons.add("Branch has blocked time (maintenance/holiday) in this period");
+            reasons.add("Chi nhánh có lịch chặn (bảo trì/nghỉ lễ) trong khoảng thời gian này");
         }
         return reasons;
     }
@@ -111,9 +111,9 @@ public class ScheduleConflictValidator {
     private List<String> checkRange(LocalDateTime start, LocalDateTime end) {
         List<String> reasons = new ArrayList<>();
         if (!start.isBefore(end)) {
-            reasons.add("startAt must be before endAt");
+            reasons.add("Giờ bắt đầu phải trước giờ kết thúc");
         } else if (!start.toLocalDate().equals(end.toLocalDate())) {
-            reasons.add("The requested slot must start and end on the same day");
+            reasons.add("Lịch đặt phải bắt đầu và kết thúc trong cùng một ngày");
         }
         return reasons;
     }

@@ -26,6 +26,7 @@ class GymBranchServiceImplTest {
 
     @Mock private GymBranchRepository branchRepository;
     @Mock private GymProfileResolver gymProfileResolver;
+    @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
     @InjectMocks private GymBranchServiceImpl service;
 
     @Test
@@ -41,6 +42,9 @@ class GymBranchServiceImplTest {
 
         assertThat(res.getName()).isEqualTo("District 1");
         assertThat(res.isActive()).isTrue();
+        // UC-017/UC-030: chi nhánh mới được seed giờ hoạt động mặc định cả tuần.
+        org.mockito.Mockito.verify(operatingHourRepository).saveAll(org.mockito.ArgumentMatchers.argThat(hours ->
+                ((java.util.Collection<?>) hours).size() == 7));
     }
 
     @Test

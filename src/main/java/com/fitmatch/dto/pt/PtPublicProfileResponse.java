@@ -32,7 +32,21 @@ public class PtPublicProfileResponse {
     private java.math.BigDecimal averageRating;
     private Long reviewCount;
 
+    /** Phòng gym quản lý PT — để khách điều hướng sang trang gym trước khi đặt PT. */
+    private Long gymId;
+    private String gymName;
+
+    /**
+     * Bug 14 (UC-019/021): badge "Xác thực" phải data-driven — PT được coi là
+     * xác thực khi đang ACTIVE và thuộc gym đã được duyệt (mô hình gym chịu
+     * trách nhiệm; platform verification PT đã gỡ — 410).
+     */
+    private boolean verified;
+
     public static PtPublicProfileResponse of(PtProfile p, List<CertificationResponse> certifications) {
+        var gym = p.getGymProfile();
+        boolean gymApproved = gym != null
+                && gym.getVerificationStatus() == com.fitmatch.common.enums.VerificationStatus.APPROVED;
         return PtPublicProfileResponse.builder()
                 .id(p.getId())
                 .displayName(p.getDisplayName())
@@ -41,6 +55,9 @@ public class PtPublicProfileResponse {
                 .specialization(p.getSpecialization())
                 .experienceYears(p.getExperienceYears())
                 .certifications(certifications)
+                .gymId(gym != null ? gym.getId() : null)
+                .gymName(gym != null ? gym.getGymName() : null)
+                .verified(p.getStatus() == com.fitmatch.common.enums.PtStatus.ACTIVE && gymApproved)
                 .build();
     }
 

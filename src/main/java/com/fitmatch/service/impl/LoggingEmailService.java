@@ -15,4 +15,9 @@ public class LoggingEmailService implements EmailService {
     public void sendPasswordResetEmail(String to, String token) {
         log.info("[EMAIL-STUB] Password reset email -> {} | token: {}", to, token);
     }
+
+    @Override
+    public void sendNotificationEmail(String to, String title, String body, String link) {
+        log.info("[EMAIL-STUB] Notification email -> {} | {} | {} | link: {}", to, title, body, link);
+    }
 }

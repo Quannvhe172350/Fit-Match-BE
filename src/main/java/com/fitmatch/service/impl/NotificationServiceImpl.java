@@ -27,6 +27,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final NotificationPreferenceRepository preferenceRepository;
     private final UserRepository userRepository;
+    private final com.fitmatch.service.EmailService emailService;
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -59,6 +60,16 @@ public class NotificationServiceImpl implements NotificationService {
                     .body(body)
                     .link(link)
                     .build());
+            // Bug 9 (UC-075): thông báo giao dịch (booking/thanh toán) gửi kèm
+            // email khi người dùng bật "Email thông báo" (mặc định bật).
+            if ((category == NotificationCategory.BOOKING || category == NotificationCategory.PAYMENT)
+                    && user.getEmail() != null && !user.getEmail().isBlank()) {
+                boolean emailAllowed = preferenceRepository.findByUser_Username(user.getUsername())
+                        .map(p -> p.isEmailEnabled()).orElse(true);
+                if (emailAllowed) {
+                    emailService.sendNotificationEmail(user.getEmail(), title, body, link);
+                }
+            }
         } catch (Exception e) {
             log.warn("Failed to create notification for {}: {}",
                     user != null ? user.getUsername() : "?", e.getMessage());

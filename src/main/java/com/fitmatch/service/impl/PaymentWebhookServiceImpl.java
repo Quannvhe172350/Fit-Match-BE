@@ -30,6 +30,7 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
     private final PaymentOrderRepository paymentOrderRepository;
     private final BookingPaymentHandler bookingPaymentHandler;
     private final TransactionTemplate transactionTemplate;
+    private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
     public int processCasso(CassoWebhookRequest request) {
@@ -91,12 +92,18 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
             paymentOrderRepository.save(order);
             log.warn("Casso txn {} arrived after order {} expired at {} - marked EXPIRED, needs manual reconciliation",
                     item.getId(), order.getId(), order.getExpiresAt());
+            // Bug 9: trước đây chỉ log — khách đã chuyển tiền mà không hề được báo.
+            notificationDispatcher.paymentFailed(order.getBooking(),
+                    "tiền vào sau khi đơn thanh toán đã hết hạn");
             return false;
         }
         // Số tiền chuyển phải >= số phải trả; phần chuyển thừa cần đối soát thủ công.
         if (item.getAmount() == null || item.getAmount().compareTo(order.getAmount()) < 0) {
             log.warn("Casso txn {} amount {} < order {} amount {} - not confirmed",
                     item.getId(), item.getAmount(), order.getId(), order.getAmount());
+            // Bug 9: báo khách số tiền chuyển chưa đủ để xác nhận booking.
+            notificationDispatcher.paymentFailed(order.getBooking(),
+                    "số tiền chuyển chưa đủ so với số phải trả");
             return false;
         }
         if (item.getAmount().compareTo(order.getAmount()) > 0) {

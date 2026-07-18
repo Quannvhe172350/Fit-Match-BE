@@ -26,6 +26,7 @@ public class GymBranchServiceImpl implements GymBranchService {
     private final GymBranchRepository branchRepository;
     private final GymProfileResolver gymProfileResolver;
     private final BookingRepository bookingRepository;
+    private final com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
 
     @Override
     @Transactional
@@ -36,12 +37,27 @@ public class GymBranchServiceImpl implements GymBranchService {
                 .name(request.getName())
                 .address(request.getAddress())
                 .city(request.getCity())
+                .district(request.getDistrict())
                 .phone(request.getPhone())
                 .amenities(request.getAmenities())
                 .capacity(request.getCapacity())
                 .active(true)
                 .build());
-        log.info("Gym {} created branch {}", username, branch.getId());
+        // UC-017/UC-030: chi nhánh mới có sẵn giờ mặc định 06:00-22:00 cả tuần —
+        // trước đây chi nhánh chưa cấu hình giờ thì mọi booking đều bị chặn
+        // ("chưa cấu hình giờ hoạt động"), gym chỉnh lại sau nếu khác.
+        java.util.List<com.fitmatch.entity.OperatingHour> defaults = new java.util.ArrayList<>();
+        for (int day = 1; day <= 7; day++) {
+            defaults.add(com.fitmatch.entity.OperatingHour.builder()
+                    .gymBranch(branch)
+                    .dayOfWeek(day)
+                    .openTime(java.time.LocalTime.of(6, 0))
+                    .closeTime(java.time.LocalTime.of(22, 0))
+                    .closed(false)
+                    .build());
+        }
+        operatingHourRepository.saveAll(defaults);
+        log.info("Gym {} created branch {} (default operating hours 06:00-22:00 seeded)", username, branch.getId());
         return BranchResponse.of(branch);
     }
 
@@ -52,6 +68,7 @@ public class GymBranchServiceImpl implements GymBranchService {
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setCity(request.getCity());
+        branch.setDistrict(request.getDistrict());
         branch.setPhone(request.getPhone());
         branch.setAmenities(request.getAmenities());
         branch.setCapacity(request.getCapacity());

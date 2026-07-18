@@ -28,7 +28,10 @@ public class RegisterRequest {
     private String email;
 
     /** A-5: họ tên hiển thị (tiếng Việt có dấu) — tách khỏi username (regex ASCII). */
-    @Size(max = 100, message = "Full name must not exceed 100 characters")
+    @NotBlank(message = "Họ tên không được để trống")
+    @Size(min = 2, max = 100, message = "Họ tên phải từ 2 đến 100 ký tự")
+    @Pattern(regexp = "^\\p{L}+(?: \\p{L}+)*$",
+            message = "Họ tên chỉ gồm chữ cái và khoảng trắng, không chứa số hoặc ký tự đặc biệt")
     private String fullName;
 
     @NotBlank(message = "Password is required")

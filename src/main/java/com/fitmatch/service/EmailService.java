@@ -12,4 +12,10 @@ public interface EmailService {
 
     /** Gửi email chứa token đặt lại mật khẩu (UC-04). */
     void sendPasswordResetEmail(String to, String token);
+
+    /**
+     * Bug 9 (UC-075): email cho thông báo giao dịch (booking/thanh toán) —
+     * gửi kèm bản in-app khi người dùng bật "Email thông báo".
+     */
+    void sendNotificationEmail(String to, String title, String body, String link);
 }
