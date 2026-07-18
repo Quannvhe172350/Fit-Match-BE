@@ -14,19 +14,28 @@ public final class AuditLogSpecifications {
     private AuditLogSpecifications() {
     }
 
+    // Bug 12: trước đây so khớp cb.equal phân biệt hoa/thường và bắt gõ đúng
+    // 100% ("booking" vs "Booking" ra 0 dòng) — người dùng thấy như "filter
+    // không hoạt động". Chuyển sang LIKE không phân biệt hoa/thường.
     public static Specification<AuditLog> hasAction(String action) {
         return StringUtils.hasText(action)
-                ? (root, q, cb) -> cb.equal(root.get("action"), action) : null;
+                ? (root, q, cb) -> cb.like(cb.lower(root.get("action")),
+                        "%" + action.toLowerCase() + "%")
+                : null;
     }
 
     public static Specification<AuditLog> hasTargetType(String targetType) {
         return StringUtils.hasText(targetType)
-                ? (root, q, cb) -> cb.equal(root.get("targetType"), targetType) : null;
+                ? (root, q, cb) -> cb.like(cb.lower(root.get("targetType")),
+                        "%" + targetType.toLowerCase() + "%")
+                : null;
     }
 
     public static Specification<AuditLog> byActor(String actor) {
         return StringUtils.hasText(actor)
-                ? (root, q, cb) -> cb.equal(root.get("createdBy"), actor) : null;
+                ? (root, q, cb) -> cb.like(cb.lower(root.get("createdBy")),
+                        "%" + actor.toLowerCase() + "%")
+                : null;
     }
 
     public static Specification<AuditLog> createdFrom(LocalDateTime from) {

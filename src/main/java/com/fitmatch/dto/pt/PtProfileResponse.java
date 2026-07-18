@@ -27,6 +27,8 @@ public class PtProfileResponse {
     private VerificationStatus verificationStatus;
     private String rejectionReason;
     private boolean active;
+    /** Bug 14: trạng thái vận hành thật (UC-019/021) — nguồn sự thật cho admin, thay vì verificationStatus (deprecated). */
+    private com.fitmatch.common.enums.PtStatus status;
     private List<PtDocumentDto> documents;
 
     public static PtProfileResponse of(PtProfile p, List<PtDocumentDto> documents) {
@@ -41,6 +43,7 @@ public class PtProfileResponse {
                 .verificationStatus(p.getVerificationStatus())
                 .rejectionReason(p.getRejectionReason())
                 .active(p.isActive())
+                .status(p.getStatus())
                 .documents(documents)
                 .build();
     }
