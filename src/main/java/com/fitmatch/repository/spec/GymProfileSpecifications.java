@@ -34,4 +34,44 @@ public final class GymProfileSpecifications {
                 ? (root, q, cb) -> cb.like(cb.lower(root.get("city")), "%" + city.toLowerCase() + "%")
                 : null;
     }
+
+    /**
+     * Lọc theo quận/huyện (UC-18/bug 11). Hồ sơ cũ chưa có cột district
+     * -> fallback khớp trong address ("123 Nguyễn Trãi, Thanh Xuân").
+     */
+    public static Specification<GymProfile> district(String district) {
+        if (!StringUtils.hasText(district)) {
+            return null;
+        }
+        String like = "%" + district.toLowerCase() + "%";
+        return (root, q, cb) -> cb.or(
+                cb.like(cb.lower(cb.coalesce(root.get("district"), "")), like),
+                cb.like(cb.lower(cb.coalesce(root.get("address"), "")), like));
+    }
+
+    /**
+     * Lọc theo khoảng giá (bug 11): gym khớp khi có ít nhất một gói tập PUBLISHED
+     * có giá trong [min, max].
+     */
+    public static Specification<GymProfile> packagePriceRange(java.math.BigDecimal minPrice,
+                                                              java.math.BigDecimal maxPrice) {
+        if (minPrice == null && maxPrice == null) {
+            return null;
+        }
+        return (root, q, cb) -> {
+            var sq = q.subquery(Long.class);
+            var pkg = sq.from(com.fitmatch.entity.TrainingPackage.class);
+            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(pkg.get("gymProfile").get("id"), root.get("id")));
+            predicates.add(cb.equal(pkg.get("status"), com.fitmatch.common.enums.CatalogStatus.PUBLISHED));
+            if (minPrice != null) {
+                predicates.add(cb.ge(pkg.get("price"), minPrice));
+            }
+            if (maxPrice != null) {
+                predicates.add(cb.le(pkg.get("price"), maxPrice));
+            }
+            sq.select(pkg.get("id")).where(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+            return cb.exists(sq);
+        };
+    }
 }

@@ -29,6 +29,9 @@ public class UpdateGymProfileRequest {
     @Size(max = 100)
     private String city;
 
+    @Size(max = 100)
+    private String district;
+
     @Size(max = 30)
     private String phone;
 }

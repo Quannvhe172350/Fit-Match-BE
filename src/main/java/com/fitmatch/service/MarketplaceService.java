@@ -20,8 +20,10 @@ public interface MarketplaceService {
     /** UC-14: xem chi tiết PT công khai (kèm chứng chỉ). */
     PtPublicProfileResponse getPtDetail(Long ptProfileId);
 
-    /** UC-18: tìm kiếm/lọc Gym công khai (chỉ APPROVED & active). */
-    PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, Pageable pageable);
+    /** UC-18: tìm kiếm/lọc Gym công khai (chỉ APPROVED & active) — keyword/city/district/khoảng giá gói tập. */
+    PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, String district,
+                                                      java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
+                                                      Pageable pageable);
 
     /** UC-18: xem chi tiết Gym công khai. */
     GymPublicProfileResponse getGymDetail(Long gymProfileId);

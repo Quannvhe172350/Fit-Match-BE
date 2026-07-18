@@ -22,11 +22,18 @@ public class GymPublicProfileResponse {
     private String description;
     private String address;
     private String city;
+    private String district;
     private String phone;
 
     /** Điểm đánh giá trung bình (VISIBLE) và số lượt — UC-071; null ở list nếu chưa tính. */
     private java.math.BigDecimal averageRating;
     private Long reviewCount;
+
+    /** Ảnh đại diện (media đầu tiên của gym) — card danh sách marketplace (bug 11). */
+    private String coverUrl;
+
+    /** Bug 14: badge "Đã xác minh" phải data-driven — true khi hồ sơ APPROVED. */
+    private boolean verified;
 
     public static GymPublicProfileResponse of(GymProfile g) {
         return GymPublicProfileResponse.builder()
@@ -35,7 +42,9 @@ public class GymPublicProfileResponse {
                 .description(g.getDescription())
                 .address(g.getAddress())
                 .city(g.getCity())
+                .district(g.getDistrict())
                 .phone(g.getPhone())
+                .verified(g.getVerificationStatus() == com.fitmatch.common.enums.VerificationStatus.APPROVED)
                 .build();
     }
 

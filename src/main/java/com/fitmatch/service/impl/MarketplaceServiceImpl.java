@@ -57,8 +57,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .and(PtProfileSpecifications.specialization(specialization))
                 .and(PtProfileSpecifications.serviceArea(serviceArea));
         // Danh sách: không kèm chứng chỉ để tránh N+1; chứng chỉ chỉ trả ở detail.
+        // UC-071: kèm điểm đánh giá để card hiển thị sao ngay trên danh sách.
         return PageResponse.of(ptProfileRepository.findAll(spec, pageable),
-                p -> PtPublicProfileResponse.of(p, List.of()));
+                p -> {
+                    var rating = ratingAggregator.forPt(p.getId());
+                    return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
+                });
     }
 
     @Override
@@ -77,11 +81,25 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, Pageable pageable) {
+    public PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, String district,
+                                                             java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
+                                                             Pageable pageable) {
         Specification<GymProfile> spec = Specification.where(GymProfileSpecifications.visibleOnMarketplace())
                 .and(GymProfileSpecifications.keyword(keyword))
-                .and(GymProfileSpecifications.city(city));
-        return PageResponse.of(gymProfileRepository.findAll(spec, pageable), GymPublicProfileResponse::of);
+                .and(GymProfileSpecifications.city(city))
+                .and(GymProfileSpecifications.district(district))
+                .and(GymProfileSpecifications.packagePriceRange(minPrice, maxPrice));
+        // UC-071: kèm điểm đánh giá để card hiển thị sao ngay trên danh sách.
+        return PageResponse.of(gymProfileRepository.findAll(spec, pageable),
+                g -> {
+                    var rating = ratingAggregator.forGym(g.getId());
+                    var response = GymPublicProfileResponse.of(g, rating.average(), rating.count());
+                    // Bug 11: ảnh đại diện cho card = media đầu tiên của gym (nếu có).
+                    gymMediaRepository.findByGymProfile_Id(g.getId()).stream()
+                            .findFirst()
+                            .ifPresent(m -> response.setCoverUrl(m.getUrl()));
+                    return response;
+                });
     }
 
     @Override
@@ -132,9 +150,13 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     public PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Pageable pageable) {
         requireVisibleGym(gymProfileId);
         // Danh sách: không kèm chứng chỉ (tránh N+1); chứng chỉ trả ở PT detail.
+        // UC-071: kèm điểm đánh giá để card PT của gym hiển thị sao.
         return PageResponse.of(
                 ptProfileRepository.findByGymProfile_IdAndStatus(gymProfileId, PtStatus.ACTIVE, pageable),
-                p -> PtPublicProfileResponse.of(p, List.of()));
+                p -> {
+                    var rating = ratingAggregator.forPt(p.getId());
+                    return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
+                });
     }
 
     /** Gym chỉ public khi APPROVED + đang hiển thị (UC-018) — 404 nếu không. */

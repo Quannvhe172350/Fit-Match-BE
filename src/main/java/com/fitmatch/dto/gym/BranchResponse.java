@@ -18,6 +18,7 @@ public class BranchResponse {
     private String name;
     private String address;
     private String city;
+    private String district;
     private String phone;
     private String amenities;
     private Integer capacity;
@@ -32,6 +33,7 @@ public class BranchResponse {
                 .name(b.getName())
                 .address(b.getAddress())
                 .city(b.getCity())
+                .district(b.getDistrict())
                 .phone(b.getPhone())
                 .amenities(b.getAmenities())
                 .capacity(b.getCapacity())

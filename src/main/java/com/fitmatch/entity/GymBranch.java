@@ -45,6 +45,10 @@ public class GymBranch extends BaseEntity {
     @Column(length = 100)
     private String city;
 
+    /** Quận/huyện — đồng bộ với bộ lọc vị trí marketplace (UC-18). */
+    @Column(length = 100)
+    private String district;
+
     @Column(length = 30)
     private String phone;
 

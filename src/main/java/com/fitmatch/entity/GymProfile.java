@@ -53,6 +53,10 @@ public class GymProfile extends BaseEntity {
     @Column(length = 100)
     private String city;
 
+    /** Quận/huyện — phục vụ bộ lọc vị trí theo thành phố + quận (UC-18). */
+    @Column(length = 100)
+    private String district;
+
     @Column(length = 30)
     private String phone;
 

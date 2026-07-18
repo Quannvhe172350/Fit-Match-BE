@@ -48,6 +48,7 @@ public class GymProfileServiceImpl implements GymProfileService {
                 .description(request.getDescription())
                 .address(request.getAddress())
                 .city(request.getCity())
+                .district(request.getDistrict())
                 .phone(request.getPhone())
                 .verificationStatus(VerificationStatus.PENDING)
                 .active(false)
@@ -79,6 +80,7 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setDescription(request.getDescription());
         profile.setAddress(request.getAddress());
         profile.setCity(request.getCity());
+        profile.setDistrict(request.getDistrict());
         profile.setPhone(request.getPhone());
         profile.setVerificationStatus(VerificationStatus.PENDING);
         profile.setRejectionReason(null);
@@ -106,6 +108,9 @@ public class GymProfileServiceImpl implements GymProfileService {
         }
         if (request.getCity() != null) {
             profile.setCity(request.getCity());
+        }
+        if (request.getDistrict() != null) {
+            profile.setDistrict(request.getDistrict());
         }
         if (request.getPhone() != null) {
             profile.setPhone(request.getPhone());

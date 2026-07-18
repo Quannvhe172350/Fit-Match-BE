@@ -34,13 +34,18 @@ public class MarketplaceGymController {
 
     @Operation(
             summary = "UC-18 — Tìm kiếm / lọc Gym (công khai)",
-            description = "Actor: **Customer / Guest**. Tìm Gym đã duyệt & hiển thị theo keyword (tên/mô tả) và city; phân trang. Read-only.")
+            description = "Actor: **Customer / Guest**. Tìm Gym đã duyệt & hiển thị theo keyword (tên/mô tả), "
+                    + "city, district và khoảng giá gói tập; phân trang. Read-only.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<GymPublicProfileResponse>>> search(
             @Parameter(description = "Từ khoá tên/mô tả") @RequestParam(required = false) String keyword,
             @Parameter(description = "Thành phố") @RequestParam(required = false) String city,
+            @Parameter(description = "Quận/huyện") @RequestParam(required = false) String district,
+            @Parameter(description = "Giá gói tập tối thiểu (VND)") @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @Parameter(description = "Giá gói tập tối đa (VND)") @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(marketplaceService.searchGyms(keyword, city, pageable)));
+        return ResponseEntity.ok(ApiResponse.success(
+                marketplaceService.searchGyms(keyword, city, district, minPrice, maxPrice, pageable)));
     }
 
     @Operation(

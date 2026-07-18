@@ -23,6 +23,7 @@ public class GymProfileResponse {
     private String description;
     private String address;
     private String city;
+    private String district;
     private String phone;
     private VerificationStatus verificationStatus;
     private String rejectionReason;
@@ -38,6 +39,7 @@ public class GymProfileResponse {
                 .description(g.getDescription())
                 .address(g.getAddress())
                 .city(g.getCity())
+                .district(g.getDistrict())
                 .phone(g.getPhone())
                 .verificationStatus(g.getVerificationStatus())
                 .rejectionReason(g.getRejectionReason())
