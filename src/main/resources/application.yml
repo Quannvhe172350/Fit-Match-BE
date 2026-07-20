@@ -4,9 +4,9 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mariadb://localhost:3306/fitmatch?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:root}
-    # Không có default: buộc set DB_PASSWORD (hoặc chạy profile local có cấu hình riêng)
-    # thay vì để mật khẩu mặc định trong file tracked.
-    password: ${DB_PASSWORD}
+    # Mật khẩu mặc định chỉ để chạy dev/local (khớp MARIADB_ROOT_PASSWORD của docker).
+    # Ở môi trường thật PHẢI set env DB_PASSWORD để override.
+    password: ${DB_PASSWORD:root123}
     driver-class-name: org.mariadb.jdbc.Driver
   jpa:
     hibernate:
