@@ -35,11 +35,10 @@ springdoc:
     path: /v3/api-docs
 
 jwt:
-  # Bắt buộc cấu hình qua env (Base64, >= 32 bytes sau decode); KHÔNG có default
-  # để app fail-fast thay vì chạy với secret ai cũng biết. Profile local có secret
-  # riêng trong application-local.yml (đã gitignore). Secret cũ từng nằm trong git
-  # history coi như đã lộ — PHẢI rotate JWT_SECRET ở mọi môi trường.
-  secret: ${JWT_SECRET}
+  # Secret mặc định (Base64, 48 bytes sau decode) chỉ để chạy dev/local cho tiện.
+  # Ở mọi môi trường thật PHẢI set env JWT_SECRET để override — giá trị mặc định này
+  # nằm trong git nên coi như đã lộ, tuyệt đối không dùng cho prod.
+  secret: ${JWT_SECRET:bQtzsluIcx+0VKHSXmWn0sLoTr5sib8D/9ijx+hy0CuqyiN2VAPPeB5GDsfdxdMK}
   access-token-expiration: 3600000
   refresh-token-expiration: 604800000
 
