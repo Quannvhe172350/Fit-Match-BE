@@ -237,6 +237,12 @@ public class DisputeServiceImpl implements DisputeService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Dispute is not in a resolvable state (current: " + dispute.getStatus() + ")");
         }
+        // P1-1.7 (UC-068): tranh chấp đã ESCALATED nghĩa là chuyển lên cấp cao hơn —
+        // chỉ Platform Admin mới được quyết định, Moderator không thể tự escalate rồi tự xử.
+        if (dispute.getStatus() == DisputeStatus.ESCALATED && !isAdmin(moderatorUsername)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN,
+                    "An escalated dispute can only be resolved by a Platform Admin");
+        }
         // UC-067: áp dụng tài chính trên phần held đang bảo vệ.
         financialApplier.apply(dispute, request.getResolution(), request.getRefundAmount());
 
@@ -284,6 +290,13 @@ public class DisputeServiceImpl implements DisputeService {
         auditService.record(AuditActions.DISPUTE_ESCALATE, "Dispute", disputeId,
                 "Escalated by " + moderatorUsername + (note != null ? ": " + note : ""));
         return DisputeResponse.of(dispute);
+    }
+
+    /** P1-1.7: actor có phải Platform Admin không (để gác quyền xử tranh chấp đã escalate). */
+    private boolean isAdmin(String username) {
+        return userRepository.findByUsername(username)
+                .map(u -> u.getRole() == com.fitmatch.common.enums.Role.ROLE_ADMIN)
+                .orElse(false);
     }
 
     @Override

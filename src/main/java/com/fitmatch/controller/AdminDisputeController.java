@@ -75,7 +75,7 @@ public class AdminDisputeController {
 
     @Operation(
             summary = "UC-066/067 — Quyết định và áp dụng tài chính",
-            description = "Actor: **Moderator/Admin**. resolution: REFUND_FULL/REFUND_PARTIAL/SPLIT/RELEASE_TO_GYM/NO_ACTION/PENALTY; refundAmount bắt buộc cho PARTIAL/SPLIT. Bút toán ví áp ngay trên phần held đang bảo vệ. Lỗi: 400 refundAmount không hợp lệ; 409 sai trạng thái.")
+            description = "Actor: **Moderator/Admin** (tranh chấp đã ESCALATED: **chỉ Admin**). resolution: REFUND_FULL/REFUND_PARTIAL/SPLIT/RELEASE_TO_GYM/NO_ACTION/PENALTY; refundAmount bắt buộc cho PARTIAL/SPLIT. Bút toán ví áp ngay trên phần held đang bảo vệ. Lỗi: 400 refundAmount không hợp lệ; 403 Moderator xử case đã escalate; 409 sai trạng thái.")
     @PostMapping("/{id}/resolve")
     public ResponseEntity<ApiResponse<DisputeResponse>> resolve(
             @PathVariable Long id,

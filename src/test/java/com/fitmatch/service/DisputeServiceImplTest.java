@@ -192,6 +192,41 @@ class DisputeServiceImplTest {
     }
 
     @Test
+    void resolve_escalatedByModerator_forbidden() {
+        // P1-1.7: tranh chấp đã ESCALATED chỉ Admin được xử — Moderator bị chặn.
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.ESCALATED)
+                .booking(booking(SettlementStatus.DISPUTED, new BigDecimal("200.00")))
+                .frozenAmount(new BigDecimal("200.00")).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(userRepository.findByUsername("mod")).thenReturn(Optional.of(
+                User.builder().username("mod").role(Role.ROLE_MODERATOR).build()));
+
+        assertThatThrownBy(() -> service.resolve("mod", 1L,
+                new ResolveDisputeRequest(DisputeResolution.REFUND_FULL, null, "x")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+        verify(financialApplier, org.mockito.Mockito.never()).apply(any(), any(), any());
+        assertThat(d.getStatus()).isEqualTo(DisputeStatus.ESCALATED);
+    }
+
+    @Test
+    void resolve_escalatedByAdmin_succeeds() {
+        Dispute d = Dispute.builder().id(1L).status(DisputeStatus.ESCALATED)
+                .booking(booking(SettlementStatus.DISPUTED, new BigDecimal("200.00")))
+                .frozenAmount(new BigDecimal("200.00")).build();
+        when(disputeRepository.findById(1L)).thenReturn(Optional.of(d));
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(
+                User.builder().username("admin").role(Role.ROLE_ADMIN).build()));
+
+        var res = service.resolve("admin", 1L,
+                new ResolveDisputeRequest(DisputeResolution.REFUND_FULL, null, "ok"));
+
+        verify(financialApplier).apply(d, DisputeResolution.REFUND_FULL, null);
+        assertThat(res.getStatus()).isEqualTo(DisputeStatus.RESOLVED);
+    }
+
+    @Test
     void close_requiresResolved() {
         Dispute d = Dispute.builder().id(1L).status(DisputeStatus.OPEN)
                 .booking(booking(SettlementStatus.HELD, null)).build();
