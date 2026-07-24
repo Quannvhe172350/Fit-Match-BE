@@ -171,9 +171,18 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
                 disputeRepository.countByBooking_PtProfile_Id(ptId));
     }
 
-    /** PT phải thuộc Gym của operator đang đăng nhập (chống IDOR). */
+    /** PT phải thuộc Gym của operator đang đăng nhập (chống IDOR) và Gym phải còn APPROVED. */
     PtProfile requireOwnedPt(String gymUsername, Long ptId) {
-        return ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)
+        PtProfile pt = ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
+        // P1-1.2: Gym bị đình chỉ (SUSPENDED) / chưa duyệt không được quản lý PT. null-safe:
+        // prod luôn có gymProfile (FK optional=false), null chỉ xảy ra trong mock test.
+        if (pt.getGymProfile() != null
+                && pt.getGymProfile().getVerificationStatus() != com.fitmatch.common.enums.VerificationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Gym must be APPROVED to manage its trainers (current: "
+                            + pt.getGymProfile().getVerificationStatus() + ")");
+        }
+        return pt;
     }
 }

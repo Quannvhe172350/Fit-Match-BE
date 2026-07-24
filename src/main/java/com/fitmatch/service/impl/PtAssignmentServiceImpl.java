@@ -115,7 +115,15 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
     }
 
     private PtProfile requireOwnedPt(String gymUsername, Long ptId) {
-        return ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)
+        PtProfile pt = ptProfileRepository.findByIdAndGymProfile_User_Username(ptId, gymUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
+        // P1-1.2: Gym bị đình chỉ / chưa duyệt không được quản lý phân công PT. null-safe.
+        if (pt.getGymProfile() != null
+                && pt.getGymProfile().getVerificationStatus() != com.fitmatch.common.enums.VerificationStatus.APPROVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Gym must be APPROVED to manage its trainers (current: "
+                            + pt.getGymProfile().getVerificationStatus() + ")");
+        }
+        return pt;
     }
 }

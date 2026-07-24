@@ -99,6 +99,13 @@ public class GymProfileServiceImpl implements GymProfileService {
     @Transactional
     public GymProfileResponse updateProfile(String username, UpdateGymProfileRequest request) {
         GymProfile profile = requireOwnProfile(username);
+        // P1-1.2: Gym bị Admin đình chỉ (SUSPENDED) không được tự chỉnh sửa hồ sơ nghiệp vụ
+        // — phải chờ gỡ đình chỉ. Các trạng thái tiền-duyệt (PENDING/REQUIRES_INFO) vẫn sửa
+        // được (dùng resubmit) nên chỉ chặn SUSPENDED.
+        if (profile.getVerificationStatus() == VerificationStatus.SUSPENDED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "A suspended gym cannot edit its business profile; contact platform admin.");
+        }
         if (request.getGymName() != null) {
             profile.setGymName(request.getGymName());
         }

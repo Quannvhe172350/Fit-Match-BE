@@ -1,5 +1,7 @@
 package com.fitmatch.service;
 
+import com.fitmatch.common.enums.VerificationStatus;
+import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.PtAssignment;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.BusinessException;
@@ -65,5 +67,20 @@ class PtAssignmentRemoveGuardTest {
         service.remove("gym", 2L, 7L);
 
         verify(ptAssignmentRepository).delete(a);
+    }
+
+    @Test
+    void manage_whenGymSuspended_blocked() {
+        // P1-1.2: Gym bị đình chỉ (SUSPENDED) không được quản lý PT — requireOwnedPt chặn ngay.
+        PtProfile pt = PtProfile.builder().id(2L)
+                .gymProfile(GymProfile.builder().id(9L)
+                        .verificationStatus(VerificationStatus.SUSPENDED).build())
+                .build();
+        when(ptProfileRepository.findByIdAndGymProfile_User_Username(2L, "gym"))
+                .thenReturn(Optional.of(pt));
+
+        assertThatThrownBy(() -> service.remove("gym", 2L, 7L))
+                .isInstanceOf(BusinessException.class);
+        verify(ptAssignmentRepository, never()).delete(any());
     }
 }

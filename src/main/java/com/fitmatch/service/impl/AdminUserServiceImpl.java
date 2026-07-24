@@ -83,6 +83,14 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (user.getUsername().equals(actorUsername)) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "You cannot change your own role");
         }
+        // P1-1.4: ROLE_GYM_OPERATOR/ROLE_PT phải đi qua luồng đăng ký gym / tạo PT dưới
+        // gym — các luồng đó tạo gym_profiles/pt_profiles tương ứng. Gán role trực tiếp ở
+        // đây sẽ tạo user provider KHÔNG có profile -> 404 khi vào workspace, dữ liệu lệch.
+        if (role == Role.ROLE_GYM_OPERATOR || role == Role.ROLE_PT) {
+            throw new BusinessException(ErrorCode.BUSINESS_ERROR,
+                    "Cannot assign " + role + " directly; provider accounts are created via the "
+                            + "gym registration / gym-managed PT flow so their profile is set up.");
+        }
         if (user.getRole() == role) {
             throw new BusinessException(ErrorCode.BUSINESS_ERROR, "User already has role " + role);
         }

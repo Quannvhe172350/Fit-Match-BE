@@ -87,6 +87,20 @@ class AdminUserServiceImplTest {
     }
 
     @Test
+    void assignRole_providerRole_throws() {
+        // P1-1.4: không gán trực tiếp ROLE_GYM_OPERATOR/ROLE_PT (phải qua luồng đăng ký tạo profile).
+        User user = User.builder().id(3L).username("carl")
+                .role(com.fitmatch.common.enums.Role.ROLE_CUSTOMER).build();
+        when(userRepository.findById(3L)).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> service.assignRole(3L, com.fitmatch.common.enums.Role.ROLE_GYM_OPERATOR, "admin"))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> service.assignRole(3L, com.fitmatch.common.enums.Role.ROLE_PT, "admin"))
+                .isInstanceOf(BusinessException.class);
+        org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).save(user);
+    }
+
+    @Test
     void assignRole_onSelf_throws() {
         User admin = User.builder().id(1L).username("admin")
                 .role(com.fitmatch.common.enums.Role.ROLE_ADMIN).build();

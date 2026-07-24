@@ -91,8 +91,11 @@ public class ReviewController {
 
     @Operation(
             summary = "UC-070 — Báo cáo một đánh giá có vấn đề",
-            description = "Actor: **Authenticated user** (Customer/Gym/PT). Gửi cho moderation (UC-071). Lỗi: 409 đã có báo cáo đang xử lý.")
+            description = "Actor: **Customer/Gym/PT**. Gửi cho moderation (UC-071). Lỗi: 409 đã có báo cáo đang xử lý.")
     @SecurityRequirement(name = "bearerAuth")
+    // P1-1.1: UC-070 giới hạn actor Customer/Gym/PT — Admin/Moderator dùng công cụ
+    // kiểm duyệt riêng, không đi qua kênh report của người dùng.
+    @PreAuthorize("hasAnyRole('CUSTOMER','GYM_OPERATOR','PT')")
     @PostMapping("/{id}/report")
     public ResponseEntity<ApiResponse<Void>> report(
             @AuthenticationPrincipal UserDetails userDetails,
