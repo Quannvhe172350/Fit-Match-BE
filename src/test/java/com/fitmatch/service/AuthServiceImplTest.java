@@ -142,6 +142,54 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void login_reachingThreshold_locksAccount() {
+        // P1-1.6: lần đăng nhập sai thứ N (ngưỡng) -> khóa tạm + reset bộ đếm.
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "maxFailedLogin", 3);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "lockoutMinutes", 15L);
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setFailedLoginAttempts(2); // lần sai kế tiếp là lần thứ 3
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("bad", "hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("john", "bad")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_CREDENTIALS);
+        assertThat(u.getLockoutUntil()).isNotNull();
+        assertThat(u.getFailedLoginAttempts()).isZero();
+        org.mockito.Mockito.verify(userRepository).save(u);
+    }
+
+    @Test
+    void login_whenLockedOut_returnsAccountLocked() {
+        // P1-1.6: đang trong thời gian khóa -> chặn ngay, không cần kiểm mật khẩu.
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setLockoutUntil(java.time.LocalDateTime.now().plusMinutes(10));
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("john", "secret")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ACCOUNT_LOCKED);
+    }
+
+    @Test
+    void login_success_resetsFailedAttempts() {
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setEmailVerified(true);
+        u.setFailedLoginAttempts(2);
+        stubTokenIssue();
+        when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("secret", "hash")).thenReturn(true);
+
+        service.login(new LoginRequest("john", "secret"));
+
+        assertThat(u.getFailedLoginAttempts()).isZero();
+        assertThat(u.getLockoutUntil()).isNull();
+        org.mockito.Mockito.verify(userRepository).save(u);
+    }
+
+    @Test
     void logout_revokesAllTokensByBumpingVersion() {
         User u = user(UserStatus.ACTIVE, 3);
         when(userRepository.findByUsername("john")).thenReturn(Optional.of(u));

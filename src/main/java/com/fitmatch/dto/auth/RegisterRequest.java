@@ -35,7 +35,7 @@ public class RegisterRequest {
     private String fullName;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @com.fitmatch.common.validation.StrongPassword
     private String password;
 
     @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")

@@ -76,6 +76,15 @@ public class User extends BaseEntity {
     @Builder.Default
     private int tokenVersion = 0;
 
+    /** P1-1.6: số lần đăng nhập sai liên tiếp; reset về 0 khi đăng nhập thành công. */
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    /** P1-1.6: thời điểm hết khóa tạm sau khi vượt ngưỡng đăng nhập sai; null = không khóa. */
+    @Column(name = "lockout_until")
+    private java.time.LocalDateTime lockoutUntil;
+
     // Fitness Metrics
     @Column
     private Double height;

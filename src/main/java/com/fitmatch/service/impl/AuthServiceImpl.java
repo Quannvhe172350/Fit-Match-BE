@@ -46,6 +46,14 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final EmailVerificationIssuer emailVerificationIssuer;
 
+    /** P1-1.6: số lần đăng nhập sai liên tiếp trước khi khóa tạm tài khoản. */
+    @org.springframework.beans.factory.annotation.Value("${app.security.max-failed-login:5}")
+    private int maxFailedLogin;
+
+    /** P1-1.6: thời gian khóa tạm (phút) sau khi vượt ngưỡng. */
+    @org.springframework.beans.factory.annotation.Value("${app.security.lockout-minutes:15}")
+    private long lockoutMinutes;
+
     @Override
     @Transactional
     public void register(RegisterRequest request) {
@@ -92,10 +100,32 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .or(() -> userRepository.findByEmail(request.getUsername()))
                 .orElse(null);
+
+        // P1-1.6: auto-lockout — tài khoản đang bị khóa tạm do sai mật khẩu quá nhiều lần.
+        if (user != null && user.getLockoutUntil() != null
+                && user.getLockoutUntil().isAfter(LocalDateTime.now())) {
+            log.warn("Login blocked (locked out until {}): {}", user.getLockoutUntil(), user.getUsername());
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
+                    "Too many failed login attempts. Please try again later.");
+        }
+
         if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            if (user != null) {
+                recordFailedLogin(user);
+            }
             log.debug("Login failed for username: {}", request.getUsername());
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
+
+        // Đăng nhập đúng mật khẩu -> xóa bộ đếm/khóa (login() không @Transactional nên mỗi
+        // save chạy trong tx riêng của repository -> ghi nhận thất bại vẫn được commit dù
+        // sau đó ném INVALID_CREDENTIALS).
+        if (user.getFailedLoginAttempts() > 0 || user.getLockoutUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockoutUntil(null);
+            userRepository.save(user);
+        }
+
         if (user.getStatus() != com.fitmatch.common.enums.UserStatus.ACTIVE) {
             log.info("Login blocked for non-active account: {} ({})", user.getUsername(), user.getStatus());
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
@@ -110,6 +140,24 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("User logged in: {}", request.getUsername());
         return issueTokens(user);
+    }
+
+    /**
+     * P1-1.6: ghi nhận một lần đăng nhập sai. Khi đạt ngưỡng -> khóa tạm tài khoản
+     * {@code lockoutMinutes} phút và reset bộ đếm. Chạy trong tx riêng của repository
+     * (login() không @Transactional) nên được commit trước khi login ném lỗi.
+     */
+    private void recordFailedLogin(User user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        if (attempts >= maxFailedLogin) {
+            user.setFailedLoginAttempts(0);
+            user.setLockoutUntil(LocalDateTime.now().plusMinutes(lockoutMinutes));
+            log.warn("Account {} locked for {} min after {} failed login attempts",
+                    user.getUsername(), lockoutMinutes, maxFailedLogin);
+        } else {
+            user.setFailedLoginAttempts(attempts);
+        }
+        userRepository.save(user);
     }
 
     @Override
