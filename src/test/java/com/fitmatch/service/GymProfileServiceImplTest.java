@@ -82,7 +82,28 @@ class GymProfileServiceImplTest {
 
         assertThat(res.getVerificationStatus()).isEqualTo(VerificationStatus.PENDING);
         assertThat(profile.getRejectionReason()).isNull();
-        verify(gymDocumentRepository).deleteByGymProfile_Id(20L);
+        // P0-0.3: resubmit KHÔNG được xóa sạch tài liệu (tránh mất tài liệu quản lý qua
+        // DocumentManager); chỉ hợp nhất thêm tài liệu mới.
+        verify(gymDocumentRepository, never()).deleteByGymProfile_Id(20L);
+        assertThat(res.getDocuments()).hasSize(1);
+    }
+
+    @Test
+    void resubmit_preservesExistingDocumentsAndMergesNew() {
+        // P0-0.3: tài liệu đã có (vd thêm qua DocumentManager) phải được giữ; chỉ thêm URL mới.
+        GymProfile profile = GymProfile.builder().id(20L).user(User.builder().username("ops").build())
+                .verificationStatus(VerificationStatus.REQUIRES_INFO).build();
+        com.fitmatch.entity.GymDocument existingDoc = com.fitmatch.entity.GymDocument.builder()
+                .gymProfile(profile).documentType("ID").fileUrl("http://x/existing.png").build();
+        when(gymProfileRepository.findByUser_Username("ops")).thenReturn(Optional.of(profile));
+        when(gymDocumentRepository.findByGymProfile_Id(20L)).thenReturn(List.of(existingDoc));
+        when(gymDocumentRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // request() mang doc mới url "http://x/l.png" -> khác doc cũ -> merge thành 2.
+        GymProfileResponse res = service.resubmitRegistration("ops", request());
+
+        assertThat(res.getDocuments()).hasSize(2);
+        verify(gymDocumentRepository, never()).deleteByGymProfile_Id(any());
     }
 
     @Test

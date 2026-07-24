@@ -123,6 +123,34 @@ class ReviewServiceImplTest {
     }
 
     @Test
+    void delete_withReports_softRemovesInsteadOfHardDelete() {
+        // P0-0.4: review đang bị report -> soft-delete (REMOVED), KHÔNG hard-delete (tránh vi phạm FK).
+        Review review = Review.builder().id(1L).status(ReviewStatus.VISIBLE)
+                .customer(User.builder().username("john").build())
+                .booking(completedBooking()).rating(3).build();
+        when(reviewRepository.findByIdAndCustomer_Username(1L, "john")).thenReturn(Optional.of(review));
+        when(reviewReportRepository.existsByReview_Id(1L)).thenReturn(true);
+
+        service.delete("john", 1L);
+
+        assertThat(review.getStatus()).isEqualTo(ReviewStatus.REMOVED);
+        verify(reviewRepository, never()).delete(any());
+    }
+
+    @Test
+    void delete_withoutReports_hardDeletes() {
+        Review review = Review.builder().id(1L).status(ReviewStatus.VISIBLE)
+                .customer(User.builder().username("john").build())
+                .booking(completedBooking()).rating(3).build();
+        when(reviewRepository.findByIdAndCustomer_Username(1L, "john")).thenReturn(Optional.of(review));
+        when(reviewReportRepository.existsByReview_Id(1L)).thenReturn(false);
+
+        service.delete("john", 1L);
+
+        verify(reviewRepository).delete(review);
+    }
+
+    @Test
     void resolveReport_openReport_marksResolved() {
         ReviewReport report = ReviewReport.builder().id(2L).status(ReportStatus.OPEN)
                 .reason("spam")

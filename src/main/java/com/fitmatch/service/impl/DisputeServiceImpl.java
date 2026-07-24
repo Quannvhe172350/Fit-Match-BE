@@ -80,6 +80,9 @@ public class DisputeServiceImpl implements DisputeService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Dispute can only be opened for a confirmed/completed/no-show/rejected/cancelled booking");
         }
+        // P0-0.5: khóa booking trước khi kiểm tra trùng — chống hai luồng cùng mở dispute
+        // (đều qua existsBy trước khi luồng kia insert) dẫn tới double-freeze quỹ.
+        bookingRepository.lockById(booking.getId());
         if (disputeRepository.existsByBooking_IdAndStatusIn(booking.getId(), OPEN_STATES)) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "An unresolved dispute already exists for this booking");

@@ -87,7 +87,9 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setReviewNote(null);
         gymProfileRepository.save(profile);
 
-        gymDocumentRepository.deleteByGymProfile_Id(profile.getId());
+        // P0-0.3: KHÔNG xóa-sạch tài liệu rồi ghi lại theo mảng của form — sẽ mất các
+        // tài liệu operator vừa thêm/xóa qua DocumentManager. saveDocuments nay hợp nhất
+        // (chỉ thêm URL mới). Xóa tài liệu là việc của endpoint delete riêng.
         List<GymDocument> documents = saveDocuments(profile, request);
         log.info("Gym registration resubmitted by {} (profile {})", username, profile.getId());
         return GymProfileResponse.of(profile, documents.stream().map(GymDocumentDto::of).toList());
@@ -189,14 +191,25 @@ public class GymProfileServiceImpl implements GymProfileService {
     }
 
     private List<GymDocument> saveDocuments(GymProfile profile, SubmitGymRegistrationRequest request) {
-        List<GymDocument> documents = request.getDocuments().stream()
+        // P0-0.3: hợp nhất — chỉ thêm tài liệu có URL chưa tồn tại, giữ nguyên tài liệu
+        // hiện có (idempotent). Với đăng ký mới (chưa có tài liệu) hành vi không đổi.
+        List<GymDocument> existing = gymDocumentRepository.findByGymProfile_Id(profile.getId());
+        java.util.Set<String> existingUrls = existing.stream()
+                .map(GymDocument::getFileUrl)
+                .collect(java.util.stream.Collectors.toSet());
+        List<GymDocument> toSave = request.getDocuments().stream()
+                .filter(d -> !existingUrls.contains(d.getFileUrl()))
                 .map(d -> GymDocument.builder()
                         .gymProfile(profile)
                         .documentType(d.getDocumentType())
                         .fileUrl(d.getFileUrl())
                         .build())
                 .toList();
-        return gymDocumentRepository.saveAll(documents);
+        List<GymDocument> result = new java.util.ArrayList<>(existing);
+        if (!toSave.isEmpty()) {
+            result.addAll(gymDocumentRepository.saveAll(toSave));
+        }
+        return result;
     }
 
     private GymProfile requireOwnProfile(String username) {

@@ -73,7 +73,7 @@ class FlywayMigrationTest {
         var result = flyway.migrate();
         assertThat(result.success).as("Flyway migrate should succeed").isTrue();
         assertThat(flyway.info().current().getVersion().getVersion())
-                .as("latest applied migration version").isEqualTo("36");
+                .as("latest applied migration version").isEqualTo("44");
 
         try (Connection c = DriverManager.getConnection(schemaUrl(), user, password)) {
             // --- P0-3 guard: MỌI giá trị WalletTxnType phải có trong cột ENUM ---

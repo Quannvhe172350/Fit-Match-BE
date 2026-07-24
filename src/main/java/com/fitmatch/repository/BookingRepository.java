@@ -103,4 +103,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
     /** P1-18 (UC-023): đếm booking của một PT theo trạng thái (monitor performance). */
     long countByPtProfile_IdAndStatus(Long ptId, BookingStatus status);
+
+    /**
+     * P0-0.5 (UC-063): khóa ghi bản ghi booking để tuần tự hóa việc mở tranh chấp.
+     * MariaDB không hỗ trợ partial unique index nên dùng pessimistic lock: luồng thứ
+     * hai chờ luồng đầu commit rồi mới đọc existsBy -> thấy dispute đã tồn tại, tránh
+     * hai dispute OPEN cùng booking (double-freeze quỹ).
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select b from Booking b where b.id = :id")
+    Optional<Booking> lockById(@org.springframework.data.repository.query.Param("id") Long id);
 }

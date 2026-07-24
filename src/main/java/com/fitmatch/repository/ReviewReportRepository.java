@@ -13,4 +13,7 @@ public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long
     Page<ReviewReport> findByStatusOrderByIdDesc(ReportStatus status, Pageable pageable);
 
     boolean existsByReview_IdAndCreatedByAndStatus(Long reviewId, String createdBy, ReportStatus status);
+
+    /** P0-0.4: có bất kỳ report nào trỏ tới review — dùng để tránh hard-delete vi phạm FK. */
+    boolean existsByReview_Id(Long reviewId);
 }

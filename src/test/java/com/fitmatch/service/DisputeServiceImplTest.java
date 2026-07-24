@@ -151,6 +151,8 @@ class DisputeServiceImplTest {
         service.open("john", new OpenDisputeRequest(10L, "issue in time"));
 
         assertThat(b.getSettlementStatus()).isEqualTo(SettlementStatus.DISPUTED);
+        // P0-0.5: booking phải được khóa ghi trước khi kiểm tra trùng -> chống mở dispute đồng thời.
+        verify(bookingRepository).lockById(10L);
     }
 
     @Test

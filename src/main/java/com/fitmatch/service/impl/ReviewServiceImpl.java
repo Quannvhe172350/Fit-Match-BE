@@ -88,6 +88,14 @@ public class ReviewServiceImpl implements ReviewService {
     public void delete(String customerUsername, Long reviewId) {
         Review review = reviewRepository.findByIdAndCustomer_Username(reviewId, customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
+        // P0-0.4: review đang bị report có FK từ review_reports (không ON DELETE CASCADE) —
+        // hard-delete sẽ vi phạm ràng buộc (409). Chuyển sang soft-delete: đánh dấu REMOVED
+        // (ẩn khỏi marketplace, không tính điểm) và giữ nguyên lịch sử report cho kiểm duyệt.
+        if (reviewReportRepository.existsByReview_Id(reviewId)) {
+            review.setStatus(ReviewStatus.REMOVED);
+            log.info("Review {} soft-removed (has reports) by owner {}", reviewId, customerUsername);
+            return;
+        }
         reviewRepository.delete(review);
         log.info("Review {} deleted by owner {}", reviewId, customerUsername);
     }
