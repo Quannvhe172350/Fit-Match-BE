@@ -116,6 +116,8 @@ public class GymBookingServiceImpl implements GymBookingService {
         }
         applyPt(gymUsername, booking, ptId);
         bookingRepository.save(booking);
+        // P2-B10 (UC-039): reassign phải báo bên liên quan (trước đây chỉ ghi audit).
+        notificationDispatcher.bookingPtAssigned(booking);
         auditService.record(AuditActions.BOOKING_PT_ASSIGN, "Booking", bookingId,
                 "PT " + ptId + " assigned by gym " + gymUsername);
         return BookingResponse.of(booking);

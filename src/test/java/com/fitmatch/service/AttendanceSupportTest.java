@@ -106,6 +106,35 @@ class AttendanceSupportTest {
     }
 
     @Test
+    void correct_noShowToCompleted_setsCompletedAt() {
+        // P2-B8: sửa NO_SHOW -> COMPLETED phải gán mốc hoàn tất.
+        Booking b = confirmed(LocalDateTime.now().minusHours(2), LocalDateTime.now().minusHours(1));
+        b.setStatus(BookingStatus.NO_SHOW);
+        b.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
+
+        support.correct(b,
+                new CorrectAttendanceRequest(null, null, BookingStatus.COMPLETED, "proved attendance"),
+                "gym g1");
+
+        assertThat(b.getCompletedAt()).isNotNull();
+    }
+
+    @Test
+    void correct_completedToNoShow_clearsCompletedAt() {
+        // P2-B8: sửa COMPLETED -> NO_SHOW phải xóa mốc hoàn tất.
+        Booking b = confirmed(LocalDateTime.now().minusHours(2), LocalDateTime.now().minusHours(1));
+        b.setStatus(BookingStatus.COMPLETED);
+        b.setCompletedAt(LocalDateTime.now().minusMinutes(30));
+        b.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
+
+        support.correct(b,
+                new CorrectAttendanceRequest(null, null, BookingStatus.NO_SHOW, "was actually absent"),
+                "gym g1");
+
+        assertThat(b.getCompletedAt()).isNull();
+    }
+
+    @Test
     void correct_nothingProvided_validationError() {
         Booking b = confirmed(LocalDateTime.now().minusHours(2), LocalDateTime.now().minusHours(1));
         b.setStatus(BookingStatus.COMPLETED);

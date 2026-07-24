@@ -83,6 +83,15 @@ public class AttendanceSupport {
             // Override tự ghi history from->to kèm lý do.
             bookingLifecycle.overrideForCorrection(booking, request.getStatus(),
                     "Attendance corrected by " + actorLabel + ": " + request.getReason());
+            // P2-B8: đồng bộ mốc hoàn tất với trạng thái sau hiệu chỉnh — tránh COMPLETED
+            // thiếu completedAt (NO_SHOW->COMPLETED) hoặc NO_SHOW còn giữ completedAt cũ.
+            if (request.getStatus() == BookingStatus.COMPLETED) {
+                if (booking.getCompletedAt() == null) {
+                    booking.setCompletedAt(LocalDateTime.now());
+                }
+            } else {
+                booking.setCompletedAt(null);
+            }
         }
         if (!checkInChanged && !statusChanged) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,

@@ -22,6 +22,7 @@ public class AdminBookingServiceImpl implements AdminBookingService {
     private final BookingPaymentHandler bookingPaymentHandler;
     private final AuditService auditService;
     private final com.fitmatch.service.support.AttendanceSupport attendanceSupport;
+    private final com.fitmatch.repository.PaymentOrderRepository paymentOrderRepository;
 
     @Override
     @Transactional
@@ -33,6 +34,16 @@ public class AdminBookingServiceImpl implements AdminBookingService {
                 ? booking.getPayableAmount() : java.math.BigDecimal.ZERO;
         bookingPaymentHandler.onPaymentConfirmed(booking, amount, "admin:" + actorUsername);
         bookingRepository.save(booking);
+
+        // P2-B7: đồng bộ PaymentOrder về PAID để không bị PaymentOrderExpiryJob đánh EXPIRED
+        // một order mà tiền đã hold, và để đối soát order<->ví khớp nhau.
+        paymentOrderRepository.findByBooking_Id(bookingId).ifPresent(order -> {
+            if (order.getStatus() == com.fitmatch.common.enums.PaymentStatus.PENDING) {
+                order.setStatus(com.fitmatch.common.enums.PaymentStatus.PAID);
+                order.setPaidAt(java.time.LocalDateTime.now());
+                paymentOrderRepository.save(order);
+            }
+        });
 
         auditService.record(AuditActions.BOOKING_PAYMENT_HOLD, "Booking", bookingId,
                 "Payment hold confirmed by " + actorUsername);

@@ -179,6 +179,11 @@ public class ReviewServiceImpl implements ReviewService {
     public ReviewResponse moderate(String moderatorUsername, Long reviewId, ModerateReviewRequest request) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
+        // P2-B9: REMOVED là trạng thái cuối (khách tự gỡ hoặc bị gỡ vì vi phạm) — không cho
+        // kiểm duyệt đưa ngược lại VISIBLE/HIDDEN.
+        if (review.getStatus() == com.fitmatch.common.enums.ReviewStatus.REMOVED) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "A removed review cannot be moderated");
+        }
         review.setStatus(request.getStatus());
         if (request.getStatus() != com.fitmatch.common.enums.ReviewStatus.VISIBLE) {
             notificationDispatcher.reviewModerated(review);

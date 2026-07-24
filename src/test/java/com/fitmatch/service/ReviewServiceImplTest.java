@@ -151,6 +151,24 @@ class ReviewServiceImplTest {
     }
 
     @Test
+    void moderate_removedReview_throws() {
+        // P2-B9: REMOVED là trạng thái cuối — không cho kiểm duyệt đưa ngược lại.
+        Review review = Review.builder().id(1L).status(ReviewStatus.REMOVED)
+                .booking(completedBooking())
+                .customer(User.builder().username("john").build())
+                .gymProfile(GymProfile.builder().id(5L).gymName("Gym A").build())
+                .rating(1).build();
+        when(reviewRepository.findById(1L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.moderate("mod", 1L,
+                new ModerateReviewRequest(ReviewStatus.VISIBLE, "restore")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+        assertThat(review.getStatus()).isEqualTo(ReviewStatus.REMOVED);
+    }
+
+    @Test
     void resolveReport_openReport_marksResolved() {
         ReviewReport report = ReviewReport.builder().id(2L).status(ReportStatus.OPEN)
                 .reason("spam")

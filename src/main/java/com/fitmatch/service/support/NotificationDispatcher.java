@@ -90,6 +90,18 @@ public class NotificationDispatcher {
                 "/trainer/bookings");
     }
 
+    /** UC-039: Gym gán/đổi PT cho booking (reassign) — báo khách và PT mới được phân công. */
+    public void bookingPtAssigned(Booking b) {
+        dispatch(b.getCustomer(), NotificationCategory.BOOKING,
+                "Huấn luyện viên được cập nhật",
+                "Booking #" + b.getId() + " đã được cập nhật huấn luyện viên phụ trách.",
+                "/profile/bookings");
+        dispatch(ptUser(b), NotificationCategory.BOOKING,
+                "Bạn được phân công buổi tập",
+                "Booking #" + b.getId() + " đã được gán cho bạn.",
+                "/trainer/bookings");
+    }
+
     /** UC-038: Gym từ chối booking. */
     public void bookingRejected(Booking b, String reason) {
         dispatch(b.getCustomer(), NotificationCategory.BOOKING,
