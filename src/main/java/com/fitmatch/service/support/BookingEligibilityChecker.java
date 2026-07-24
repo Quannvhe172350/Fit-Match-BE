@@ -87,6 +87,12 @@ public class BookingEligibilityChecker {
             if (!start.isAfter(LocalDateTime.now())) {
                 reasons.add("Thời gian bắt đầu phải ở tương lai");
             }
+            // P2-2.10: chốt end > start ngay ở enforcement — booking chỉ có dịch vụ (không
+            // PT, không chi nhánh) không đi qua checkPt/checkBranch nên nếu không kiểm ở đây
+            // sẽ chấp nhận khung giờ âm/0.
+            if (!start.isBefore(end)) {
+                reasons.add("Giờ kết thúc phải sau giờ bắt đầu");
+            }
             // Notice tối thiểu theo booking rules (UC-026).
             BookingRules rules = hasService && booking.getGymService() != null
                     ? booking.getGymService().getBookingRules()
@@ -143,6 +149,10 @@ public class BookingEligibilityChecker {
         List<String> reasons = new ArrayList<>();
         if (!start.isAfter(LocalDateTime.now())) {
             reasons.add("Thời gian bắt đầu phải ở tương lai");
+        }
+        // P2-2.10: end > start (booking chỉ có dịch vụ không đi qua checkPt/checkBranch).
+        if (!start.isBefore(end)) {
+            reasons.add("Giờ kết thúc phải sau giờ bắt đầu");
         }
         // UC-041: dời lịch vẫn phải tôn trọng trạng thái Gym và notice tối thiểu.
         if (booking.getGymProfile().getVerificationStatus() != VerificationStatus.APPROVED
