@@ -73,7 +73,7 @@ class FlywayMigrationTest {
         var result = flyway.migrate();
         assertThat(result.success).as("Flyway migrate should succeed").isTrue();
         assertThat(flyway.info().current().getVersion().getVersion())
-                .as("latest applied migration version").isEqualTo("52");
+                .as("latest applied migration version").isEqualTo("53");
 
         try (Connection c = DriverManager.getConnection(schemaUrl(), user, password)) {
             // --- P0-3 guard: MỌI giá trị WalletTxnType phải có trong cột ENUM ---
@@ -82,6 +82,16 @@ class FlywayMigrationTest {
             for (WalletTxnType t : WalletTxnType.values()) {
                 assertThat(walletType)
                         .as("wallet_transactions.type ENUM must contain " + t.name())
+                        .contains("'" + t.name() + "'");
+            }
+
+            // --- V53 guard (UC-002): MỌI giá trị TokenType phải có trong ENUM ---
+            // (V50 thêm PHONE_VERIFICATION ở Java mà quên mở rộng ENUM -> lỗi runtime,
+            //  chỉ E2E mới bắt được; guard này chặn tái diễn khi thêm TokenType mới).
+            String tokenType = columnType(c, "verification_tokens", "type");
+            for (com.fitmatch.common.enums.TokenType t : com.fitmatch.common.enums.TokenType.values()) {
+                assertThat(tokenType)
+                        .as("verification_tokens.type ENUM must contain " + t.name())
                         .contains("'" + t.name() + "'");
             }
 
