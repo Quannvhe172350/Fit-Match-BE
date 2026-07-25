@@ -51,6 +51,8 @@ class DisputeServiceImplTest {
     @Mock private DisputeFinancialApplier financialApplier;
     @Mock private AuditService auditService;
     @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    // UC-078: mock không stub -> findLong trả null -> fallback về openWindowDays (@Value/ReflectionTestUtils)
+    @Mock private com.fitmatch.service.SystemConfigService systemConfigService;
     @InjectMocks private DisputeServiceImpl service;
 
     private Booking booking(SettlementStatus settlement, BigDecimal settlementAmount) {

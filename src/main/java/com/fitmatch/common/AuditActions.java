@@ -46,6 +46,12 @@ public final class AuditActions {
     public static final String ATTENDANCE_CORRECT = "ATTENDANCE_CORRECT";
     public static final String REVIEW_MODERATE = "REVIEW_MODERATE";
     public static final String REVIEW_REPORT_RESOLVE = "REVIEW_REPORT_RESOLVE";
+    // UC-070: báo cáo vấn đề dịch vụ/hành vi (issue_reports)
+    public static final String ISSUE_REPORT_OPEN = "ISSUE_REPORT_OPEN";
+    public static final String ISSUE_REPORT_RESOLVE = "ISSUE_REPORT_RESOLVE";
+    public static final String ISSUE_REPORT_DISMISS = "ISSUE_REPORT_DISMISS";
+    // UC-078: thay đổi tham số hệ thống (system_configs)
+    public static final String SYSTEM_CONFIG_CHANGE = "SYSTEM_CONFIG_CHANGE";
     public static final String WALLET_FREEZE = "WALLET_FREEZE";
     public static final String WALLET_UNFREEZE = "WALLET_UNFREEZE";
     public static final String DISPUTE_OPEN = "DISPUTE_OPEN";

@@ -62,7 +62,11 @@ public class DisputeServiceImpl implements DisputeService {
     @org.springframework.beans.factory.annotation.Value("${app.dispute.open-window-days:14}")
     private long openWindowDays;
 
+    /** UC-078: key system_configs cho phép admin đổi cửa sổ khiếu nại lúc runtime. */
+    static final String CONFIG_KEY_OPEN_WINDOW_DAYS = "dispute.open-window-days";
+
     private final DisputeRepository disputeRepository;
+    private final com.fitmatch.service.SystemConfigService systemConfigService;
     private final DisputeEvidenceRepository evidenceRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
@@ -126,12 +130,19 @@ public class DisputeServiceImpl implements DisputeService {
         if (anchor == null) {
             return; // dữ liệu cũ thiếu mốc — không chặn oan
         }
-        java.time.LocalDateTime deadline = anchor.plusDays(openWindowDays);
+        long windowDays = effectiveOpenWindowDays();
+        java.time.LocalDateTime deadline = anchor.plusDays(windowDays);
         if (java.time.LocalDateTime.now().isAfter(deadline)) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Dispute window has closed (" + openWindowDays
+                    "Dispute window has closed (" + windowDays
                             + " days). Please contact support for assistance.");
         }
+    }
+
+    /** UC-078: system_configs (admin chỉnh runtime) override env/@Value; fallback khi chưa cấu hình. */
+    private long effectiveOpenWindowDays() {
+        Long fromDb = systemConfigService.findLong(CONFIG_KEY_OPEN_WINDOW_DAYS);
+        return fromDb != null && fromDb > 0 ? fromDb : openWindowDays;
     }
 
     /** Kéo tiền của booking về held và đặt settlement DISPUTED; trả về số tiền được bảo vệ. */
