@@ -54,7 +54,6 @@ public final class UserMapper {
                 .role(user.getRole())
                 .status(user.getStatus())
                 .emailVerified(user.isEmailVerified())
-                .phoneVerified(user.isPhoneVerified())
                 .height(user.getHeight())
                 .weight(user.getWeight())
                 .mainGoal(user.getMainGoal())

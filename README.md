@@ -27,7 +27,6 @@ export JWT_SECRET=$(openssl rand -base64 48)
 - Port: **8080** (mọi profile). Flyway tự migrate `V1 → V46` khi khởi động (`ddl-auto: validate` — schema do Flyway quản lý, **không sửa bảng tay**, muốn đổi schema thì thêm `V47__*.sql`).
 - Profile `local` tự seed 5 tài khoản: `admin|moderator|finance|operator|customer@fitmatch.local` — mật khẩu chung `Password123!`.
 - Không cấu hình `MAIL_HOST` → email chỉ được log ra console (LoggingEmailService).
-- Không cấu hình `SMS_PROVIDER` → OTP chỉ được log ra console (`[SMS-STUB]`). Gửi thật: `zalozns` (OTP vào Zalo qua OA — **dev mode free cho số admin/tester, khuyến nghị demo**), `speedsms` (cần gọi hotline kích hoạt tài khoản), `twilio` (trial nhưng VN bị hạn chế verify số nhận), `esms` (production brandname, cần GPKD). Xem `.env.example`.
 - `GCS_ENABLED=false` → file upload lưu local `./uploads`.
 
 ## Biến môi trường

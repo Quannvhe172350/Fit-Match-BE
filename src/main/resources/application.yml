@@ -73,38 +73,3 @@ app:
     webhook-secret: ${CASSO_WEBHOOK_SECRET:}
   payment:
     order-ttl-hours: ${PAYMENT_ORDER_TTL_HOURS:24}
-  # UC-002: kênh gửi OTP SMS. Không set SMS_PROVIDER -> LoggingSmsService (log thay vì gửi).
-  # SMS_PROVIDER=esms yêu cầu ESMS_API_KEY + ESMS_SECRET_KEY (https://esms.vn).
-  sms:
-    # esms (prod VN) | twilio (trial miễn phí — hợp đồ án/demo) | trống = log console
-    provider: ${SMS_PROVIDER:}
-    esms:
-      api-key: ${ESMS_API_KEY:}
-      secret-key: ${ESMS_SECRET_KEY:}
-      brandname: ${ESMS_BRANDNAME:}
-      # 2 = tin CSKH theo brandname; 8 = đầu số cố định
-      sms-type: ${ESMS_SMS_TYPE:2}
-    twilio:
-      account-sid: ${TWILIO_ACCOUNT_SID:}
-      auth-token: ${TWILIO_AUTH_TOKEN:}
-      # Số Twilio được cấp khi đăng ký trial (dạng +1xxxxxxxxxx)
-      from-number: ${TWILIO_FROM_NUMBER:}
-    # Zalo ZNS (OTP vào Zalo qua OA — app dev mode gửi free tới số admin/tester)
-    zalozns:
-      app-id: ${ZALO_APP_ID:}
-      secret-key: ${ZALO_SECRET_KEY:}
-      # Refresh token OA (OAuth v4) — CHỈ dùng lần đầu; token rotate sau đó được
-      # tự ghi vào token-file (git-ignored) để sống sót qua restart.
-      refresh-token: ${ZALO_REFRESH_TOKEN:}
-      template-id: ${ZALO_ZNS_TEMPLATE_ID:}
-      # Tên tham số chứa mã trong template (template OTP mẫu của Zalo dùng "otp")
-      otp-param: ${ZALO_ZNS_OTP_PARAM:otp}
-      token-file: ${ZALO_TOKEN_FILE:./zalo-refresh-token.txt}
-    speedsms:
-      access-token: ${SPEEDSMS_ACCESS_TOKEN:}
-      # 2 = số ngẫu nhiên (sender trống); 3 = brandname riêng đã đăng ký (cần GPKD);
-      # 4 = brandname mặc định Verify/Notify; 5 = app Android gateway (sender = device id).
-      # LƯU Ý: tài khoản mới bị khóa mọi kênh (lỗi 009 "sender not found") — phải gọi
-      # hotline/Zalo SpeedSMS yêu cầu kích hoạt gửi test trước.
-      sms-type: ${SPEEDSMS_SMS_TYPE:2}
-      sender: ${SPEEDSMS_SENDER:}

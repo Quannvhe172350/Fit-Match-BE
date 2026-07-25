@@ -4,7 +4,6 @@ import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.dto.user.DeactivateAccountRequest;
 import com.fitmatch.dto.user.UpdateProfileRequest;
 import com.fitmatch.dto.user.UserResponse;
-import com.fitmatch.dto.user.VerifyPhoneOtpRequest;
 import com.fitmatch.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,7 +31,6 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserController {
 
     private final UserService userService;
-    private final com.fitmatch.service.PhoneVerificationService phoneVerificationService;
 
     @Operation(
             summary = "UC-05 — Xem hồ sơ",
@@ -81,27 +79,5 @@ public class UserController {
         userService.deactivateAccount(userDetails.getUsername(), request);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ApiResponse.success("Account deactivated successfully", null));
-    }
-
-    @Operation(
-            summary = "UC-002 — Yêu cầu OTP xác minh SĐT",
-            description = "Actor: **Authenticated**. Gửi OTP 6 chữ số tới SĐT trong hồ sơ (TTL 10 phút, mã mới vô hiệu mã cũ). Lỗi: 400 chưa có SĐT; 409 đã xác minh.")
-    @PostMapping("/phone/request-otp")
-    public ResponseEntity<ApiResponse<Void>> requestPhoneOtp(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        phoneVerificationService.requestOtp(userDetails.getUsername());
-        return ResponseEntity.ok(ApiResponse.success("OTP sent", null));
-    }
-
-    @Operation(
-            summary = "UC-002 — Xác thực OTP SĐT",
-            description = "Actor: **Authenticated**. Nhập OTP 6 chữ số; sai 5 lần thì mã bị khóa, phải xin mã mới.")
-    @PostMapping("/phone/verify-otp")
-    public ResponseEntity<ApiResponse<UserResponse>> verifyPhoneOtp(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody VerifyPhoneOtpRequest request) {
-        phoneVerificationService.verifyOtp(userDetails.getUsername(), request.getCode());
-        return ResponseEntity.ok(ApiResponse.success("Phone verified",
-                userService.getProfile(userDetails.getUsername())));
     }
 }

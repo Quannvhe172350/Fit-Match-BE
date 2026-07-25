@@ -68,11 +68,6 @@ public class User extends BaseEntity {
     @Builder.Default
     private boolean emailVerified = false;
 
-    /** UC-002: đã xác minh SĐT bằng OTP; reset về false khi đổi SĐT. */
-    @Column(name = "phone_verified", nullable = false)
-    @Builder.Default
-    private boolean phoneVerified = false;
-
     /**
      * Phiên bản token (UC-003/004): nhúng vào claim JWT; tăng lên khi logout /
      * đổi / reset mật khẩu để vô hiệu hoá toàn bộ access + refresh token cũ.
