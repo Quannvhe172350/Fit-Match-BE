@@ -29,6 +29,16 @@ public class SmsServiceConfig {
         return new EsmsSmsService(apiKey, secretKey, brandname, smsType);
     }
 
+    /** Twilio trial miễn phí — phù hợp đồ án/demo (chỉ gửi được tới số đã verify). */
+    @Bean
+    @ConditionalOnProperty(name = "app.sms.provider", havingValue = "twilio")
+    public SmsService twilioSmsService(
+            @Value("${app.sms.twilio.account-sid}") String accountSid,
+            @Value("${app.sms.twilio.auth-token}") String authToken,
+            @Value("${app.sms.twilio.from-number}") String fromNumber) {
+        return new com.fitmatch.service.impl.TwilioSmsService(accountSid, authToken, fromNumber);
+    }
+
     @Bean
     @ConditionalOnMissingBean(SmsService.class)
     public SmsService loggingSmsService() {

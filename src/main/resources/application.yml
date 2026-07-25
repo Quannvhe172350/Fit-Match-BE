@@ -76,6 +76,7 @@ app:
   # UC-002: kênh gửi OTP SMS. Không set SMS_PROVIDER -> LoggingSmsService (log thay vì gửi).
   # SMS_PROVIDER=esms yêu cầu ESMS_API_KEY + ESMS_SECRET_KEY (https://esms.vn).
   sms:
+    # esms (prod VN) | twilio (trial miễn phí — hợp đồ án/demo) | trống = log console
     provider: ${SMS_PROVIDER:}
     esms:
       api-key: ${ESMS_API_KEY:}
@@ -83,3 +84,8 @@ app:
       brandname: ${ESMS_BRANDNAME:}
       # 2 = tin CSKH theo brandname; 8 = đầu số cố định
       sms-type: ${ESMS_SMS_TYPE:2}
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      # Số Twilio được cấp khi đăng ký trial (dạng +1xxxxxxxxxx)
+      from-number: ${TWILIO_FROM_NUMBER:}
