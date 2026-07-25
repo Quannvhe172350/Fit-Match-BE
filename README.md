@@ -27,6 +27,7 @@ export JWT_SECRET=$(openssl rand -base64 48)
 - Port: **8080** (mọi profile). Flyway tự migrate `V1 → V46` khi khởi động (`ddl-auto: validate` — schema do Flyway quản lý, **không sửa bảng tay**, muốn đổi schema thì thêm `V47__*.sql`).
 - Profile `local` tự seed 5 tài khoản: `admin|moderator|finance|operator|customer@fitmatch.local` — mật khẩu chung `Password123!`.
 - Không cấu hình `MAIL_HOST` → email chỉ được log ra console (LoggingEmailService).
+- Không cấu hình `SMS_PROVIDER` → OTP SMS chỉ được log ra console (`[SMS-STUB]`); set `SMS_PROVIDER=esms` + `ESMS_API_KEY`/`ESMS_SECRET_KEY` (esms.vn) để gửi thật.
 - `GCS_ENABLED=false` → file upload lưu local `./uploads`.
 
 ## Biến môi trường

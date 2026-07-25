@@ -73,3 +73,13 @@ app:
     webhook-secret: ${CASSO_WEBHOOK_SECRET:}
   payment:
     order-ttl-hours: ${PAYMENT_ORDER_TTL_HOURS:24}
+  # UC-002: kênh gửi OTP SMS. Không set SMS_PROVIDER -> LoggingSmsService (log thay vì gửi).
+  # SMS_PROVIDER=esms yêu cầu ESMS_API_KEY + ESMS_SECRET_KEY (https://esms.vn).
+  sms:
+    provider: ${SMS_PROVIDER:}
+    esms:
+      api-key: ${ESMS_API_KEY:}
+      secret-key: ${ESMS_SECRET_KEY:}
+      brandname: ${ESMS_BRANDNAME:}
+      # 2 = tin CSKH theo brandname; 8 = đầu số cố định
+      sms-type: ${ESMS_SMS_TYPE:2}

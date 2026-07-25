@@ -108,6 +108,10 @@ jobs:
           MAIL_FROM=${{ secrets.MAIL_FROM }}
           GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-sa.json
           CORS_ALLOWED_ORIGINS=${{ secrets.FRONTEND_URL }}
+          SMS_PROVIDER=${{ secrets.SMS_PROVIDER }}
+          ESMS_API_KEY=${{ secrets.ESMS_API_KEY }}
+          ESMS_SECRET_KEY=${{ secrets.ESMS_SECRET_KEY }}
+          ESMS_BRANDNAME=${{ secrets.ESMS_BRANDNAME }}
           CASSO_WEBHOOK_SECRET=${{ secrets.CASSO_WEBHOOK_SECRET }}
           VIETQR_BANK_BIN=${{ secrets.VIETQR_BANK_BIN }}
           VIETQR_ACCOUNT_NO=${{ secrets.VIETQR_ACCOUNT_NO }}

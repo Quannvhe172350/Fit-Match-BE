@@ -1,0 +1,37 @@
+package com.fitmatch.config;
+
+import com.fitmatch.service.SmsService;
+import com.fitmatch.service.impl.EsmsSmsService;
+import com.fitmatch.service.impl.LoggingSmsService;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * UC-002: chọn kênh gửi SMS theo config (cùng pattern EmailServiceConfig).
+ * - SMS_PROVIDER=esms (+ ESMS_API_KEY/ESMS_SECRET_KEY) -> gửi thật qua eSMS.vn.
+ * - Không cấu hình -> LoggingSmsService (log mã ra console, dev đọc từ log).
+ * Thêm nhà cung cấp khác: viết impl SmsService + thêm @Bean @ConditionalOnProperty
+ * havingValue tương ứng ở đây.
+ */
+@Configuration
+public class SmsServiceConfig {
+
+    @Bean
+    @ConditionalOnProperty(name = "app.sms.provider", havingValue = "esms")
+    public SmsService esmsSmsService(
+            @Value("${app.sms.esms.api-key}") String apiKey,
+            @Value("${app.sms.esms.secret-key}") String secretKey,
+            @Value("${app.sms.esms.brandname:}") String brandname,
+            @Value("${app.sms.esms.sms-type:2}") String smsType) {
+        return new EsmsSmsService(apiKey, secretKey, brandname, smsType);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SmsService.class)
+    public SmsService loggingSmsService() {
+        return new LoggingSmsService();
+    }
+}
