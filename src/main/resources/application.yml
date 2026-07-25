@@ -91,6 +91,9 @@ app:
       from-number: ${TWILIO_FROM_NUMBER:}
     speedsms:
       access-token: ${SPEEDSMS_ACCESS_TOKEN:}
-      # 2 = CSKH brandname đã đăng ký; 3 = brandname "SpeedSMS" (test bằng credit tặng); 4 = đầu số cố định
+      # 2 = số ngẫu nhiên (sender trống); 3 = brandname riêng đã đăng ký (cần GPKD);
+      # 4 = brandname mặc định Verify/Notify; 5 = app Android gateway (sender = device id).
+      # LƯU Ý: tài khoản mới bị khóa mọi kênh (lỗi 009 "sender not found") — phải gọi
+      # hotline/Zalo SpeedSMS yêu cầu kích hoạt gửi test trước.
       sms-type: ${SPEEDSMS_SMS_TYPE:2}
       sender: ${SPEEDSMS_SENDER:}
