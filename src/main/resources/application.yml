@@ -89,6 +89,17 @@ app:
       auth-token: ${TWILIO_AUTH_TOKEN:}
       # Số Twilio được cấp khi đăng ký trial (dạng +1xxxxxxxxxx)
       from-number: ${TWILIO_FROM_NUMBER:}
+    # Zalo ZNS (OTP vào Zalo qua OA — app dev mode gửi free tới số admin/tester)
+    zalozns:
+      app-id: ${ZALO_APP_ID:}
+      secret-key: ${ZALO_SECRET_KEY:}
+      # Refresh token OA (OAuth v4) — CHỈ dùng lần đầu; token rotate sau đó được
+      # tự ghi vào token-file (git-ignored) để sống sót qua restart.
+      refresh-token: ${ZALO_REFRESH_TOKEN:}
+      template-id: ${ZALO_ZNS_TEMPLATE_ID:}
+      # Tên tham số chứa mã trong template (template OTP mẫu của Zalo dùng "otp")
+      otp-param: ${ZALO_ZNS_OTP_PARAM:otp}
+      token-file: ${ZALO_TOKEN_FILE:./zalo-refresh-token.txt}
     speedsms:
       access-token: ${SPEEDSMS_ACCESS_TOKEN:}
       # 2 = số ngẫu nhiên (sender trống); 3 = brandname riêng đã đăng ký (cần GPKD);

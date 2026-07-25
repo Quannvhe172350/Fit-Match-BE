@@ -35,6 +35,8 @@ build/
 application-local.yml
 application-local.yaml
 .env
+# UC-002: refresh token Zalo OA rotate tự động — tuyệt đối không commit
+zalo-refresh-token.txt
 
 ### Logs ###
 logs/
