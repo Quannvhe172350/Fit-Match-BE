@@ -5,3 +5,9 @@ target/
 .mvn/
 mvnw
 mvnw.cmd
+# Secret cá nhân dev — tuyệt đối không đưa vào image
+src/main/resources/application-local.yml
+.env
+logs/
+uploads/
+*.log

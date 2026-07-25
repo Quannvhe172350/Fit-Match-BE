@@ -26,7 +26,8 @@ spring:
     baseline-version: 1
 
 server:
-  port: 9898
+  # Thống nhất 8080 ở mọi profile (local/dev/prod/Docker đều 8080).
+  port: ${SERVER_PORT:8080}
 
 springdoc:
   swagger-ui:
@@ -35,10 +36,10 @@ springdoc:
     path: /v3/api-docs
 
 jwt:
-  # Secret mặc định (Base64, 48 bytes sau decode) chỉ để chạy dev/local cho tiện.
-  # Ở mọi môi trường thật PHẢI set env JWT_SECRET để override — giá trị mặc định này
-  # nằm trong git nên coi như đã lộ, tuyệt đối không dùng cho prod.
-  secret: ${JWT_SECRET:bQtzsluIcx+0VKHSXmWn0sLoTr5sib8D/9ijx+hy0CuqyiN2VAPPeB5GDsfdxdMK}
+  # KHÔNG có default: bắt buộc set env JWT_SECRET (fail-fast khi thiếu).
+  # Chạy local: dùng profile 'local' (application-local.yml, git-ignored) hoặc
+  # export JWT_SECRET — sinh nhanh: openssl rand -base64 48
+  secret: ${JWT_SECRET}
   access-token-expiration: 3600000
   refresh-token-expiration: 604800000
 
@@ -46,7 +47,7 @@ cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:*}
 
 app:
-  base-url: ${APP_BASE_URL:http://localhost:9898}
+  base-url: ${APP_BASE_URL:http://localhost:8080}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
   # D-18 (chốt 2026-07-17, phương án A): số ngày được mở tranh chấp kể từ khi buổi tập
   # kết thúc (hoặc từ lúc booking bị hủy/từ chối). Đổi ở đây thì sửa cả

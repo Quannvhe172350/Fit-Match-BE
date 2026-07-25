@@ -102,7 +102,7 @@ public class BookingController {
     public ResponseEntity<ApiResponse<BookingResponse>> cancel(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
-            @RequestBody(required = false) CancelBookingRequest request) {
+            @Valid @RequestBody(required = false) CancelBookingRequest request) {
         String reason = request != null ? request.getReason() : null;
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled",
                 bookingService.cancel(userDetails.getUsername(), id, reason)));

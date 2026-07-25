@@ -1,5 +1,6 @@
 package com.fitmatch.dto.pt;
 
+import com.fitmatch.common.validation.StrongPassword;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -31,7 +32,7 @@ public class CreateGymPtRequest {
     private String email;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 6, max = 100, message = "Password must be between 6 and 100 characters")
+    @StrongPassword
     private String password;
 
     @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
