@@ -17,6 +17,9 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 
     Optional<VerificationToken> findByTokenAndType(String token, TokenType type);
 
+    /** UC-002: OTP đang hiệu lực mới nhất của user (OTP không unique toàn cục nên tra theo user). */
+    Optional<VerificationToken> findTopByUserAndTypeAndUsedFalseOrderByIdDesc(User user, TokenType type);
+
     /** Vô hiệu hoá các token cũ cùng loại của user trước khi phát hành token mới. */
     @Modifying
     @Query("UPDATE VerificationToken t SET t.used = true WHERE t.user = :user AND t.type = :type AND t.used = false")

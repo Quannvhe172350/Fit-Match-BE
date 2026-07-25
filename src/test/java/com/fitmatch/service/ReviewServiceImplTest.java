@@ -41,6 +41,8 @@ class ReviewServiceImplTest {
     @Mock private BookingRepository bookingRepository;
     @Mock private AuditService auditService;
     @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    // UC-008: mock refresh denorm rating (no-op trong unit test)
+    @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
     @InjectMocks private ReviewServiceImpl service;
 
     private Booking completedBooking() {

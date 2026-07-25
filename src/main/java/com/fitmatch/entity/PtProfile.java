@@ -93,4 +93,13 @@ public class PtProfile extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = false;
+
+    /** UC-008 (V51): denorm điểm review VISIBLE — cho phép sort marketplace theo rating. */
+    @Column(name = "avg_rating", nullable = false, precision = 3, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal avgRating = java.math.BigDecimal.ZERO;
+
+    @Column(name = "rating_count", nullable = false)
+    @Builder.Default
+    private int ratingCount = 0;
 }

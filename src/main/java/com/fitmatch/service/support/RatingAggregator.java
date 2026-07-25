@@ -1,5 +1,7 @@
 package com.fitmatch.service.support;
 
+import com.fitmatch.repository.GymProfileRepository;
+import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,8 @@ import java.math.RoundingMode;
 public class RatingAggregator {
 
     private final ReviewRepository reviewRepository;
+    private final GymProfileRepository gymProfileRepository;
+    private final PtProfileRepository ptProfileRepository;
 
     public record Rating(BigDecimal average, long count) {
         static Rating from(Object[] row) {
@@ -33,5 +37,29 @@ public class RatingAggregator {
 
     public Rating forPt(Long ptProfileId) {
         return Rating.from(reviewRepository.aggregatePt(ptProfileId));
+    }
+
+    // ----- UC-008 (V51): đồng bộ cột denorm avg_rating/rating_count để sort marketplace -----
+
+    /** Gọi sau mỗi thay đổi review liên quan gym (create/update/delete/moderate). */
+    public void refreshGym(Long gymProfileId) {
+        if (gymProfileId == null) return;
+        Rating r = forGym(gymProfileId);
+        gymProfileRepository.findById(gymProfileId).ifPresent(g -> {
+            g.setAvgRating(r.average());
+            g.setRatingCount((int) r.count());
+            gymProfileRepository.save(g);
+        });
+    }
+
+    /** Gọi sau mỗi thay đổi review liên quan PT. */
+    public void refreshPt(Long ptProfileId) {
+        if (ptProfileId == null) return;
+        Rating r = forPt(ptProfileId);
+        ptProfileRepository.findById(ptProfileId).ifPresent(p -> {
+            p.setAvgRating(r.average());
+            p.setRatingCount((int) r.count());
+            ptProfileRepository.save(p);
+        });
     }
 }

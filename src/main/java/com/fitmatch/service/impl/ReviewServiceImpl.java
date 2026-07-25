@@ -40,6 +40,13 @@ public class ReviewServiceImpl implements ReviewService {
     private final BookingRepository bookingRepository;
     private final AuditService auditService;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    // UC-008 (V51): đồng bộ cột denorm avg_rating/rating_count sau mỗi thay đổi review
+    private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
+
+    private void refreshDenormRating(Review review) {
+        ratingAggregator.refreshGym(review.getGymProfile() != null ? review.getGymProfile().getId() : null);
+        ratingAggregator.refreshPt(review.getPtProfile() != null ? review.getPtProfile().getId() : null);
+    }
 
     @Override
     @Transactional
@@ -65,6 +72,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .comment(request.getComment())
                 .status(ReviewStatus.VISIBLE)
                 .build());
+        refreshDenormRating(review);
         log.info("Review {} created for booking {} (rating {})",
                 review.getId(), booking.getId(), request.getRating());
         return ReviewResponse.of(review);
@@ -80,6 +88,7 @@ public class ReviewServiceImpl implements ReviewService {
         }
         review.setRating(request.getRating());
         review.setComment(request.getComment());
+        refreshDenormRating(review);
         return ReviewResponse.of(review);
     }
 
@@ -93,10 +102,12 @@ public class ReviewServiceImpl implements ReviewService {
         // (ẩn khỏi marketplace, không tính điểm) và giữ nguyên lịch sử report cho kiểm duyệt.
         if (reviewReportRepository.existsByReview_Id(reviewId)) {
             review.setStatus(ReviewStatus.REMOVED);
+            refreshDenormRating(review);
             log.info("Review {} soft-removed (has reports) by owner {}", reviewId, customerUsername);
             return;
         }
         reviewRepository.delete(review);
+        refreshDenormRating(review);
         log.info("Review {} deleted by owner {}", reviewId, customerUsername);
     }
 
@@ -185,6 +196,7 @@ public class ReviewServiceImpl implements ReviewService {
             throw new BusinessException(ErrorCode.INVALID_STATE, "A removed review cannot be moderated");
         }
         review.setStatus(request.getStatus());
+        refreshDenormRating(review);
         if (request.getStatus() != com.fitmatch.common.enums.ReviewStatus.VISIBLE) {
             notificationDispatcher.reviewModerated(review);
         }

@@ -52,6 +52,8 @@ public final class AuditActions {
     public static final String ISSUE_REPORT_DISMISS = "ISSUE_REPORT_DISMISS";
     // UC-078: thay đổi tham số hệ thống (system_configs)
     public static final String SYSTEM_CONFIG_CHANGE = "SYSTEM_CONFIG_CHANGE";
+    // UC-075: thay đổi template thông báo (notification_templates)
+    public static final String NOTIFICATION_TEMPLATE_CHANGE = "NOTIFICATION_TEMPLATE_CHANGE";
     public static final String WALLET_FREEZE = "WALLET_FREEZE";
     public static final String WALLET_UNFREEZE = "WALLET_UNFREEZE";
     public static final String DISPUTE_OPEN = "DISPUTE_OPEN";

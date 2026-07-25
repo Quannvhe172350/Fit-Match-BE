@@ -76,6 +76,15 @@ public class GymProfile extends BaseEntity {
     @Builder.Default
     private boolean active = false;
 
+    /** UC-008 (V51): denorm điểm review VISIBLE — cho phép sort marketplace theo rating. */
+    @Column(name = "avg_rating", nullable = false, precision = 3, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal avgRating = java.math.BigDecimal.ZERO;
+
+    @Column(name = "rating_count", nullable = false)
+    @Builder.Default
+    private int ratingCount = 0;
+
     /**
      * Optimistic lock (P1 batch 2): chống hai admin cùng xử lý một hồ sơ (approve
      * vs reject) ghi đè quyết định của nhau. Xem V36.

@@ -65,7 +65,11 @@ public class UserServiceImpl implements UserService {
             user.setEmailVerified(false);
         }
 
-        if (request.getPhone() != null) user.setPhone(request.getPhone());
+        if (request.getPhone() != null && !request.getPhone().equals(user.getPhone())) {
+            // UC-002: đổi SĐT thì phải xác minh OTP lại
+            user.setPhone(request.getPhone());
+            user.setPhoneVerified(false);
+        }
         if (request.getGender() != null) user.setGender(request.getGender());
         if (request.getLocation() != null) user.setLocation(request.getLocation());
         if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl());

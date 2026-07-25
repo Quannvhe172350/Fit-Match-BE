@@ -55,7 +55,8 @@ public class FavoriteServiceImpl implements FavoriteService {
         return favoriteRepository.findByUser_UsernameAndType(username, FavoriteType.PT).stream()
                 .map(f -> ptProfileRepository.findById(f.getTargetId()).orElse(null))
                 .filter(p -> p != null)
-                .map(p -> PtPublicProfileResponse.of(p, List.of()))
+                // UC-008/010: kèm rating từ cột denorm V51 (không aggregate mỗi request)
+                .map(p -> PtPublicProfileResponse.of(p, List.of(), p.getAvgRating(), p.getRatingCount()))
                 .toList();
     }
 
@@ -79,7 +80,8 @@ public class FavoriteServiceImpl implements FavoriteService {
         return favoriteRepository.findByUser_UsernameAndType(username, FavoriteType.GYM).stream()
                 .map(f -> gymProfileRepository.findById(f.getTargetId()).orElse(null))
                 .filter(g -> g != null)
-                .map(GymPublicProfileResponse::of)
+                // UC-008/010: kèm rating từ cột denorm V51
+                .map(g -> GymPublicProfileResponse.of(g, g.getAvgRating(), g.getRatingCount()))
                 .toList();
     }
 

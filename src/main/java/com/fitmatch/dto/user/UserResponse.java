@@ -29,6 +29,8 @@ public class UserResponse {
     private Role role;
     private UserStatus status;
     private boolean emailVerified;
+    /** UC-002: SĐT đã xác minh OTP. */
+    private boolean phoneVerified;
 
     // Fitness Metrics
     private Double height;

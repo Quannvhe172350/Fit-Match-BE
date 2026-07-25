@@ -59,6 +59,11 @@ public class VerificationToken extends BaseEntity {
     @Builder.Default
     private boolean used = false;
 
+    /** UC-002: số lần nhập sai OTP — khóa token sau 5 lần (chống brute-force mã 6 số). */
+    @Column(nullable = false)
+    @Builder.Default
+    private int attempts = 0;
+
     public boolean isExpired() {
         return LocalDateTime.now().isAfter(expiresAt);
     }
