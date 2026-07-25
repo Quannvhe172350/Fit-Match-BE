@@ -89,3 +89,8 @@ app:
       auth-token: ${TWILIO_AUTH_TOKEN:}
       # Số Twilio được cấp khi đăng ký trial (dạng +1xxxxxxxxxx)
       from-number: ${TWILIO_FROM_NUMBER:}
+    speedsms:
+      access-token: ${SPEEDSMS_ACCESS_TOKEN:}
+      # 2 = CSKH brandname đã đăng ký; 3 = brandname "SpeedSMS" (test bằng credit tặng); 4 = đầu số cố định
+      sms-type: ${SPEEDSMS_SMS_TYPE:2}
+      sender: ${SPEEDSMS_SENDER:}

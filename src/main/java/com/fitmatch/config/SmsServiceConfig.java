@@ -29,6 +29,16 @@ public class SmsServiceConfig {
         return new EsmsSmsService(apiKey, secretKey, brandname, smsType);
     }
 
+    /** SpeedSMS.vn — dịch vụ VN, tặng credit test, không chặn số VN như Twilio trial. */
+    @Bean
+    @ConditionalOnProperty(name = "app.sms.provider", havingValue = "speedsms")
+    public SmsService speedSmsService(
+            @Value("${app.sms.speedsms.access-token}") String accessToken,
+            @Value("${app.sms.speedsms.sms-type:2}") int smsType,
+            @Value("${app.sms.speedsms.sender:}") String sender) {
+        return new com.fitmatch.service.impl.SpeedSmsService(accessToken, smsType, sender);
+    }
+
     /** Twilio trial miễn phí — phù hợp đồ án/demo (chỉ gửi được tới số đã verify). */
     @Bean
     @ConditionalOnProperty(name = "app.sms.provider", havingValue = "twilio")
