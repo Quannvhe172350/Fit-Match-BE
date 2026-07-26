@@ -2,6 +2,8 @@ package com.fitmatch.service;
 
 import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.PaymentStatus;
+import com.fitmatch.common.enums.PaymentTxnAnomaly;
+import com.fitmatch.common.enums.ReconStatus;
 import com.fitmatch.dto.payment.CassoWebhookRequest;
 import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.PaymentOrder;
@@ -10,9 +12,12 @@ import com.fitmatch.repository.PaymentOrderRepository;
 import com.fitmatch.repository.PaymentTransactionRepository;
 import com.fitmatch.service.impl.PaymentWebhookServiceImpl;
 import com.fitmatch.service.support.BookingPaymentHandler;
+import com.fitmatch.service.support.NotificationDispatcher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -47,7 +52,12 @@ class PaymentWebhookServiceImplTest {
     @Mock private PaymentOrderRepository paymentOrderRepository;
     @Mock private BookingPaymentHandler bookingPaymentHandler;
     @Mock private TransactionTemplate transactionTemplate;
+    // Thiếu mock này thì paymentFailed(...) ném NPE, bị per-item try/catch nuốt —
+    // các case thiếu tiền/hết hạn trước đây "pass" mà không thực sự chạy hết luồng.
+    @Mock private NotificationDispatcher notificationDispatcher;
     @InjectMocks private PaymentWebhookServiceImpl service;
+
+    @Captor private ArgumentCaptor<PaymentTransaction> txnCaptor;
 
     @BeforeEach
     void runCallbackInline() {
@@ -84,6 +94,12 @@ class PaymentWebhookServiceImplTest {
         verify(paymentTransactionRepository, never()).save(any());
     }
 
+    /** Giao dịch đã lưu — dùng để soi kết quả phân loại đối soát (UC-053). */
+    private PaymentTransaction savedTxn() {
+        verify(paymentTransactionRepository).save(txnCaptor.capture());
+        return txnCaptor.getValue();
+    }
+
     @Test
     void unmatchedRef_recordedButNotConfirmed() {
         when(paymentTransactionRepository.existsByExternalId("casso-2")).thenReturn(false);
@@ -91,12 +107,16 @@ class PaymentWebhookServiceImplTest {
         int matched = service.processCasso(oneItem("casso-2", new BigDecimal("100000"), "no ref here"));
 
         assertThat(matched).isZero();
-        verify(paymentTransactionRepository).save(any(PaymentTransaction.class));
         verify(bookingPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
+        // Tiền vào không khớp phải vào hàng đợi đối soát, không được chỉ nằm ở log.
+        PaymentTransaction txn = savedTxn();
+        assertThat(txn.getAnomaly()).isEqualTo(PaymentTxnAnomaly.UNMATCHED);
+        assertThat(txn.getReconStatus()).isEqualTo(ReconStatus.NEEDS_REVIEW);
+        assertThat(txn.getPaymentOrder()).isNull();
     }
 
     @Test
-    void amountShort_notConfirmed() {
+    void amountShort_notConfirmedAndQueued() {
         when(paymentTransactionRepository.existsByExternalId("casso-3")).thenReturn(false);
         PaymentOrder o = order(PaymentStatus.PENDING, new BigDecimal("100000"),
                 LocalDateTime.now().plusHours(1), BookingStatus.PENDING_PAYMENT);
@@ -107,6 +127,8 @@ class PaymentWebhookServiceImplTest {
         assertThat(matched).isZero();
         assertThat(o.getStatus()).isEqualTo(PaymentStatus.PENDING);
         verify(bookingPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.UNDERPAID);
+        verify(notificationDispatcher).paymentFailed(eq(o.getBooking()), anyString());
     }
 
     @Test
@@ -121,10 +143,12 @@ class PaymentWebhookServiceImplTest {
         assertThat(matched).isZero();
         assertThat(o.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         verify(bookingPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.LATE_ARRIVAL);
+        verify(notificationDispatcher).paymentFailed(eq(o.getBooking()), anyString());
     }
 
     @Test
-    void orderNotPending_recordedOnly() {
+    void orderNotPending_queuedAsDuplicateWithoutNotifying() {
         when(paymentTransactionRepository.existsByExternalId("casso-5")).thenReturn(false);
         PaymentOrder o = order(PaymentStatus.PAID, new BigDecimal("100000"),
                 LocalDateTime.now().plusHours(1), BookingStatus.CONFIRMED);
@@ -134,6 +158,9 @@ class PaymentWebhookServiceImplTest {
 
         assertThat(matched).isZero();
         verify(bookingPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.DUPLICATE);
+        // Booking của khách đã xong — không làm khách hoang mang, để Finance đối soát.
+        verify(notificationDispatcher, never()).paymentFailed(any(), anyString());
     }
 
     @Test
@@ -150,5 +177,27 @@ class PaymentWebhookServiceImplTest {
         assertThat(o.getPaidAt()).isNotNull();
         verify(bookingPaymentHandler).onPaymentConfirmed(eq(o.getBooking()),
                 eq(new BigDecimal("100000")), eq("casso"));
+        PaymentTransaction txn = savedTxn();
+        assertThat(txn.getAnomaly()).isNull();
+        assertThat(txn.getReconStatus()).isEqualTo(ReconStatus.APPLIED);
+    }
+
+    @Test
+    void overpaid_confirmsBookingButStillNeedsReview() {
+        when(paymentTransactionRepository.existsByExternalId("casso-7")).thenReturn(false);
+        PaymentOrder o = order(PaymentStatus.PENDING, new BigDecimal("100000"),
+                LocalDateTime.now().plusHours(1), BookingStatus.PENDING_PAYMENT);
+        when(paymentOrderRepository.findByRefCode("FM10ABCDEF")).thenReturn(Optional.of(o));
+
+        int matched = service.processCasso(oneItem("casso-7", new BigDecimal("150000"), "FM10ABCDEF"));
+
+        // Khách đã trả đủ (và thừa) -> booking phải đi tiếp, nhưng phần thừa còn nợ khách.
+        assertThat(matched).isEqualTo(1);
+        assertThat(o.getStatus()).isEqualTo(PaymentStatus.PAID);
+        verify(bookingPaymentHandler).onPaymentConfirmed(eq(o.getBooking()),
+                eq(new BigDecimal("100000")), eq("casso"));
+        PaymentTransaction txn = savedTxn();
+        assertThat(txn.getAnomaly()).isEqualTo(PaymentTxnAnomaly.OVERPAID);
+        assertThat(txn.getReconStatus()).isEqualTo(ReconStatus.NEEDS_REVIEW);
     }
 }
