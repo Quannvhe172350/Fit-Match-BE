@@ -63,8 +63,8 @@ app:
     credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}
   # VietQR: tài khoản nhận tiền của nền tảng (khách chuyển khoản theo QR)
   vietqr:
-    bank-bin: ${VIETQR_BANK_BIN:970415}
-    account-no: ${VIETQR_ACCOUNT_NO:113366668888}
+    bank-bin: ${VIETQR_BANK_BIN:970418}
+    account-no: ${VIETQR_ACCOUNT_NO:4271051065}
     account-name: ${VIETQR_ACCOUNT_NAME:FIT MATCH}
     template: ${VIETQR_TEMPLATE:compact2}
   # Casso: dịch vụ đối soát biến động số dư ngân hàng, gọi webhook khi tiền vào.
