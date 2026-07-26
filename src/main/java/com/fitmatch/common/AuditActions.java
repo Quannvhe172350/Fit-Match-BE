@@ -42,6 +42,9 @@ public final class AuditActions {
     public static final String WITHDRAWAL_REJECT = "WITHDRAWAL_REJECT";
     public static final String WITHDRAWAL_PAID = "WITHDRAWAL_PAID";
     public static final String PAYMENT_ORDER_EXPIRE = "PAYMENT_ORDER_EXPIRE";
+    // UC-053/056: đối soát thủ công tiền vào không khớp booking (payment_transactions)
+    public static final String PAYMENT_TXN_APPLY = "PAYMENT_TXN_APPLY";
+    public static final String PAYMENT_TXN_RESOLVE = "PAYMENT_TXN_RESOLVE";
     public static final String BOOKING_CHECK_IN = "BOOKING_CHECK_IN";
     public static final String ATTENDANCE_CORRECT = "ATTENDANCE_CORRECT";
     public static final String REVIEW_MODERATE = "REVIEW_MODERATE";
