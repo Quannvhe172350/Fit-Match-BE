@@ -42,3 +42,6 @@ logs/
 
 .playwright-mcp
 *.stackdump
+
+### Runtime uploads (never commit) ###
+uploads/
