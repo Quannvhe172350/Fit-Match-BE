@@ -49,6 +49,26 @@ public class GymBranch extends BaseEntity {
     @Column(length = 100)
     private String district;
 
+    /**
+     * UC-18 (V55): toạ độ chi nhánh. Tìm kiếm theo bán kính khớp gym khi trụ sở
+     * HOẶC bất kỳ chi nhánh đang hoạt động nào nằm trong bán kính — chuỗi gym
+     * nhiều cơ sở nếu chỉ dựa vào trụ sở sẽ bị bỏ sót.
+     */
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
+
+    @Column(name = "place_id", length = 255)
+    private String placeId;
+
+    @Column(name = "formatted_address", length = 500)
+    private String formattedAddress;
+
+    @Column(name = "geocoded_at")
+    private java.time.LocalDateTime geocodedAt;
+
     @Column(length = 30)
     private String phone;
 

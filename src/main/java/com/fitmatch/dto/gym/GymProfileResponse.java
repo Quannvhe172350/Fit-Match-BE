@@ -25,6 +25,10 @@ public class GymProfileResponse {
     private String city;
     private String district;
     private String phone;
+    /** UC-18 (V55): toạ độ trụ sở — workspace hiển thị lại vị trí đã ghim trên bản đồ. */
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
+    private String formattedAddress;
     private VerificationStatus verificationStatus;
     private String rejectionReason;
     private String reviewNote;
@@ -41,6 +45,9 @@ public class GymProfileResponse {
                 .city(g.getCity())
                 .district(g.getDistrict())
                 .phone(g.getPhone())
+                .latitude(g.getLatitude())
+                .longitude(g.getLongitude())
+                .formattedAddress(g.getFormattedAddress())
                 .verificationStatus(g.getVerificationStatus())
                 .rejectionReason(g.getRejectionReason())
                 .reviewNote(g.getReviewNote())

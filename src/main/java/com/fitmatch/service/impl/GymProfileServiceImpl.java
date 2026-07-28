@@ -31,6 +31,7 @@ public class GymProfileServiceImpl implements GymProfileService {
     private final GymDocumentRepository gymDocumentRepository;
     private final UserRepository userRepository;
     private final com.fitmatch.repository.GymBranchRepository gymBranchRepository;
+    private final com.fitmatch.service.support.AddressGeocoder addressGeocoder;
 
     @Override
     @Transactional
@@ -42,7 +43,7 @@ public class GymProfileServiceImpl implements GymProfileService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
-        GymProfile profile = gymProfileRepository.save(GymProfile.builder()
+        GymProfile profile = GymProfile.builder()
                 .user(user)
                 .gymName(request.getGymName())
                 .description(request.getDescription())
@@ -52,7 +53,10 @@ public class GymProfileServiceImpl implements GymProfileService {
                 .phone(request.getPhone())
                 .verificationStatus(VerificationStatus.PENDING)
                 .active(false)
-                .build());
+                .build();
+        applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
+                request.getAddress(), request.getDistrict(), request.getCity());
+        profile = gymProfileRepository.save(profile);
 
         List<GymDocument> documents = saveDocuments(profile, request);
         log.info("Gym registration submitted by {} (profile {})", username, profile.getId());
@@ -82,6 +86,8 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setCity(request.getCity());
         profile.setDistrict(request.getDistrict());
         profile.setPhone(request.getPhone());
+        applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
+                request.getAddress(), request.getDistrict(), request.getCity());
         profile.setVerificationStatus(VerificationStatus.PENDING);
         profile.setRejectionReason(null);
         profile.setReviewNote(null);
@@ -106,6 +112,7 @@ public class GymProfileServiceImpl implements GymProfileService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "A suspended gym cannot edit its business profile; contact platform admin.");
         }
+        String addressKey = addressKeyOf(profile);
         if (request.getGymName() != null) {
             profile.setGymName(request.getGymName());
         }
@@ -124,9 +131,45 @@ public class GymProfileServiceImpl implements GymProfileService {
         if (request.getPhone() != null) {
             profile.setPhone(request.getPhone());
         }
+        // UC-18 (V55): chỉ geocode lại khi địa chỉ thực sự đổi, operator gửi toạ độ
+        // mới, hoặc hồ sơ còn thiếu toạ độ (lần trước geocode hỏng thì lần này thử
+        // lại). Nếu không, mỗi lần đổi số điện thoại lại tốn một lượt gọi Google
+        // cho cùng một địa chỉ.
+        boolean addressChanged = !addressKey.equals(addressKeyOf(profile));
+        if (addressChanged || request.getLatitude() != null || request.getLongitude() != null
+                || profile.getLatitude() == null) {
+            applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
+                    profile.getAddress(), profile.getDistrict(), profile.getCity());
+        }
         gymProfileRepository.save(profile);
         log.info("Gym profile updated by {}", username);
         return toResponse(profile);
+    }
+
+    /**
+     * UC-18 (V55): gắn toạ độ cho hồ sơ gym. Không phân giải được thì GIỮ NGUYÊN
+     * giá trị cũ — Google lỗi/hết quota không được phép xoá trắng toạ độ đang có.
+     */
+    private void applyGeolocation(GymProfile profile, java.math.BigDecimal explicitLat,
+                                  java.math.BigDecimal explicitLng,
+                                  String address, String district, String city) {
+        var resolution = addressGeocoder.resolve(explicitLat, explicitLng, address, district, city);
+        if (!resolution.resolved()) {
+            return;
+        }
+        profile.setLatitude(resolution.latitude());
+        profile.setLongitude(resolution.longitude());
+        profile.setPlaceId(resolution.placeId());
+        profile.setFormattedAddress(resolution.formattedAddress());
+        profile.setGeocodedAt(resolution.geocodedAt());
+    }
+
+    /** Khoá so sánh "địa chỉ có đổi không" cho {@link #updateProfile}. */
+    private static String addressKeyOf(GymProfile profile) {
+        return String.join("|",
+                java.util.Objects.toString(profile.getAddress(), ""),
+                java.util.Objects.toString(profile.getDistrict(), ""),
+                java.util.Objects.toString(profile.getCity(), ""));
     }
 
     @Override

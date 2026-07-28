@@ -73,3 +73,15 @@ app:
     webhook-secret: ${CASSO_WEBHOOK_SECRET:}
   payment:
     order-ttl-hours: ${PAYMENT_ORDER_TTL_HOURS:24}
+  # UC-18 (V55): tìm phòng gym theo bán kính. Key SERVER dùng cho Geocoding API
+  # (nên giới hạn theo IP) — khác key browser của FE dùng Maps JavaScript + Places.
+  # Không set key -> mọi luồng geocode tự tắt, gym vẫn lưu địa chỉ nhưng không có toạ độ.
+  google-maps:
+    api-key: ${GOOGLE_MAPS_API_KEY:}
+    region: ${GOOGLE_MAPS_REGION:vn}
+    language: ${GOOGLE_MAPS_LANGUAGE:vi}
+    # Mở /api/marketplace/geocode cho khách vãng lai — chỉ bật khi FE KHÔNG có key
+    # Maps JavaScript riêng, vì proxy công khai tiêu quota Google của nền tảng.
+    public-geocode-enabled: ${GOOGLE_MAPS_PUBLIC_GEOCODE:false}
+    max-search-radius-km: ${GYM_SEARCH_MAX_RADIUS_KM:50}
+    default-search-radius-km: ${GYM_SEARCH_DEFAULT_RADIUS_KM:5}

@@ -7,6 +7,7 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.gym.BranchResponse;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
+import com.fitmatch.dto.gym.GymSearchCriteria;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.dto.gym.OperatingHourDto;
 import com.fitmatch.dto.gym.TrainingPackageResponse;
@@ -23,16 +24,22 @@ import com.fitmatch.repository.OperatingHourRepository;
 import com.fitmatch.repository.PtCertificationRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TrainingPackageRepository;
+import com.fitmatch.repository.projection.GymDistanceView;
 import com.fitmatch.repository.spec.GymProfileSpecifications;
 import com.fitmatch.repository.spec.PtProfileSpecifications;
 import com.fitmatch.service.MarketplaceService;
+import com.fitmatch.service.support.GeoUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +54,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final GymMediaRepository gymMediaRepository;
     private final OperatingHourRepository operatingHourRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
+    private final com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -81,25 +89,133 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<GymPublicProfileResponse> searchGyms(String keyword, String city, String district,
-                                                             java.math.BigDecimal minPrice, java.math.BigDecimal maxPrice,
-                                                             Pageable pageable) {
+    public PageResponse<GymPublicProfileResponse> searchGyms(GymSearchCriteria criteria, Pageable pageable) {
+        if (criteria.hasLocation()) {
+            return searchGymsNearby(criteria, pageable);
+        }
         Specification<GymProfile> spec = Specification.where(GymProfileSpecifications.visibleOnMarketplace())
-                .and(GymProfileSpecifications.keyword(keyword))
-                .and(GymProfileSpecifications.city(city))
-                .and(GymProfileSpecifications.district(district))
-                .and(GymProfileSpecifications.packagePriceRange(minPrice, maxPrice));
+                .and(GymProfileSpecifications.keyword(criteria.keyword()))
+                .and(GymProfileSpecifications.city(criteria.city()))
+                .and(GymProfileSpecifications.district(criteria.district()))
+                .and(GymProfileSpecifications.packagePriceRange(criteria.minPrice(), criteria.maxPrice()));
         // UC-071: kèm điểm đánh giá để card hiển thị sao ngay trên danh sách.
-        return PageResponse.of(gymProfileRepository.findAll(spec, pageable),
-                g -> {
-                    var rating = ratingAggregator.forGym(g.getId());
-                    var response = GymPublicProfileResponse.of(g, rating.average(), rating.count());
-                    // Bug 11: ảnh đại diện cho card = media đầu tiên của gym (nếu có).
-                    gymMediaRepository.findByGymProfile_Id(g.getId()).stream()
-                            .findFirst()
-                            .ifPresent(m -> response.setCoverUrl(m.getUrl()));
-                    return response;
-                });
+        return PageResponse.of(gymProfileRepository.findAll(spec, pageable), this::toCardResponse);
+    }
+
+    /**
+     * UC-18 (V55): nhánh tìm theo bán kính. Truy vấn native chỉ trả về (gymId,
+     * distanceKm) đã sắp xếp; phần làm giàu dữ liệu (rating, ảnh bìa, điểm gần
+     * nhất) làm ở đây theo lô để không sinh N+1.
+     */
+    private PageResponse<GymPublicProfileResponse> searchGymsNearby(GymSearchCriteria criteria, Pageable pageable) {
+        double lat = criteria.latitude().doubleValue();
+        double lng = criteria.longitude().doubleValue();
+        double radiusKm = effectiveRadiusKm(criteria.radiusKm());
+        double latDelta = GeoUtils.latDelta(radiusKm);
+        double lngDelta = GeoUtils.lngDelta(lat, radiusKm);
+
+        // Truy vấn đã ORDER BY khoảng cách; truyền Pageable KHÔNG sort để Spring
+        // không nối thêm mệnh đề ORDER BY theo tên field entity (native query
+        // không có alias đó -> lỗi SQL).
+        Pageable byDistance = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        Page<GymDistanceView> page = gymProfileRepository.searchNearby(
+                lat, lng, radiusKm,
+                // Bounding box chỉ để tận dụng index; haversine trong truy vấn mới là
+                // bộ lọc chính xác. Kẹp biên vì toạ độ ngoài [-90,90]/[-180,180] là vô nghĩa
+                // (không xử lý vắt qua kinh tuyến 180 — ngoài phạm vi thị trường Việt Nam).
+                clamp(lat - latDelta, -90, 90), clamp(lat + latDelta, -90, 90),
+                clamp(lng - lngDelta, -180, 180), clamp(lng + lngDelta, -180, 180),
+                likePattern(criteria.keyword()), likePattern(criteria.city()), likePattern(criteria.district()),
+                criteria.minPrice(), criteria.maxPrice(),
+                byDistance);
+
+        // ids rỗng -> hai truy vấn dưới đây là no-op và mapper không bao giờ chạy,
+        // nên không cần nhánh đặc biệt cho trang trống.
+        List<Long> ids = page.getContent().stream().map(GymDistanceView::getGymId).toList();
+        Map<Long, GymProfile> gyms = gymProfileRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(GymProfile::getId, g -> g));
+        Map<Long, List<com.fitmatch.entity.GymBranch>> branchesByGym =
+                gymBranchRepository.findByGymProfile_IdInAndActiveTrue(ids).stream()
+                        .collect(Collectors.groupingBy(b -> b.getGymProfile().getId()));
+
+        return PageResponse.of(page, view -> {
+            GymProfile gym = gyms.get(view.getGymId());
+            GymPublicProfileResponse response = toCardResponse(gym);
+            NearestPoint nearest = nearestPoint(lat, lng, gym,
+                    branchesByGym.getOrDefault(gym.getId(), List.of()));
+            if (nearest != null) {
+                // Marker phải trùng điểm sinh ra khoảng cách đang hiển thị, nếu không
+                // người dùng thấy "cách 1.2km" nhưng ghim nằm ở trụ sở cách 8km.
+                response.setLatitude(nearest.latitude());
+                response.setLongitude(nearest.longitude());
+                response.setNearestBranchName(nearest.branchName());
+                response.setDistanceKm(round2(nearest.distanceKm()));
+            } else if (view.getDistanceKm() != null) {
+                response.setDistanceKm(round2(view.getDistanceKm()));
+            }
+            return response;
+        });
+    }
+
+    /** Card marketplace: hồ sơ công khai + điểm đánh giá (UC-071) + ảnh bìa (bug 11). */
+    private GymPublicProfileResponse toCardResponse(GymProfile gym) {
+        var rating = ratingAggregator.forGym(gym.getId());
+        var response = GymPublicProfileResponse.of(gym, rating.average(), rating.count());
+        gymMediaRepository.findByGymProfile_Id(gym.getId()).stream()
+                .findFirst()
+                .ifPresent(m -> response.setCoverUrl(m.getUrl()));
+        return response;
+    }
+
+    /** Điểm gần người dùng nhất trong số {trụ sở, các chi nhánh đang hoạt động}. */
+    private NearestPoint nearestPoint(double lat, double lng, GymProfile gym,
+                                      List<com.fitmatch.entity.GymBranch> branches) {
+        NearestPoint best = null;
+        if (gym.getLatitude() != null && gym.getLongitude() != null) {
+            best = new NearestPoint(gym.getLatitude(), gym.getLongitude(), null,
+                    GeoUtils.haversineKm(lat, lng,
+                            gym.getLatitude().doubleValue(), gym.getLongitude().doubleValue()));
+        }
+        for (var branch : branches) {
+            if (branch.getLatitude() == null || branch.getLongitude() == null) {
+                continue;
+            }
+            double distance = GeoUtils.haversineKm(lat, lng,
+                    branch.getLatitude().doubleValue(), branch.getLongitude().doubleValue());
+            if (best == null || distance < best.distanceKm()) {
+                best = new NearestPoint(branch.getLatitude(), branch.getLongitude(), branch.getName(), distance);
+            }
+        }
+        return best;
+    }
+
+    private record NearestPoint(java.math.BigDecimal latitude, java.math.BigDecimal longitude,
+                                String branchName, double distanceKm) {
+    }
+
+    /** Bán kính client gửi lên, kẹp vào [0, max] cấu hình; null -> mặc định. */
+    private double effectiveRadiusKm(Double requested) {
+        double max = googleMapsProperties.getMaxSearchRadiusKm();
+        if (requested == null || requested <= 0) {
+            return Math.min(googleMapsProperties.getDefaultSearchRadiusKm(), max);
+        }
+        return Math.min(requested, max);
+    }
+
+    /** Chuẩn hoá thành pattern LIKE viết thường; null/rỗng -> null = không lọc. */
+    private static String likePattern(String value) {
+        return org.springframework.util.StringUtils.hasText(value)
+                ? "%" + value.trim().toLowerCase() + "%"
+                : null;
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /** Khoảng cách hiển thị chỉ cần độ chính xác ~10m; tránh trả 1.2999999999 ra JSON. */
+    private static double round2(double km) {
+        return Math.round(km * 100.0) / 100.0;
     }
 
     @Override

@@ -57,6 +57,29 @@ public class GymProfile extends BaseEntity {
     @Column(length = 100)
     private String district;
 
+    /**
+     * UC-18 (V55): toạ độ trụ sở phục vụ tìm kiếm theo bán kính. Lấy từ Google
+     * Geocoding API khi lưu địa chỉ, hoặc do operator chọn trực tiếp trên bản đồ.
+     * null = chưa geocode được -> gym không xuất hiện trong kết quả tìm quanh đây.
+     */
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
+
+    /** place_id của Google — định danh ổn định của địa điểm, dùng để tra cứu lại. */
+    @Column(name = "place_id", length = 255)
+    private String placeId;
+
+    /** Địa chỉ đã chuẩn hoá do Google trả về (hiển thị trên bản đồ/InfoWindow). */
+    @Column(name = "formatted_address", length = 500)
+    private String formattedAddress;
+
+    /** Thời điểm geocode gần nhất — null nghĩa là chưa từng geocode thành công. */
+    @Column(name = "geocoded_at")
+    private java.time.LocalDateTime geocodedAt;
+
     @Column(length = 30)
     private String phone;
 
