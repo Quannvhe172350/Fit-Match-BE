@@ -16,6 +16,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -109,6 +111,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handlePropertyReference(PropertyReferenceException ex, HttpServletRequest request) {
         log.warn("Invalid sort/property reference on path {}: {}", request.getRequestURI(), ex.getMessage());
         return build(ErrorCode.VALIDATION_ERROR, "Invalid sort or filter field", request);
+    }
+
+    /**
+     * BUG-12: gọi vào path API không tồn tại phải là 404, không phải 500.
+     *
+     * <p>Spring MVC không khớp được handler thì đẩy request sang resolver static
+     * resource, chỗ đó ném {@link NoResourceFoundException}. Trước đây nó rơi vào
+     * nhánh "Unexpected error" bên dưới nên client nhận 500 INTERNAL_ERROR và
+     * tưởng server hỏng, trong khi thực tế chỉ là gõ sai đường dẫn hoặc endpoint
+     * bị tắt theo profile (xem PaymentDevController).
+     *
+     * <p>{@link NoHandlerFoundException} là biến thể khi bật
+     * {@code spring.mvc.throw-exception-if-no-handler-found} — bắt luôn cho chắc.
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNoHandler(Exception ex, HttpServletRequest request) {
+        log.warn("No handler for {} {}", request.getMethod(), request.getRequestURI());
+        return build(ErrorCode.RESOURCE_NOT_FOUND,
+                "No endpoint " + request.getMethod() + " " + request.getRequestURI(), request);
     }
 
     @ExceptionHandler(Exception.class)
