@@ -106,10 +106,10 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler))
-                // Cache raw body cho webhook Casso V2 (HMAC-SHA256 verification).
-                // Phải chạy TRƯỚC mọi filter khác để đọc body trước khi bị consume.
-                .addFilterBefore(webhookBodyCachingFilter, JwtAuthFilter.class)
+                // JwtAuthFilter phải được đăng ký TRƯỚC để các filter khác dùng làm reference.
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Cache raw body cho webhook Casso V2 (HMAC-SHA256) — chạy trước JWT.
+                .addFilterBefore(webhookBodyCachingFilter, JwtAuthFilter.class)
                 // Rate limit các endpoint auth trước khi vào xử lý JWT.
                 .addFilterBefore(authRateLimitFilter, JwtAuthFilter.class);
 
