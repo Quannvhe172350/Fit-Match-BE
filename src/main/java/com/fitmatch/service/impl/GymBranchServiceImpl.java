@@ -27,12 +27,13 @@ public class GymBranchServiceImpl implements GymBranchService {
     private final GymProfileResolver gymProfileResolver;
     private final BookingRepository bookingRepository;
     private final com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
+    private final com.fitmatch.service.support.AddressGeocoder addressGeocoder;
 
     @Override
     @Transactional
     public BranchResponse create(String username, BranchRequest request) {
         GymProfile gym = gymProfileResolver.requireApprovedGym(username);
-        GymBranch branch = branchRepository.save(GymBranch.builder()
+        GymBranch branch = GymBranch.builder()
                 .gymProfile(gym)
                 .name(request.getName())
                 .address(request.getAddress())
@@ -42,7 +43,9 @@ public class GymBranchServiceImpl implements GymBranchService {
                 .amenities(request.getAmenities())
                 .capacity(request.getCapacity())
                 .active(true)
-                .build());
+                .build();
+        applyGeolocation(branch, request);
+        branch = branchRepository.save(branch);
         // UC-017/UC-030: chi nhánh mới có sẵn giờ mặc định 06:00-22:00 cả tuần —
         // trước đây chi nhánh chưa cấu hình giờ thì mọi booking đều bị chặn
         // ("chưa cấu hình giờ hoạt động"), gym chỉnh lại sau nếu khác.
@@ -65,6 +68,7 @@ public class GymBranchServiceImpl implements GymBranchService {
     @Transactional
     public BranchResponse update(String username, Long id, BranchRequest request) {
         GymBranch branch = requireOwned(username, id);
+        String addressKey = addressKeyOf(branch);
         branch.setName(request.getName());
         branch.setAddress(request.getAddress());
         branch.setCity(request.getCity());
@@ -72,7 +76,41 @@ public class GymBranchServiceImpl implements GymBranchService {
         branch.setPhone(request.getPhone());
         branch.setAmenities(request.getAmenities());
         branch.setCapacity(request.getCapacity());
+        // Chỉ geocode lại khi địa chỉ thực sự đổi, operator gửi toạ độ mới, hoặc
+        // chi nhánh còn thiếu toạ độ (lần trước geocode hỏng thì lần này thử lại).
+        // Nếu không, mỗi lần sửa số điện thoại lại tốn một lượt gọi Google.
+        boolean addressChanged = !addressKey.equals(addressKeyOf(branch));
+        if (addressChanged || request.getLatitude() != null || request.getLongitude() != null
+                || branch.getLatitude() == null) {
+            applyGeolocation(branch, request);
+        }
         return BranchResponse.of(branchRepository.save(branch));
+    }
+
+    /** Khoá so sánh "địa chỉ có đổi không" cho {@link #update}. */
+    private static String addressKeyOf(GymBranch branch) {
+        return String.join("|",
+                java.util.Objects.toString(branch.getAddress(), ""),
+                java.util.Objects.toString(branch.getDistrict(), ""),
+                java.util.Objects.toString(branch.getCity(), ""));
+    }
+
+    /**
+     * UC-18 (V55): gắn toạ độ cho chi nhánh. Không phân giải được thì GIỮ NGUYÊN
+     * toạ độ cũ — Google tạm lỗi/hết quota không được phép làm chi nhánh biến mất
+     * khỏi kết quả tìm quanh đây.
+     */
+    private void applyGeolocation(GymBranch branch, BranchRequest request) {
+        var resolution = addressGeocoder.resolve(request.getLatitude(), request.getLongitude(),
+                request.getAddress(), request.getDistrict(), request.getCity());
+        if (!resolution.resolved()) {
+            return;
+        }
+        branch.setLatitude(resolution.latitude());
+        branch.setLongitude(resolution.longitude());
+        branch.setPlaceId(resolution.placeId());
+        branch.setFormattedAddress(resolution.formattedAddress());
+        branch.setGeocodedAt(resolution.geocodedAt());
     }
 
     @Override

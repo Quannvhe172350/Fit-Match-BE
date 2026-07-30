@@ -16,6 +16,16 @@ public interface GymBranchRepository extends JpaRepository<GymBranch, Long> {
     List<GymBranch> findByGymProfile_IdAndActiveTrue(Long gymProfileId);
 
     /**
+     * UC-18 (V55): nạp chi nhánh của cả một trang kết quả trong 1 truy vấn —
+     * tìm theo bán kính cần toạ độ chi nhánh để chọn điểm gần nhất làm marker,
+     * lặp findByGymProfile_Id cho từng gym sẽ thành N+1.
+     */
+    List<GymBranch> findByGymProfile_IdInAndActiveTrue(java.util.Collection<Long> gymProfileIds);
+
+    /** UC-18 (V55): chi nhánh chưa có toạ độ — đầu vào cho backfill geocoding. */
+    List<GymBranch> findByLatitudeIsNullAndAddressIsNotNull();
+
+    /**
      * UC-030: khoá chi nhánh khi kiểm tra capacity lúc checkout/reschedule để
      * tuần tự hoá các giữ chỗ đồng thời (chống overbooking). Thứ tự khoá cố
      * định toàn hệ thống: PT trước, chi nhánh sau (tránh deadlock).

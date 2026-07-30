@@ -5,6 +5,7 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.gym.BranchResponse;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
+import com.fitmatch.dto.gym.GymSearchCriteria;
 import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
@@ -13,6 +14,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/marketplace/gyms")
+@org.springframework.validation.annotation.Validated
 @RequiredArgsConstructor
 @Tag(name = "C. Marketplace - Gym", description = "Tìm kiếm & xem hồ sơ Gym công khai (UC-18)")
 @SecurityRequirements // public
@@ -34,8 +39,15 @@ public class MarketplaceGymController {
 
     @Operation(
             summary = "UC-18 — Tìm kiếm / lọc Gym (công khai)",
-            description = "Actor: **Customer / Guest**. Tìm Gym đã duyệt & hiển thị theo keyword (tên/mô tả), "
-                    + "city, district và khoảng giá gói tập; phân trang. Read-only.")
+            description = """
+                    Actor: **Customer / Guest**. Tìm Gym đã duyệt & hiển thị theo keyword (tên/mô tả), \
+                    city, district và khoảng giá gói tập; phân trang. Read-only.
+
+                    **Tìm theo bán kính (V55):** gửi kèm `lat` + `lng` (vị trí người dùng hoặc địa điểm \
+                    tự chọn) và `radiusKm`. Khi có toạ độ, kết quả chỉ gồm Gym có trụ sở HOẶC chi nhánh \
+                    đang hoạt động nằm trong bán kính, LUÔN sắp xếp theo khoảng cách tăng dần (tham số \
+                    `sort` bị bỏ qua), và mỗi phần tử có thêm `distanceKm` + `latitude`/`longitude` của \
+                    điểm gần nhất. Các bộ lọc keyword/city/district/giá vẫn áp dụng chồng lên.""")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<GymPublicProfileResponse>>> search(
             @Parameter(description = "Từ khoá tên/mô tả") @RequestParam(required = false) String keyword,
@@ -43,9 +55,24 @@ public class MarketplaceGymController {
             @Parameter(description = "Quận/huyện") @RequestParam(required = false) String district,
             @Parameter(description = "Giá gói tập tối thiểu (VND)") @RequestParam(required = false) java.math.BigDecimal minPrice,
             @Parameter(description = "Giá gói tập tối đa (VND)") @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @Parameter(description = "Vĩ độ tâm tìm kiếm (-90..90); phải đi kèm lng")
+            @RequestParam(required = false) @DecimalMin("-90.0") @DecimalMax("90.0") java.math.BigDecimal lat,
+            @Parameter(description = "Kinh độ tâm tìm kiếm (-180..180); phải đi kèm lat")
+            @RequestParam(required = false) @DecimalMin("-180.0") @DecimalMax("180.0") java.math.BigDecimal lng,
+            @Parameter(description = "Bán kính (km); mặc định và trần lấy từ cấu hình app.google-maps")
+            @RequestParam(required = false) @Positive Double radiusKm,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(
-                marketplaceService.searchGyms(keyword, city, district, minPrice, maxPrice, pageable)));
+        // Chỉ có một trong hai toạ độ là lỗi của client (thường do quên bind state
+        // sau khi người dùng bỏ chọn vị trí) — báo 400 rõ ràng thay vì im lặng bỏ
+        // qua bộ lọc vị trí rồi trả về gym ở đầu kia thành phố.
+        if ((lat == null) != (lng == null)) {
+            throw new com.fitmatch.exception.BusinessException(
+                    com.fitmatch.common.enums.ErrorCode.VALIDATION_ERROR,
+                    "lat and lng must be provided together");
+        }
+        return ResponseEntity.ok(ApiResponse.success(marketplaceService.searchGyms(
+                new GymSearchCriteria(keyword, city, district, minPrice, maxPrice, lat, lng, radiusKm),
+                pageable)));
     }
 
     @Operation(

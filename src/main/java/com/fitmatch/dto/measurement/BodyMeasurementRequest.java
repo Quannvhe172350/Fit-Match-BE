@@ -55,4 +55,17 @@ public class BodyMeasurementRequest {
 
     @Size(max = 500)
     private String note;
+
+    /**
+     * BUG-02: trước đây gửi form trắng vẫn tạo được bản ghi chỉ có mỗi ngày đo —
+     * rác dữ liệu và làm sai biểu đồ tiến trình/BMI. Ghi chú KHÔNG tính là chỉ số:
+     * một dòng chỉ có text vẫn không đo được gì.
+     */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @jakarta.validation.constraints.AssertTrue(
+            message = "At least one measurement is required (weight, height, body fat, chest, waist or hip)")
+    public boolean isAtLeastOneMetricPresent() {
+        return weightKg != null || heightCm != null || bodyFatPercent != null
+                || chestCm != null || waistCm != null || hipCm != null;
+    }
 }

@@ -24,6 +24,13 @@ public class BranchResponse {
     private Integer capacity;
     private boolean active;
 
+    /** UC-18 (V55): toạ độ chi nhánh — marker bản đồ + tìm kiếm theo bán kính. */
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
+
+    /** Địa chỉ Google đã chuẩn hoá; null khi chưa geocode được. */
+    private String formattedAddress;
+
     /** Giờ mở cửa theo ngày — chỉ đổ ở luồng public marketplace (UC-009). */
     private java.util.List<OperatingHourDto> operatingHours;
 
@@ -38,6 +45,9 @@ public class BranchResponse {
                 .amenities(b.getAmenities())
                 .capacity(b.getCapacity())
                 .active(b.isActive())
+                .latitude(b.getLatitude())
+                .longitude(b.getLongitude())
+                .formattedAddress(b.getFormattedAddress())
                 .build();
     }
 

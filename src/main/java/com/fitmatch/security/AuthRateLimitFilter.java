@@ -20,23 +20,29 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Rate limit in-memory theo IP cho các endpoint auth nhạy cảm (UC-003/004):
- * chống brute-force mật khẩu và spam gửi email. Fixed window 1 phút, đơn giản
- * đủ dùng cho 1 instance; khi scale ngang thay bằng bucket phân tán (Redis).
+ * Rate limit in-memory theo IP cho các endpoint nhạy cảm: auth (UC-003/004 —
+ * chống brute-force mật khẩu và spam email) và proxy geocode công khai (UC-18 —
+ * chống đốt quota Google). Fixed window 1 phút, đơn giản đủ dùng cho 1 instance;
+ * khi scale ngang thay bằng bucket phân tán (Redis).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
-    /** Giới hạn request/phút/IP theo path. */
+    /** Giới hạn request/phút/IP, khoá theo "METHOD path". */
     private static final Map<String, Integer> LIMITS = Map.of(
-            "/api/auth/login", 10,
-            "/api/auth/register", 10,
-            "/api/auth/refresh", 30,
-            "/api/auth/forgot-password", 5,
-            "/api/auth/resend-verification", 5,
-            "/api/auth/reset-password", 10
+            "POST /api/auth/login", 10,
+            "POST /api/auth/register", 10,
+            "POST /api/auth/refresh", 30,
+            "POST /api/auth/forgot-password", 5,
+            "POST /api/auth/resend-verification", 5,
+            "POST /api/auth/reset-password", 10,
+            // UC-18 (V55): proxy geocode công khai gọi Google bằng key của nền tảng —
+            // không giới hạn thì một script có thể đốt sạch quota trong vài phút.
+            // Hạn mức rộng tay vì người dùng thật gõ địa chỉ có debounce.
+            "GET /api/marketplace/geocode", 30,
+            "GET /api/marketplace/geocode/reverse", 30
     );
     private static final long WINDOW_MS = 60_000;
 
@@ -46,14 +52,15 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        Integer limit = LIMITS.get(request.getRequestURI());
-        if (limit == null || !"POST".equalsIgnoreCase(request.getMethod())) {
+        String route = request.getMethod().toUpperCase() + " " + request.getRequestURI();
+        Integer limit = LIMITS.get(route);
+        if (limit == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
         long now = System.currentTimeMillis();
-        String key = clientIp(request) + "|" + request.getRequestURI();
+        String key = clientIp(request) + "|" + route;
         Window w = windows.compute(key, (k, cur) ->
                 cur == null || now - cur.startMs >= WINDOW_MS ? new Window(now) : cur);
         if (w.count.incrementAndGet() > limit) {

@@ -23,10 +23,14 @@ public class HealthController {
 
     @Operation(
             summary = "Health check",
-            description = "Actor: **Guest**. Trả về trạng thái hoạt động của server. Dùng cho load balancer / uptime monitoring.")
+            description = "Actor: **Guest**. Trả về trạng thái hoạt động của server. Dùng cho load balancer / uptime monitoring. "
+                    + "`paymentSimulatorEnabled` (BUG-11) cho FE biết endpoint mô phỏng thanh toán dev có thật sự "
+                    + "tồn tại hay không — ở prod luôn là false.")
     @SecurityRequirements // public
     @GetMapping
-    public ResponseEntity<ApiResponse<Map<String, String>>> health() {
-        return ResponseEntity.ok(ApiResponse.success(Map.of("status", healthService.getStatus())));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> health() {
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "status", healthService.getStatus(),
+                "paymentSimulatorEnabled", healthService.isPaymentSimulatorEnabled())));
     }
 }

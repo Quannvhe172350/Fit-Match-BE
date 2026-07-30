@@ -34,7 +34,17 @@ class GymProfileServiceImplTest {
     @Mock private GymDocumentRepository gymDocumentRepository;
     @Mock private UserRepository userRepository;
     @Mock private com.fitmatch.repository.GymBranchRepository gymBranchRepository;
+    // UC-18 (V55): geocode là bước làm giàu dữ liệu fail-soft; mock mặc định trả
+    // Resolution.none() nên các test hồ sơ bên dưới không bị đổi hành vi.
+    @Mock private com.fitmatch.service.support.AddressGeocoder addressGeocoder;
     @InjectMocks private GymProfileServiceImpl service;
+
+    @org.junit.jupiter.api.BeforeEach
+    void geocoderReturnsNothing() {
+        org.mockito.Mockito.lenient()
+                .when(addressGeocoder.resolve(any(), any(), any(), any(), any()))
+                .thenReturn(com.fitmatch.service.support.AddressGeocoder.Resolution.none());
+    }
 
     private SubmitGymRegistrationRequest request() {
         return SubmitGymRegistrationRequest.builder()

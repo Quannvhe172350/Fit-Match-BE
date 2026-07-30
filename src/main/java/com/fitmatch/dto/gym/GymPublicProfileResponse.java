@@ -25,6 +25,20 @@ public class GymPublicProfileResponse {
     private String district;
     private String phone;
 
+    /**
+     * UC-18 (V55): toạ độ dùng để đặt marker trên bản đồ. Ở kết quả tìm theo bán
+     * kính đây là ĐIỂM GẦN NGƯỜI DÙNG NHẤT (trụ sở hoặc một chi nhánh), không
+     * nhất thiết là toạ độ trụ sở — marker phải trùng với khoảng cách đang hiển thị.
+     */
+    private java.math.BigDecimal latitude;
+    private java.math.BigDecimal longitude;
+
+    /** Tên chi nhánh gần nhất khi điểm gần nhất không phải trụ sở; null nếu là trụ sở. */
+    private String nearestBranchName;
+
+    /** Khoảng cách (km) tới điểm gần nhất — chỉ có khi client gửi toạ độ tìm kiếm. */
+    private Double distanceKm;
+
     /** Điểm đánh giá trung bình (VISIBLE) và số lượt — UC-071; null ở list nếu chưa tính. */
     private java.math.BigDecimal averageRating;
     private Long reviewCount;
@@ -44,6 +58,8 @@ public class GymPublicProfileResponse {
                 .city(g.getCity())
                 .district(g.getDistrict())
                 .phone(g.getPhone())
+                .latitude(g.getLatitude())
+                .longitude(g.getLongitude())
                 .verified(g.getVerificationStatus() == com.fitmatch.common.enums.VerificationStatus.APPROVED)
                 .build();
     }
