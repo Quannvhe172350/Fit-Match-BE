@@ -68,6 +68,7 @@ app:
     account-name: ${VIETQR_ACCOUNT_NAME:FIT MATCH}
     template: ${VIETQR_TEMPLATE:compact2}
   # Casso: dịch vụ đối soát biến động số dư ngân hàng, gọi webhook khi tiền vào.
+  # Webhook V2 — xác thực qua header X-Casso-Signature (HMAC-SHA256).
   # Không có default: secret rỗng -> controller từ chối mọi webhook (fail-safe).
   casso:
     webhook-secret: ${CASSO_WEBHOOK_SECRET:}

@@ -30,6 +30,7 @@ public class PaymentProperties {
     @Getter
     @Setter
     public static class Casso {
+        /** Secret xác thực webhook Casso V2 — HMAC-SHA256 qua header X-Casso-Signature. */
         private String webhookSecret;
     }
 

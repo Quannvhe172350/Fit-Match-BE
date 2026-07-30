@@ -4,6 +4,7 @@ import com.fitmatch.security.AuthRateLimitFilter;
 import com.fitmatch.security.JwtAuthFilter;
 import com.fitmatch.security.RestAccessDeniedHandler;
 import com.fitmatch.security.RestAuthenticationEntryPoint;
+import com.fitmatch.security.WebhookBodyCachingFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final AuthRateLimitFilter authRateLimitFilter;
+    private final WebhookBodyCachingFilter webhookBodyCachingFilter;
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final RestAccessDeniedHandler restAccessDeniedHandler;
 
@@ -104,6 +106,9 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler))
+                // Cache raw body cho webhook Casso V2 (HMAC-SHA256 verification).
+                // Phải chạy TRƯỚC mọi filter khác để đọc body trước khi bị consume.
+                .addFilterBefore(webhookBodyCachingFilter, JwtAuthFilter.class)
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 // Rate limit các endpoint auth trước khi vào xử lý JWT.
                 .addFilterBefore(authRateLimitFilter, JwtAuthFilter.class);
