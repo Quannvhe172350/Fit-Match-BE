@@ -90,7 +90,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // Webhook đối soát Casso — xác thực bằng Secure-Token header trong controller.
+                        // Webhook Casso V2 — public, xác thực bằng X-Casso-Signature HMAC trong controller.
                         .requestMatchers(HttpMethod.POST, "/api/webhooks/**").permitAll()
                         // P1-8: chỉ avatar và chứng chỉ PT là công khai; tài liệu KYC
                         // (giấy phép kinh doanh/định danh trong folder documents) yêu cầu
