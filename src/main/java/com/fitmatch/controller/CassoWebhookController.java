@@ -21,14 +21,17 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
 @RequestMapping("/api/webhooks/casso")
 @RequiredArgsConstructor
-@Tag(name = "E. Payment Webhook", description = "Webhook đối soát Casso (UC-053). Xác thực bằng header X-Casso-Signature (HMAC-SHA256).")
+@Tag(name = "E. Payment Webhook", description = "Webhook đối soát Casso (UC-053). Xác thực bằng header X-Casso-Signature (HMAC-SHA512).")
 @SecurityRequirements
 public class CassoWebhookController {
 
@@ -40,8 +43,10 @@ public class CassoWebhookController {
             summary = "UC-053 — Nhận webhook đối soát Casso",
             description = """
                     Actor: **Casso (System)**. Xác thực bằng header `X-Casso-Signature`
-                    (định dạng `t=<unix_millis>,v1=<hex_hmac>`) — HMAC-SHA256
-                    của `timestamp + "." + rawBody` với key `app.casso.webhook-secret`.
+                    (định dạng `t=<unix_millis>,v1=<hex_hmac>`) — HMAC-SHA512
+                    của `timestamp + "." + sortObjDataByKey(body)` với key `app.casso.webhook-secret`.
+                    Casso sắp xếp key JSON đệ quy A→Z trước khi ký; ta phải tái tạo
+                    đúng chuỗi đã ký bằng cách sort giống hệt.
                     Idempotent theo id giao dịch Casso.""")
     @PostMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> receive(HttpServletRequest httpRequest) {
@@ -61,7 +66,7 @@ public class CassoWebhookController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Missing X-Casso-Signature header");
         }
 
-        // Đọc raw body một lần — dùng cho cả verify signature và deserialize
+        // Đọc raw body một lần — dùng cho verify signature và deserialize
         String rawBody;
         try {
             rawBody = httpRequest.getReader().lines().collect(Collectors.joining());
@@ -70,7 +75,7 @@ public class CassoWebhookController {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Cannot read request body");
         }
 
-        // Verify HMAC-SHA256
+        // Verify HMAC-SHA512 với JSON đã sort key (giống Casso ký)
         if (!verifySignature(signature, secret, rawBody)) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid webhook signature");
         }
@@ -89,6 +94,29 @@ public class CassoWebhookController {
                 Map.of("matched", matched)));
     }
 
+    /**
+     * Sort key JSON đệ quy A→Z — GIỐNG HỆT hàm Casso dùng để tạo chữ ký.
+     * Tham khảo: github.com/CassoHQ/casso-webhook-v2-verify-signature
+     */
+    @SuppressWarnings("unchecked")
+    static Object sortJsonKeys(Object input) {
+        if (input instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) input;
+            TreeMap<String, Object> sorted = new TreeMap<>();
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                sorted.put(entry.getKey(), sortJsonKeys(entry.getValue()));
+            }
+            return sorted;
+        }
+        if (input instanceof List) {
+            List<Object> list = (List<Object>) input;
+            return list.stream()
+                    .map(CassoWebhookController::sortJsonKeys)
+                    .toList();
+        }
+        return input;
+    }
+
     private boolean verifySignature(String signatureHeader, String secret, String rawBody) {
         try {
             String[] parts = signatureHeader.split(",");
@@ -101,9 +129,16 @@ public class CassoWebhookController {
             String timestamp = tPart.substring(2);
             String expectedHmac = v1Part.substring(3);
 
-            String data = timestamp + "." + rawBody;
-            Mac mac = Mac.getInstance("HmacSHA256");
-            SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            // Parse body → sort keys đệ quy → serialize lại (compact, không space).
+            // Casso ký trên JSON đã sort key; nếu dùng raw body trực tiếp key order
+            // có thể khác → HMAC không khớp.
+            Object bodyJson = objectMapper.readValue(rawBody, Object.class);
+            Object sorted = sortJsonKeys(bodyJson);
+            String sortedBody = objectMapper.writeValueAsString(sorted);
+
+            String data = timestamp + "." + sortedBody;
+            Mac mac = Mac.getInstance("HmacSHA512");
+            SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
             mac.init(keySpec);
             byte[] computed = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
             String computedHex = bytesToHex(computed);
@@ -112,8 +147,9 @@ public class CassoWebhookController {
                     expectedHmac.getBytes(StandardCharsets.UTF_8),
                     computedHex.getBytes(StandardCharsets.UTF_8));
             if (!valid) {
-                log.warn("Casso signature mismatch: timestamp={}, payloadLen={}, expectedHmac={}, computedHmac={}",
-                        timestamp, rawBody.length(), expectedHmac.substring(0, Math.min(20, expectedHmac.length())) + "...",
+                log.warn("Casso signature mismatch: timestamp={}, expectedHmac={}, computedHmac={}",
+                        timestamp,
+                        expectedHmac.substring(0, Math.min(20, expectedHmac.length())) + "...",
                         computedHex.substring(0, Math.min(20, computedHex.length())) + "...");
             } else {
                 log.info("Casso signature verified OK");
