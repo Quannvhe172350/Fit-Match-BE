@@ -50,9 +50,18 @@ public class CassoWebhookController {
         String secret = paymentProperties.getCasso().getWebhookSecret();
         String signature = httpRequest.getHeader("X-Casso-Signature");
 
+        log.info("Casso webhook received: X-Casso-Signature={}, secretConfigured={}",
+                signature != null ? signature.substring(0, Math.min(30, signature.length())) + "..." : "MISSING",
+                secret != null && !secret.isBlank());
+
         // Secret rỗng/chưa cấu hình -> từ chối tất cả (fail-safe).
-        if (secret == null || secret.isBlank() || signature == null || signature.isBlank()) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Invalid webhook signature");
+        if (secret == null || secret.isBlank()) {
+            log.warn("Casso webhook rejected: CASSO_WEBHOOK_SECRET is not configured");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Webhook secret not configured");
+        }
+        if (signature == null || signature.isBlank()) {
+            log.warn("Casso webhook rejected: X-Casso-Signature header missing");
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "Missing X-Casso-Signature header");
         }
 
         if (!verifySignature(signature, secret, httpRequest)) {
@@ -85,13 +94,12 @@ public class CassoWebhookController {
 
             // Lấy raw body từ attribute (do WebhookBodyCachingFilter set)
             Object rawBody = request.getAttribute("RAW_BODY");
-            String payload;
-            if (rawBody != null) {
-                payload = rawBody.toString();
-            } else {
-                log.warn("RAW_BODY attribute not set — ensure WebhookBodyCachingFilter is configured");
+            if (rawBody == null) {
+                log.warn("Casso signature verification failed: RAW_BODY attribute not set. "
+                        + "Ensure WebhookBodyCachingFilter is before JwtAuthFilter in SecurityConfig.");
                 return false;
             }
+            String payload = rawBody.toString();
 
             String data = timestamp + "." + payload;
             Mac mac = Mac.getInstance("HmacSHA256");
@@ -104,7 +112,11 @@ public class CassoWebhookController {
                     expectedHmac.getBytes(StandardCharsets.UTF_8),
                     computedBase64.getBytes(StandardCharsets.UTF_8));
             if (!valid) {
-                log.warn("Casso signature mismatch");
+                log.warn("Casso signature mismatch: timestamp={}, payloadLen={}, expectedHmac={}, computedHmac={}",
+                        timestamp, payload.length(), expectedHmac.substring(0, Math.min(20, expectedHmac.length())) + "...",
+                        computedBase64.substring(0, Math.min(20, computedBase64.length())) + "...");
+            } else {
+                log.info("Casso signature verified OK");
             }
             return valid;
         } catch (Exception e) {
