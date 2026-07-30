@@ -21,7 +21,6 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 
 @Slf4j
@@ -106,15 +105,15 @@ public class CassoWebhookController {
             SecretKeySpec keySpec = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
             mac.init(keySpec);
             byte[] computed = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            String computedBase64 = Base64.getEncoder().encodeToString(computed);
+            String computedHex = bytesToHex(computed);
 
             boolean valid = java.security.MessageDigest.isEqual(
                     expectedHmac.getBytes(StandardCharsets.UTF_8),
-                    computedBase64.getBytes(StandardCharsets.UTF_8));
+                    computedHex.getBytes(StandardCharsets.UTF_8));
             if (!valid) {
                 log.warn("Casso signature mismatch: timestamp={}, payloadLen={}, expectedHmac={}, computedHmac={}",
                         timestamp, payload.length(), expectedHmac.substring(0, Math.min(20, expectedHmac.length())) + "...",
-                        computedBase64.substring(0, Math.min(20, computedBase64.length())) + "...");
+                        computedHex.substring(0, Math.min(20, computedHex.length())) + "...");
             } else {
                 log.info("Casso signature verified OK");
             }
@@ -123,5 +122,13 @@ public class CassoWebhookController {
             log.error("Casso signature verification failed", e);
             return false;
         }
+    }
+
+    private static String bytesToHex(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length * 2);
+        for (byte b : bytes) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
     }
 }
