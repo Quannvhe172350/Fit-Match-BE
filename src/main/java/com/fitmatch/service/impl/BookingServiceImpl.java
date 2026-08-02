@@ -68,6 +68,15 @@ public class BookingServiceImpl implements BookingService {
 
         Selection selection = resolveSelection(request, null, customerUsername);
 
+        // Bug S2-06: chặn khung giờ ĐÃ QUA ngay ở bước tạo nháp. Trước đây chỉ
+        // BookingEligibilityChecker (lúc checkout) mới bắt, nên khách chọn 02:00 của
+        // chính hôm nay vẫn đi hết wizard rồi mới bị từ chối — và để lại một nháp rác.
+        if (request.getStartAt() != null
+                && !request.getStartAt().isAfter(java.time.LocalDateTime.now())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Không thể đặt lịch ở thời gian đã qua — vui lòng chọn khung giờ trong tương lai.");
+        }
+
         // UC-030 (phía khách): chặn tạo lịch trùng khung giờ với lịch đang có
         // (kể cả nháp) — trước đây mỗi lần checkout lỗi để lại 1 nháp trùng nhau.
         if (request.getStartAt() != null && request.getEndAt() != null) {

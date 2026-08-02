@@ -40,6 +40,16 @@ public class AvailabilityController {
                     "At least one of ptId or branchId is required");
         }
         List<String> reasons = new ArrayList<>();
+        // Bug S2-06: pre-check phải báo luôn khung giờ đã qua — nếu không, khách chọn
+        // 02:00 của hôm nay vẫn thấy "còn chỗ" rồi mới bị từ chối ở bước cuối.
+        if (request.getStartAt() != null
+                && !request.getStartAt().isAfter(java.time.LocalDateTime.now())) {
+            reasons.add("Khung giờ này đã qua — vui lòng chọn thời gian trong tương lai");
+        }
+        if (request.getEndAt() != null && request.getStartAt() != null
+                && !request.getStartAt().isBefore(request.getEndAt())) {
+            reasons.add("Giờ kết thúc phải sau giờ bắt đầu");
+        }
         if (request.getPtId() != null) {
             reasons.addAll(scheduleConflictValidator.checkPt(
                     request.getPtId(), request.getStartAt(), request.getEndAt()));
