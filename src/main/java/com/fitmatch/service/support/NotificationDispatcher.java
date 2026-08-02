@@ -194,6 +194,22 @@ public class NotificationDispatcher {
                 Map.of("decision", s(decision), "note", s(note)));
     }
 
+    /**
+     * Bug S2-01: Admin thấy địa chỉ gym không đúng chuẩn (thiếu quận/huyện, gõ tắt,
+     * không geocode được) và yêu cầu gym xác minh lại. Gym vẫn hoạt động — đây là
+     * lời nhắc, không phải đình chỉ.
+     */
+    public void gymAddressRecheckRequested(GymProfile profile, String note) {
+        if (profile == null) return;
+        dispatch("GYM_ADDRESS_RECHECK", profile.getUser(), NotificationCategory.ACCOUNT,
+                "Cần xác minh lại địa chỉ phòng gym",
+                "Địa chỉ \"" + s(profile.getAddress()) + "\" chưa đạt chuẩn"
+                        + (note != null && !note.isBlank() ? ": " + note : "")
+                        + ". Vui lòng cập nhật lại địa chỉ (chọn từ gợi ý bản đồ) để khách tìm đúng phòng gym.",
+                "/gym/settings",
+                Map.of("address", s(profile.getAddress()), "note", s(note)));
+    }
+
     // ----- Payment / Settlement (UC-053/056/059) -----
 
     /** UC-036/053: tiền đã được giữ cho booking. */
@@ -234,6 +250,20 @@ public class NotificationDispatcher {
                 Map.of("bookingId", s(b.getId()), "amount", s(amount)));
     }
 
+    /**
+     * Bug S2-08 (UC-056): Admin TỪ CHỐI hoàn tiền. Trước đây chỉ ghi audit log nên
+     * khách chờ mãi không biết kết quả — yêu cầu vẫn biến mất khỏi danh sách chờ.
+     */
+    public void refundRejected(Booking b, BigDecimal amount, String note) {
+        dispatch("REFUND_REJECTED_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
+                "Yêu cầu hoàn tiền bị từ chối",
+                "Yêu cầu hoàn " + amount + " cho booking #" + b.getId() + " đã bị từ chối"
+                        + (note != null && !note.isBlank() ? ": " + note : "")
+                        + ". Nếu chưa đồng ý, bạn có thể mở tranh chấp cho booking này.",
+                "/profile/bookings",
+                Map.of("bookingId", s(b.getId()), "amount", s(amount), "note", s(note)));
+    }
+
     /** UC-059: tiền đã giải ngân về ví Gym. */
     public void settlementReleased(Booking b, BigDecimal net) {
         dispatch("SETTLEMENT_RELEASED_GYM", gymUser(b), NotificationCategory.SETTLEMENT,
@@ -245,6 +275,19 @@ public class NotificationDispatcher {
 
     // ----- Dispute (UC-063/066) -----
 
+    /**
+     * Bug S2-11: khu vực tranh chấp khác nhau theo vai trò. Trước đây mọi thông báo
+     * tranh chấp đều trỏ về "/notifications" nên bấm vào chỉ quay lại chính hộp thư.
+     */
+    private String disputeLinkFor(Booking b, User recipient) {
+        if (recipient == null) return "/notifications";
+        User gym = gymUser(b);
+        if (gym != null && recipient.getUsername().equals(gym.getUsername())) return "/gym/disputes";
+        User pt = ptUser(b);
+        if (pt != null && recipient.getUsername().equals(pt.getUsername())) return "/trainer/disputes";
+        return "/profile/disputes";
+    }
+
     /** UC-063: tranh chấp được mở — báo cho các bên còn lại. */
     public void disputeOpened(Dispute d, String openerUsername) {
         Booking b = d.getBooking();
@@ -255,7 +298,7 @@ public class NotificationDispatcher {
                         "Tranh chấp mới",
                         "Tranh chấp #" + d.getId() + " liên quan booking #" + b.getId()
                                 + " vừa được mở.",
-                        "/notifications", vars);
+                        disputeLinkFor(b, u), vars);
             }
         }
     }
@@ -269,7 +312,7 @@ public class NotificationDispatcher {
             dispatch("DISPUTE_RESOLVED_PARTY", u, NotificationCategory.DISPUTE,
                     "Tranh chấp đã được giải quyết",
                     "Tranh chấp #" + d.getId() + " kết luận: " + d.getResolution() + ".",
-                    "/notifications", vars);
+                    disputeLinkFor(b, u), vars);
         }
     }
 
