@@ -21,6 +21,8 @@ public class GymServiceResponse {
     private String name;
     private String description;
     private BigDecimal price;
+    /** Bug S2-05: phụ phí khi chọn PT — giá cuối = price + ptSurcharge. */
+    private BigDecimal ptSurcharge;
     private Integer durationMinutes;
     private Long categoryId;
     private String categoryName;
@@ -35,6 +37,7 @@ public class GymServiceResponse {
                 .name(s.getName())
                 .description(s.getDescription())
                 .price(s.getPrice())
+                .ptSurcharge(s.getPtSurcharge())
                 .durationMinutes(s.getDurationMinutes())
                 .categoryId(s.getCategory() != null ? s.getCategory().getId() : null)
                 .categoryName(s.getCategory() != null ? s.getCategory().getName() : null)

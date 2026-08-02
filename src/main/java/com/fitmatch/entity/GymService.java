@@ -60,6 +60,14 @@ public class GymService extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    /**
+     * Bug S2-05: phụ phí khi khách CHỌN PT. {@code price} là giá tự tập (không PT);
+     * khách chọn PT thì trả price + ptSurcharge. Mỗi gym tự quyết mức phụ phí này —
+     * null/0 nghĩa là gym không tính thêm tiền cho PT.
+     */
+    @Column(name = "pt_surcharge", precision = 12, scale = 2)
+    private BigDecimal ptSurcharge;
+
     @Column(name = "duration_minutes")
     private Integer durationMinutes;
 

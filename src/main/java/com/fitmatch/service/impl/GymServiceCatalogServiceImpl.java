@@ -41,6 +41,7 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
                 .category(resolveCategory(request.getCategoryId()))
                 .eligibilityNotes(request.getEligibilityNotes())
                 .price(request.getPrice())
+                .ptSurcharge(request.getPtSurcharge())
                 .durationMinutes(request.getDurationMinutes())
                 .active(true)
                 .build());
@@ -57,6 +58,7 @@ public class GymServiceCatalogServiceImpl implements GymServiceCatalogService {
         svc.setCategory(resolveCategory(request.getCategoryId()));
         svc.setEligibilityNotes(request.getEligibilityNotes());
         svc.setPrice(request.getPrice());
+        svc.setPtSurcharge(request.getPtSurcharge());
         svc.setDurationMinutes(request.getDurationMinutes());
         return GymServiceResponse.of(gymServiceRepository.save(svc));
     }

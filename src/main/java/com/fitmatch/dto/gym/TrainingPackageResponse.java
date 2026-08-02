@@ -21,6 +21,8 @@ public class TrainingPackageResponse {
     private String name;
     private String description;
     private BigDecimal price;
+    /** Bug S2-05: phụ phí khi chọn PT — giá cuối = price + ptSurcharge. */
+    private BigDecimal ptSurcharge;
     private Integer sessionCount;
     private Integer validityDays;
     private String usageConditions;
@@ -36,6 +38,7 @@ public class TrainingPackageResponse {
                 .name(p.getName())
                 .description(p.getDescription())
                 .price(p.getPrice())
+                .ptSurcharge(p.getPtSurcharge())
                 .sessionCount(p.getSessionCount())
                 .validityDays(p.getValidityDays())
                 .usageConditions(p.getUsageConditions())

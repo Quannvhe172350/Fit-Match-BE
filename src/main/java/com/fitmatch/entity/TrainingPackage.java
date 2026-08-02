@@ -59,6 +59,13 @@ public class TrainingPackage extends BaseEntity {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    /**
+     * Bug S2-05: phụ phí khi khách CHỌN PT cho gói. {@code price} là giá không kèm
+     * PT; null/0 = gym không tính thêm. Xem {@link GymService#getPtSurcharge()}.
+     */
+    @Column(name = "pt_surcharge", precision = 12, scale = 2)
+    private BigDecimal ptSurcharge;
+
     /** Số buổi trong gói. */
     @Column(name = "session_count", nullable = false)
     private Integer sessionCount;

@@ -34,6 +34,10 @@ public class TrainingPackageRequest {
     @DecimalMin(value = "0.0", message = "Price must be >= 0")
     private BigDecimal price;
 
+    /** Bug S2-05: phụ phí khi khách chọn PT (null/0 = không tính thêm). */
+    @DecimalMin(value = "0.0", message = "PT surcharge must be >= 0")
+    private BigDecimal ptSurcharge;
+
     @NotNull(message = "Session count is required")
     @Positive(message = "Session count must be positive")
     private Integer sessionCount;

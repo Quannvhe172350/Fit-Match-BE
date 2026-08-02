@@ -24,13 +24,24 @@ public class BookingPriceCalculator {
             return;
         }
         BigDecimal total;
+        BigDecimal ptSurcharge;
         BookingRules rules;
         if (booking.getGymService() != null) {
             total = booking.getGymService().getPrice();
+            ptSurcharge = booking.getGymService().getPtSurcharge();
             rules = booking.getGymService().getBookingRules();
         } else {
             total = booking.getTrainingPackage().getPrice();
+            ptSurcharge = booking.getTrainingPackage().getPtSurcharge();
             rules = booking.getTrainingPackage().getBookingRules();
+        }
+
+        // Bug S2-05: khách được bỏ trống PT để tiết kiệm — giá niêm yết là giá tự
+        // tập, chỉ cộng phụ phí khi thật sự có PT phụ trách. Mức phụ phí do gym đặt
+        // trên từng dịch vụ/gói nên hai phòng gym có thể chênh nhau.
+        if (booking.getPtProfile() != null && ptSurcharge != null
+                && ptSurcharge.compareTo(BigDecimal.ZERO) > 0) {
+            total = total.add(ptSurcharge);
         }
 
         // UC-073: voucher giảm trên tổng giá trị trước khi tính đặt cọc.

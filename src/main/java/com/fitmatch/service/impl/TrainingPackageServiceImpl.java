@@ -40,6 +40,7 @@ public class TrainingPackageServiceImpl implements TrainingPackageService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .price(request.getPrice())
+                .ptSurcharge(request.getPtSurcharge())
                 .sessionCount(request.getSessionCount())
                 .validityDays(request.getValidityDays())
                 .usageConditions(request.getUsageConditions())
@@ -57,6 +58,7 @@ public class TrainingPackageServiceImpl implements TrainingPackageService {
         pkg.setName(request.getName());
         pkg.setDescription(request.getDescription());
         pkg.setPrice(request.getPrice());
+        pkg.setPtSurcharge(request.getPtSurcharge());
         pkg.setSessionCount(request.getSessionCount());
         pkg.setValidityDays(request.getValidityDays());
         pkg.setUsageConditions(request.getUsageConditions());

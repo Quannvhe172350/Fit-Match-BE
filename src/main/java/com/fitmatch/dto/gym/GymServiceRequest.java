@@ -31,6 +31,10 @@ public class GymServiceRequest {
     @DecimalMin(value = "0.0", message = "Price must be >= 0")
     private BigDecimal price;
 
+    /** Bug S2-05: phụ phí khi khách chọn PT (null/0 = không tính thêm). */
+    @DecimalMin(value = "0.0", message = "PT surcharge must be >= 0")
+    private BigDecimal ptSurcharge;
+
     /** UC-024: bắt buộc — booking cần thời lượng để giữ chỗ khung giờ. */
     @NotNull(message = "Duration is required")
     @Positive(message = "Duration must be positive")
