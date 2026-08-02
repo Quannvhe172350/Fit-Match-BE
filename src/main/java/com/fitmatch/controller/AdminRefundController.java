@@ -40,10 +40,10 @@ public class AdminRefundController {
 
     @Operation(
             summary = "UC-055 — Danh sách yêu cầu hoàn tiền",
-            description = "Actor: **Admin/Finance**. Lọc theo trạng thái (mặc định PENDING).")
+            description = "Actor: **Admin/Finance**. Lọc theo trạng thái; bỏ trống = TẤT CẢ trạng thái.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<RefundResponse>>> list(
-            @Parameter(description = "Trạng thái (mặc định PENDING)")
+            @Parameter(description = "Trạng thái; bỏ trống = tất cả")
             @RequestParam(required = false) RefundStatus status,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(refundService.listForAdmin(status, pageable)));

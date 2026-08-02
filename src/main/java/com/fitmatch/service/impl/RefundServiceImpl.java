@@ -36,11 +36,24 @@ public class RefundServiceImpl implements RefundService {
     private static final Set<BookingStatus> REFUNDABLE_STATUSES =
             Set.of(BookingStatus.REJECTED, BookingStatus.CANCELLED, BookingStatus.NO_SHOW);
 
+    /**
+     * Bug S2-09: "thêm 1 thời gian biểu trước yêu cầu hoàn tiền" — khách chỉ được
+     * gửi yêu cầu trong N ngày kể từ mốc phát sinh quyền hoàn (buổi tập kết thúc,
+     * hoặc thời điểm booking bị hủy/từ chối). Quá hạn thì tiền được giải ngân theo
+     * chu kỳ settlement và khách phải đi đường tranh chấp/hỗ trợ.
+     * Không áp cho Admin (createByAdmin) và luồng tự động (autoCreate).
+     */
+    static final String CONFIG_KEY_REQUEST_WINDOW_DAYS = "refund.request-window-days";
+
+    @org.springframework.beans.factory.annotation.Value("${app.refund.request-window-days:7}")
+    private long requestWindowDays;
+
     private final RefundRequestRepository refundRequestRepository;
     private final BookingRepository bookingRepository;
     private final WalletService walletService;
     private final SettlementService settlementService;
     private final AuditService auditService;
+    private final com.fitmatch.service.SystemConfigService systemConfigService;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
@@ -48,7 +61,35 @@ public class RefundServiceImpl implements RefundService {
     public RefundResponse createForCustomer(String customerUsername, Long bookingId, String reason) {
         Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        assertWithinRequestWindow(booking);
         return RefundResponse.of(open(booking, reason, true));
+    }
+
+    /** UC-078: admin chỉnh runtime qua system_configs; fallback về @Value. */
+    private long effectiveRequestWindowDays() {
+        Long fromDb = systemConfigService.findLong(CONFIG_KEY_REQUEST_WINDOW_DAYS);
+        return fromDb != null && fromDb > 0 ? fromDb : requestWindowDays;
+    }
+
+    /**
+     * Mốc neo cửa sổ: buổi tập đã diễn ra thì tính từ endAt; booking bị hủy/từ chối
+     * trước giờ tập thì tính từ thời điểm đổi trạng thái (updatedAt) — nếu không,
+     * một buổi bị hủy sớm 3 tháng sẽ đóng cửa sổ ngay khi vừa hủy.
+     */
+    private void assertWithinRequestWindow(Booking booking) {
+        long windowDays = effectiveRequestWindowDays();
+        if (windowDays <= 0) return;
+        LocalDateTime anchor = booking.getEndAt();
+        if (anchor == null || anchor.isAfter(LocalDateTime.now())) {
+            anchor = booking.getUpdatedAt() != null ? booking.getUpdatedAt() : LocalDateTime.now();
+        }
+        LocalDateTime deadline = anchor.plusDays(windowDays);
+        if (LocalDateTime.now().isAfter(deadline)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Đã quá hạn yêu cầu hoàn tiền (" + windowDays + " ngày kể từ "
+                            + anchor.toLocalDate() + ", hạn cuối " + deadline.toLocalDate()
+                            + "). Vui lòng mở tranh chấp hoặc liên hệ hỗ trợ.");
+        }
     }
 
     @Override
@@ -136,6 +177,8 @@ public class RefundServiceImpl implements RefundService {
             booking.setSettlementStatus(SettlementStatus.HELD);
             bookingRepository.save(booking);
         }
+        // Bug S2-08: khách phải được báo khi bị từ chối, không chỉ ghi audit log.
+        notificationDispatcher.refundRejected(booking, request.getAmount(), note);
         auditService.record(AuditActions.REFUND_REJECT, "RefundRequest", refundId,
                 "Refund rejected by " + actorUsername + ": " + note);
         return RefundResponse.of(request);
@@ -152,8 +195,13 @@ public class RefundServiceImpl implements RefundService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<RefundResponse> listForAdmin(RefundStatus status, Pageable pageable) {
-        RefundStatus effective = status != null ? status : RefundStatus.PENDING;
-        return PageResponse.of(refundRequestRepository.findByStatus(effective, pageable), RefundResponse::of);
+        // Bug S2-07: trước đây status = null bị ép về PENDING, nên bộ lọc "Tất cả
+        // trạng thái" trả về đúng tập PENDING (thường rỗng sau khi đã duyệt hết) và
+        // admin tưởng filter hỏng. Không truyền status = KHÔNG lọc.
+        if (status == null) {
+            return PageResponse.of(refundRequestRepository.findAll(pageable), RefundResponse::of);
+        }
+        return PageResponse.of(refundRequestRepository.findByStatus(status, pageable), RefundResponse::of);
     }
 
     /**

@@ -54,6 +54,11 @@ app:
   # DISPUTE_WINDOW_DAYS phía FE (booking-pages) cho khớp thông báo/ẩn nút.
   dispute:
     open-window-days: ${DISPUTE_OPEN_WINDOW_DAYS:14}
+  # Bug S2-09: số ngày khách được gửi yêu cầu hoàn tiền, tính từ khi buổi tập kết
+  # thúc (hoặc từ lúc booking bị hủy/từ chối nếu chưa tới giờ tập). 0 = không giới hạn.
+  # Chỉ áp cho khách; Admin mở hộ (UC-055) và luồng tự động không bị chặn.
+  refund:
+    request-window-days: ${REFUND_REQUEST_WINDOW_DAYS:7}
   mail:
     from: ${MAIL_FROM:noreply@fitmatch.app}
   gcs:
