@@ -39,6 +39,10 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
     /** UC-009: PT khả dụng của gym cho trang public / chọn khi booking. */
     Page<PtProfile> findByGymProfile_IdAndStatus(Long gymProfileId, PtStatus status, Pageable pageable);
 
+    /** Bug S2-04: PT khả dụng của gym, thu hẹp theo chi nhánh khách đã chọn. */
+    Page<PtProfile> findByGymProfile_IdAndStatusAndIdIn(Long gymProfileId, PtStatus status,
+                                                        java.util.Collection<Long> ids, Pageable pageable);
+
     /** UC-019: PT thuộc Gym của operator đang đăng nhập (ownership check, chống IDOR). */
     Optional<PtProfile> findByIdAndGymProfile_User_Username(Long id, String username);
 

@@ -117,10 +117,19 @@ public class MarketplaceGymController {
 
     @Operation(
             summary = "UC-009 — PT của Gym (công khai)",
-            description = "Actor: **Customer / Guest**. PT đang hoạt động của Gym — phục vụ chọn PT khi đặt lịch (UC-032). Phân trang. Lỗi: 404 gym không hiển thị.")
+            description = """
+                    Actor: **Customer / Guest**. PT đang hoạt động của Gym — phục vụ chọn PT khi \
+                    đặt lịch (UC-032). Phân trang. Lỗi: 404 gym không hiển thị.
+
+                    **branchId (bug S2-04):** truyền vào thì chỉ trả PT được phân công cho chi \
+                    nhánh đó. Có PT chỉ phụ trách một chi nhánh; không lọc thì khách chọn nhầm và \
+                    chỉ biết khi checkout báo "PT chưa được gán cho chi nhánh đã chọn".""")
     @GetMapping("/{id}/pts")
     public ResponseEntity<ApiResponse<PageResponse<PtPublicProfileResponse>>> pts(
-            @PathVariable Long id, @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymPts(id, pageable)));
+            @PathVariable Long id,
+            @Parameter(description = "Chỉ lấy PT phụ trách chi nhánh này")
+            @RequestParam(required = false) Long branchId,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymPts(id, branchId, pageable)));
     }
 }

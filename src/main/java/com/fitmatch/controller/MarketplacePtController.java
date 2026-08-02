@@ -50,4 +50,18 @@ public class MarketplacePtController {
     public ResponseEntity<ApiResponse<PtPublicProfileResponse>> detail(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(marketplaceService.getPtDetail(id)));
     }
+
+    @Operation(
+            summary = "Bug S2-14 — Thời gian biểu tuần của PT (công khai)",
+            description = """
+                    Actor: **Customer / Guest**. Khung giờ PT nhận buổi tập theo thứ (dayOfWeek \
+                    1-7, 1 = Thứ 2). Khách xem trước khi mở wizard đặt lịch thay vì thử-sai từng \
+                    khung giờ. Đây là lịch rảnh khai báo, KHÔNG trừ các buổi đã có người đặt — \
+                    chỗ trống thực tế vẫn do /api/availability/check quyết định. \
+                    Lỗi: 404 PT không tồn tại / chưa được duyệt.""")
+    @GetMapping("/{id}/availability")
+    public ResponseEntity<ApiResponse<java.util.List<com.fitmatch.dto.pt.AvailabilitySlotDto>>> availability(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listPtAvailability(id)));
+    }
 }

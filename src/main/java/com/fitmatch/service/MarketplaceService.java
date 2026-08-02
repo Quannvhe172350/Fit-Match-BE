@@ -42,6 +42,16 @@ public interface MarketplaceService {
     /** UC-009: media công khai của Gym hiển thị. */
     List<GymMediaResponse> listGymMedia(Long gymProfileId);
 
-    /** UC-009: PT đang hoạt động của Gym hiển thị — phục vụ chọn PT khi booking. */
-    PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Pageable pageable);
+    /**
+     * UC-009: PT đang hoạt động của Gym hiển thị — phục vụ chọn PT khi booking.
+     * Bug S2-04: {@code branchId} khác null thì chỉ trả PT được phân công cho chi
+     * nhánh đó (có PT chỉ phụ trách một chi nhánh).
+     */
+    PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Long branchId, Pageable pageable);
+
+    /**
+     * Bug S2-14: thời gian biểu tuần của PT cho trang công khai — khách biết PT
+     * nhận buổi vào khung giờ nào trước khi mở wizard đặt lịch.
+     */
+    List<com.fitmatch.dto.pt.AvailabilitySlotDto> listPtAvailability(Long ptProfileId);
 }

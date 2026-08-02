@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 public class MarketplaceServiceImpl implements MarketplaceService {
 
     private final PtProfileRepository ptProfileRepository;
+    private final com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     private final PtCertificationRepository ptCertificationRepository;
     private final GymProfileRepository gymProfileRepository;
     private final GymBranchRepository gymBranchRepository;
@@ -53,6 +54,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final TrainingPackageRepository trainingPackageRepository;
     private final GymMediaRepository gymMediaRepository;
     private final OperatingHourRepository operatingHourRepository;
+    private final com.fitmatch.repository.AvailabilitySlotRepository availabilitySlotRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
 
@@ -263,16 +265,40 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Pageable pageable) {
+    public PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Long branchId, Pageable pageable) {
         requireVisibleGym(gymProfileId);
         // Danh sách: không kèm chứng chỉ (tránh N+1); chứng chỉ trả ở PT detail.
         // UC-071: kèm điểm đánh giá để card PT của gym hiển thị sao.
-        return PageResponse.of(
-                ptProfileRepository.findByGymProfile_IdAndStatus(gymProfileId, PtStatus.ACTIVE, pageable),
-                p -> {
-                    var rating = ratingAggregator.forPt(p.getId());
-                    return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
-                });
+        Page<PtProfile> page;
+        if (branchId != null) {
+            // Bug S2-04: PT chỉ phụ trách một chi nhánh -> chọn sai chi nhánh thì
+            // checkout mới báo "PT chưa được gán cho ... chi nhánh đã chọn". Lọc ngay
+            // ở đây để khách chỉ thấy PT thật sự phục vụ chi nhánh đang chọn.
+            List<Long> ptIds = ptAssignmentRepository.findPtIdsByBranchId(branchId);
+            page = ptIds.isEmpty()
+                    ? Page.empty(pageable)
+                    : ptProfileRepository.findByGymProfile_IdAndStatusAndIdIn(
+                            gymProfileId, PtStatus.ACTIVE, ptIds, pageable);
+        } else {
+            page = ptProfileRepository.findByGymProfile_IdAndStatus(gymProfileId, PtStatus.ACTIVE, pageable);
+        }
+        return PageResponse.of(page, p -> {
+            var rating = ratingAggregator.forPt(p.getId());
+            return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
+        });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.fitmatch.dto.pt.AvailabilitySlotDto> listPtAvailability(Long ptProfileId) {
+        // Cùng điều kiện hiển thị với getPtDetail — PT ẩn thì lịch cũng không lộ.
+        ptProfileRepository
+                .findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                        ptProfileId, PtStatus.ACTIVE, VerificationStatus.APPROVED)
+                .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptProfileId));
+        return availabilitySlotRepository
+                .findByPtProfile_IdOrderByDayOfWeekAscStartTimeAsc(ptProfileId).stream()
+                .map(com.fitmatch.dto.pt.AvailabilitySlotDto::of).toList();
     }
 
     /** Gym chỉ public khi APPROVED + đang hiển thị (UC-018) — 404 nếu không. */
