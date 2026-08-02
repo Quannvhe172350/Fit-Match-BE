@@ -141,6 +141,12 @@ public class GymProfileServiceImpl implements GymProfileService {
             applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
                     profile.getAddress(), profile.getDistrict(), profile.getCity());
         }
+        // Bug S2-01: gym đã sửa địa chỉ theo yêu cầu của Admin -> gỡ cờ cảnh báo và
+        // ghi chú cũ. Admin soát lại ở vòng sau nếu địa chỉ mới vẫn chưa đạt.
+        if (addressChanged && !profile.isAddressVerified()) {
+            profile.setAddressVerified(true);
+            profile.setAddressReviewNote(null);
+        }
         gymProfileRepository.save(profile);
         log.info("Gym profile updated by {}", username);
         return toResponse(profile);

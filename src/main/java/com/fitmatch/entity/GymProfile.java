@@ -95,6 +95,19 @@ public class GymProfile extends BaseEntity {
     @Column(name = "review_note", length = 1000)
     private String reviewNote;
 
+    /**
+     * Bug S2-01: địa chỉ đã được Admin chấp nhận hay chưa. false = Admin thấy địa
+     * chỉ không đúng chuẩn và đã yêu cầu gym xác minh lại (gym vẫn hoạt động bình
+     * thường, chỉ bị nhắc). Gym sửa địa chỉ -> quay lại true để Admin soát vòng sau.
+     */
+    @Column(name = "address_verified", nullable = false)
+    @Builder.Default
+    private boolean addressVerified = true;
+
+    /** Bug S2-01: lý do Admin yêu cầu xác minh lại địa chỉ — hiện cho gym đọc. */
+    @Column(name = "address_review_note", length = 500)
+    private String addressReviewNote;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean active = false;

@@ -139,6 +139,23 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
         return toResponse(profile);
     }
 
+    @Override
+    @Transactional
+    public GymProfileResponse requestAddressRecheck(Long profileId, String note, String actorUsername) {
+        GymProfile profile = requireProfile(profileId);
+        // Cố tình KHÔNG đổi verificationStatus: địa chỉ sai chính tả/thiếu quận không
+        // phải lý do ngắt hoạt động của gym. Chỉ gắn cờ + báo để gym sửa lại.
+        profile.setAddressVerified(false);
+        profile.setAddressReviewNote(note);
+        gymProfileRepository.save(profile);
+
+        auditService.record(AuditActions.GYM_VERIFY_REQUEST_INFO, "GymProfile", profileId,
+                "Address re-verification requested by " + actorUsername + ": " + note);
+        notificationDispatcher.gymAddressRecheckRequested(profile, note);
+        log.info("Gym {} asked to re-verify address by {}", profileId, actorUsername);
+        return toResponse(profile);
+    }
+
     private GymProfile requirePending(Long profileId) {
         GymProfile profile = requireProfile(profileId);
         if (profile.getVerificationStatus() != VerificationStatus.PENDING) {

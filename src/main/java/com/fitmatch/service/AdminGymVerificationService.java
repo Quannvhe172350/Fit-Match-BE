@@ -27,4 +27,10 @@ public interface AdminGymVerificationService {
 
     /** UC-014: kích hoạt lại Gym bị đình chỉ — chỉ khi SUSPENDED -> APPROVED + hiển thị lại. */
     GymProfileResponse reactivate(Long profileId, String actorUsername);
+
+    /**
+     * Bug S2-01: địa chỉ không đúng chuẩn -> yêu cầu Gym xác minh lại. Không đổi
+     * verificationStatus (gym vẫn nhận booking), chỉ gắn cờ + gửi thông báo kèm lý do.
+     */
+    GymProfileResponse requestAddressRecheck(Long profileId, String note, String actorUsername);
 }

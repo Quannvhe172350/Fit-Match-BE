@@ -32,6 +32,9 @@ public class GymProfileResponse {
     private VerificationStatus verificationStatus;
     private String rejectionReason;
     private String reviewNote;
+    /** Bug S2-01: false = Admin đã yêu cầu gym xác minh lại địa chỉ. */
+    private boolean addressVerified;
+    private String addressReviewNote;
     private boolean active;
     private List<GymDocumentDto> documents;
 
@@ -51,6 +54,8 @@ public class GymProfileResponse {
                 .verificationStatus(g.getVerificationStatus())
                 .rejectionReason(g.getRejectionReason())
                 .reviewNote(g.getReviewNote())
+                .addressVerified(g.isAddressVerified())
+                .addressReviewNote(g.getAddressReviewNote())
                 .active(g.isActive())
                 .documents(documents)
                 .build();

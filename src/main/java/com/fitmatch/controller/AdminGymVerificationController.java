@@ -102,6 +102,24 @@ public class AdminGymVerificationController {
     }
 
     @Operation(
+            summary = "Bug S2-01 — Yêu cầu Gym xác minh lại địa chỉ",
+            description = """
+                    Actor: **Admin**. Dùng khi địa chỉ không đúng chuẩn (thiếu quận/huyện, viết \
+                    tắt, không geocode được) nên khách tìm không ra phòng gym.
+
+                    KHÔNG đổi verificationStatus và không ẩn gym khỏi marketplace — chỉ đặt \
+                    `addressVerified = false` kèm ghi chú và gửi thông báo cho Gym Operator. \
+                    Cờ tự trở lại true khi gym lưu địa chỉ mới. Lỗi: 404 không tồn tại.""")
+    @PostMapping("/{id}/request-address-recheck")
+    public ResponseEntity<ApiResponse<GymProfileResponse>> requestAddressRecheck(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectRequest request,
+            @AuthenticationPrincipal UserDetails actor) {
+        return ResponseEntity.ok(ApiResponse.success("Address re-verification requested",
+                service.requestAddressRecheck(id, request.getReason(), actor.getUsername())));
+    }
+
+    @Operation(
             summary = "UC-014 — Kích hoạt lại Gym bị đình chỉ",
             description = "Actor: **Admin**. SUSPENDED -> APPROVED, hiển thị lại trên marketplace. Lỗi: 409 không ở SUSPENDED; 404 không tồn tại.")
     @PostMapping("/{id}/reactivate")
