@@ -179,9 +179,16 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ReviewReportResponse> reports(ReportStatus status, Pageable pageable) {
-        ReportStatus effective = status != null ? status : ReportStatus.OPEN;
+        // Bug S2-07 (cùng lỗi đã sửa ở RefundServiceImpl): không truyền status
+        // = KHÔNG lọc, thay vì ép về OPEN — nếu ép, moderator không có cách nào
+        // xem lại các report đã xử lý.
+        if (status == null) {
+            return PageResponse.of(
+                    reviewReportRepository.findAllByOrderByIdDesc(pageable),
+                    ReviewReportResponse::of);
+        }
         return PageResponse.of(
-                reviewReportRepository.findByStatusOrderByIdDesc(effective, pageable),
+                reviewReportRepository.findByStatusOrderByIdDesc(status, pageable),
                 ReviewReportResponse::of);
     }
 

@@ -36,7 +36,8 @@ public class MarketplacePtController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<PtPublicProfileResponse>>> search(
             @Parameter(description = "Từ khoá tên/chuyên môn/bio") @RequestParam(required = false) String keyword,
-            @Parameter(description = "Chuyên môn") @RequestParam(required = false) String specialization,
+            @Parameter(description = "Chuyên môn — lặp lại tham số để lọc nhiều giá trị (OR)")
+            @RequestParam(required = false) java.util.List<String> specialization,
             @Parameter(description = "Khu vực phục vụ") @RequestParam(required = false) String serviceArea,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(

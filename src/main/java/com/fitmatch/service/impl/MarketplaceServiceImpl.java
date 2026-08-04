@@ -60,11 +60,11 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<PtPublicProfileResponse> searchPts(String keyword, String specialization,
+    public PageResponse<PtPublicProfileResponse> searchPts(String keyword, List<String> specializations,
                                                            String serviceArea, Pageable pageable) {
         Specification<PtProfile> spec = Specification.where(PtProfileSpecifications.visibleOnMarketplace())
                 .and(PtProfileSpecifications.keyword(keyword))
-                .and(PtProfileSpecifications.specialization(specialization))
+                .and(PtProfileSpecifications.specializationIn(specializations))
                 .and(PtProfileSpecifications.serviceArea(serviceArea));
         // Danh sách: không kèm chứng chỉ để tránh N+1; chứng chỉ chỉ trả ở detail.
         // UC-071: kèm điểm đánh giá để card hiển thị sao ngay trên danh sách.

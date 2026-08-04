@@ -51,9 +51,18 @@ public class GymBookingServiceImpl implements GymBookingService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<BookingResponse> list(String gymUsername, BookingStatus status, Pageable pageable) {
-        BookingStatus effective = status != null ? status : BookingStatus.PENDING_GYM;
+        // Bug S2-07 (cùng lỗi đã sửa ở RefundServiceImpl): status = null bị ép về
+        // PENDING_GYM nên bộ lọc "Tất cả trạng thái" của chủ phòng gym chỉ trả về
+        // các booking đang chờ duyệt — nhìn như filter hỏng. Không truyền status
+        // = KHÔNG lọc. BookingQueryServiceImpl (khách/PT/admin) vốn đã làm đúng,
+        // riêng nhánh gym operator còn sót.
+        if (status == null) {
+            return PageResponse.of(
+                    bookingRepository.findByGymProfile_User_Username(gymUsername, pageable),
+                    BookingResponse::of);
+        }
         return PageResponse.of(
-                bookingRepository.findByGymProfile_User_UsernameAndStatus(gymUsername, effective, pageable),
+                bookingRepository.findByGymProfile_User_UsernameAndStatus(gymUsername, status, pageable),
                 BookingResponse::of);
     }
 

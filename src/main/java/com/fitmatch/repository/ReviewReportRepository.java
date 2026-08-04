@@ -12,6 +12,12 @@ public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long
 
     Page<ReviewReport> findByStatusOrderByIdDesc(ReportStatus status, Pageable pageable);
 
+    /**
+     * Bug S2-07: dùng khi KHÔNG lọc theo trạng thái. Giữ nguyên thứ tự id giảm dần
+     * như bản có lọc để hai chế độ hiển thị cùng một trật tự.
+     */
+    Page<ReviewReport> findAllByOrderByIdDesc(Pageable pageable);
+
     boolean existsByReview_IdAndCreatedByAndStatus(Long reviewId, String createdBy, ReportStatus status);
 
     /** P0-0.4: có bất kỳ report nào trỏ tới review — dùng để tránh hard-delete vi phạm FK. */

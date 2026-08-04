@@ -72,8 +72,13 @@ public class WithdrawalServiceImpl implements WithdrawalService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<WithdrawalResponse> listForAdmin(WithdrawalStatus status, Pageable pageable) {
-        WithdrawalStatus effective = status != null ? status : WithdrawalStatus.PENDING;
-        return PageResponse.of(withdrawalRequestRepository.findByStatus(effective, pageable),
+        // Bug S2-07 (cùng lỗi đã sửa ở RefundServiceImpl): không truyền status
+        // = KHÔNG lọc. Trước đây ép về PENDING nên "Tất cả trạng thái" ở
+        // /admin/withdrawals trả đúng tập PENDING — admin tưởng filter hỏng.
+        if (status == null) {
+            return PageResponse.of(withdrawalRequestRepository.findAll(pageable), WithdrawalResponse::of);
+        }
+        return PageResponse.of(withdrawalRequestRepository.findByStatus(status, pageable),
                 WithdrawalResponse::of);
     }
 
