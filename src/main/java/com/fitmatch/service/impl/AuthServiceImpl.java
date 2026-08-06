@@ -7,6 +7,7 @@ import com.fitmatch.dto.auth.AuthResponse;
 import com.fitmatch.dto.auth.ChangePasswordRequest;
 import com.fitmatch.dto.auth.LoginRequest;
 import com.fitmatch.dto.auth.ForgotPasswordRequest;
+import com.fitmatch.dto.auth.GoogleLoginRequest;
 import com.fitmatch.dto.auth.RefreshTokenRequest;
 import com.fitmatch.dto.auth.RegisterRequest;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
@@ -18,16 +19,19 @@ import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.repository.VerificationTokenRepository;
+import com.fitmatch.security.GoogleTokenVerifier;
 import com.fitmatch.security.JwtTokenProvider;
 import com.fitmatch.service.AuthService;
 import com.fitmatch.service.EmailService;
 import com.fitmatch.service.support.EmailVerificationIssuer;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -45,6 +49,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final EmailService emailService;
     private final EmailVerificationIssuer emailVerificationIssuer;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     /** P1-1.6: số lần đăng nhập sai liên tiếp trước khi khóa tạm tài khoản. */
     @org.springframework.beans.factory.annotation.Value("${app.security.max-failed-login:5}")
@@ -158,6 +163,121 @@ public class AuthServiceImpl implements AuthService {
             user.setFailedLoginAttempts(attempts);
         }
         userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse googleLogin(GoogleLoginRequest request) {
+        // Mọi thông tin danh tính lấy từ token đã ký, không lấy từ body request:
+        // client không được phép tự khai email của người khác.
+        GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
+        String googleId = payload.getSubject();
+        String email = payload.getEmail().trim().toLowerCase();
+
+        // Tra theo googleId trước rồi mới tới email: người dùng đổi địa chỉ email
+        // trên Google vẫn quay về đúng tài khoản FitMatch cũ.
+        User user = userRepository.findByGoogleId(googleId)
+                .or(() -> userRepository.findByEmail(email))
+                .orElse(null);
+
+        if (user == null) {
+            user = registerGoogleUser(payload, googleId, email);
+            log.info("New user registered via Google: {}", user.getUsername());
+            return issueTokens(user);
+        }
+
+        if (user.getStatus() != com.fitmatch.common.enums.UserStatus.ACTIVE) {
+            log.info("Google login blocked for non-active account: {} ({})", user.getUsername(), user.getStatus());
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED,
+                    "Account is " + user.getStatus().name().toLowerCase());
+        }
+
+        if (user.getGoogleId() == null) {
+            // Tài khoản đăng ký bằng mật khẩu, nay đăng nhập Google cùng email: liên kết
+            // thay vì báo EMAIL_EXISTS. An toàn vì Google đã xác minh quyền sở hữu email.
+            user.setGoogleId(googleId);
+            log.info("Linked Google account to existing user: {}", user.getUsername());
+        } else if (!user.getGoogleId().equals(googleId)) {
+            // Cùng email nhưng khác `sub` (email Workspace bị xoá rồi tạo lại) — giữ liên
+            // kết cũ, không ghi đè, nhưng vẫn cho đăng nhập vì email đã được xác minh.
+            log.warn("Google sub mismatch for {} - keeping the existing link", user.getUsername());
+        }
+        if (!user.isEmailVerified()) {
+            // Đăng ký bằng mật khẩu nhưng chưa bấm link xác minh: Google đã xác minh hộ.
+            user.setEmailVerified(true);
+        }
+        if (!StringUtils.hasText(user.getAvatarUrl())) {
+            user.setAvatarUrl(pictureOf(payload));
+        }
+        // P1-1.6: khóa tạm là cơ chế chống dò MẬT KHẨU — luồng Google không dò được
+        // mật khẩu nên không bị chặn, và danh tính đã được Google kiểm chứng nên xóa
+        // luôn bộ đếm sai.
+        user.setFailedLoginAttempts(0);
+        user.setLockoutUntil(null);
+        userRepository.save(user);
+
+        log.info("User logged in via Google: {}", user.getUsername());
+        return issueTokens(user);
+    }
+
+    /** UC-003: tạo tài khoản CUSTOMER từ hồ sơ Google đã xác minh. */
+    private User registerGoogleUser(GoogleIdToken.Payload payload, String googleId, String email) {
+        String localPart = email.substring(0, email.indexOf('@'));
+        String fullName = claim(payload, "name");
+
+        User user = User.builder()
+                .username(generateUsername(localPart))
+                .email(email)
+                .fullName(StringUtils.hasText(fullName) ? fullName : localPart)
+                // Hash của một chuỗi ngẫu nhiên không ai biết: giữ ràng buộc NOT NULL của
+                // password_hash mà vẫn không mở đường đăng nhập bằng mật khẩu. Người dùng
+                // muốn có mật khẩu thì đi qua "quên mật khẩu" (UC-004).
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID() + ":" + UUID.randomUUID()))
+                .avatarUrl(pictureOf(payload))
+                .googleId(googleId)
+                // Chỉ tự đăng ký được CUSTOMER: chủ phòng tập vẫn đi UC-001 (còn phải khai
+                // hồ sơ gym), PT do gym tạo (UC-019) — không để Google là đường vòng cấp role.
+                .role(AccountType.CUSTOMER.getRole())
+                .status(com.fitmatch.common.enums.UserStatus.ACTIVE)
+                // Google đã xác minh email -> bỏ qua bước gửi mail xác minh.
+                .emailVerified(true)
+                .build();
+
+        return userRepository.save(user);
+    }
+
+    /**
+     * Sinh username từ phần trước @ của email, lọc theo đúng bộ ký tự UC-001 cho phép
+     * và thêm hậu tố số khi trùng.
+     */
+    private String generateUsername(String localPart) {
+        String base = localPart.replaceAll("[^a-zA-Z0-9._-]", "");
+        if (base.length() > 40) {
+            base = base.substring(0, 40);
+        }
+        if (base.length() < 3) {
+            base = "user" + base;
+        }
+        if (!userRepository.existsByUsername(base)) {
+            return base;
+        }
+        for (int i = 1; i <= 99; i++) {
+            String candidate = base + i;
+            if (!userRepository.existsByUsername(candidate)) {
+                return candidate;
+            }
+        }
+        return base + "-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /** Ảnh đại diện Google; bỏ qua URL dài hơn cột avatar_url (varchar 255). */
+    private String pictureOf(GoogleIdToken.Payload payload) {
+        String picture = claim(payload, "picture");
+        return picture != null && picture.length() <= 255 ? picture : null;
+    }
+
+    private String claim(GoogleIdToken.Payload payload, String name) {
+        return payload.get(name) instanceof String value && StringUtils.hasText(value) ? value : null;
     }
 
     @Override

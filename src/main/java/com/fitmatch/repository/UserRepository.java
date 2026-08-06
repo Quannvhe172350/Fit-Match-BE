@@ -14,6 +14,9 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     Optional<User> findByEmail(String email);
 
+    /** UC-003: tra tài khoản theo Google `sub` — bền vững hơn email khi người dùng đổi email Google. */
+    Optional<User> findByGoogleId(String googleId);
+
     boolean existsByUsername(String username);
 
     boolean existsByEmail(String email);
