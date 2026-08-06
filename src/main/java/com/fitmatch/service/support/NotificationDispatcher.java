@@ -318,15 +318,6 @@ public class NotificationDispatcher {
 
     // ----- Review (UC-069/071) -----
 
-    /** UC-069: Gym phản hồi đánh giá của khách. */
-    public void reviewReplied(Review r) {
-        dispatch("REVIEW_REPLIED_CUSTOMER", r.getCustomer(), NotificationCategory.REVIEW,
-                "Phòng gym đã phản hồi đánh giá",
-                "Đánh giá của bạn cho " + r.getGymProfile().getGymName() + " đã được phản hồi.",
-                "/profile/reviews",
-                Map.of("gymName", s(r.getGymProfile().getGymName())));
-    }
-
     /** UC-071: đánh giá bị kiểm duyệt (ẩn/gỡ). */
     public void reviewModerated(Review r) {
         dispatch("REVIEW_MODERATED_CUSTOMER", r.getCustomer(), NotificationCategory.REVIEW,

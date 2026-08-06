@@ -1,6 +1,7 @@
 package com.fitmatch.dto.booking;
 
 import com.fitmatch.common.enums.BookingStatus;
+import com.fitmatch.common.enums.SettlementStatus;
 import com.fitmatch.entity.Booking;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,6 +46,15 @@ public class BookingResponse {
     private boolean lateCancellation;
     private LocalDateTime createdAt;
 
+    /**
+     * Sheet3 "yêu cầu hoàn tiền lỗi": RefundServiceImpl.open() chặn khi
+     * settlementStatus != HELD ("No held funds for this booking"), nhưng field này
+     * chưa từng được trả về nên FE KHÔNG có cách nào biết mà ẩn nút — khách bấm
+     * "Yêu cầu hoàn tiền" trên booking đã huỷ chưa thanh toán là chắc chắn ăn 409.
+     * Phơi ra để FE gate đúng bằng cùng một điều kiện với BE.
+     */
+    private SettlementStatus settlementStatus;
+
     public static BookingResponse of(Booking b) {
         return BookingResponse.builder()
                 .id(b.getId())
@@ -73,6 +83,7 @@ public class BookingResponse {
                 .loyaltyPointsUsed(b.getLoyaltyPointsUsed())
                 .lateCancellation(b.isLateCancellation())
                 .createdAt(b.getCreatedAt())
+                .settlementStatus(b.getSettlementStatus())
                 .build();
     }
 }

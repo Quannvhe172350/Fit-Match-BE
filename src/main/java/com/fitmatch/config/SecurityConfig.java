@@ -98,6 +98,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/files/documents/**").authenticated()
                         // Marketplace browse & public content là công khai (Guest/Customer).
                         .requestMatchers(HttpMethod.GET, "/api/marketplace/**", "/api/public/**").permitAll()
+                        // UC-009: đánh giá VISIBLE của gym/PT là một phần hồ sơ công khai —
+                        // khách vãng lai phải đọc được (trước đây rơi vào anyRequest().authenticated()
+                        // nên trang chi tiết gym/PT chỉ hiện điểm TB, danh sách review 401).
+                        // Chỉ 2 nhánh này; /api/reviews/me và các thao tác ghi vẫn cần đăng nhập.
+                        .requestMatchers(HttpMethod.GET, "/api/reviews/gym/**", "/api/reviews/pt/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // UC-003: 401 trả mã cụ thể (TOKEN_EXPIRED/TOKEN_INVALID), 403 chuẩn JSON.

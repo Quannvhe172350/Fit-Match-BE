@@ -7,7 +7,6 @@ import com.fitmatch.common.enums.ReportStatus;
 import com.fitmatch.common.enums.ReviewStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.review.ModerateReviewRequest;
-import com.fitmatch.dto.review.ReplyRequest;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewReportResponse;
 import com.fitmatch.dto.review.ReviewRequest;
@@ -28,8 +27,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -48,6 +45,13 @@ public class ReviewServiceImpl implements ReviewService {
         ratingAggregator.refreshPt(review.getPtProfile() != null ? review.getPtProfile().getId() : null);
     }
 
+    /**
+     * UC-069: điều kiện đánh giá — khách phải thực sự đã mua & dùng dịch vụ.
+     * Booking phải thuộc chính khách (findByIdAndCustomer_Username) và đã
+     * COMPLETED; gym/dịch vụ/gói/PT được chép từ booking chứ không nhận từ
+     * client, nên không thể đánh giá một gym/PT chưa từng đặt. PT chỉ bị chấm
+     * điểm khi buổi tập đó có PT (booking.ptProfile != null).
+     */
     @Override
     @Transactional
     public ReviewResponse create(String customerUsername, ReviewRequest request) {
@@ -157,18 +161,6 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
-    @Transactional
-    public ReviewResponse reply(String gymUsername, Long reviewId, ReplyRequest request) {
-        Review review = reviewRepository.findByIdAndGymProfile_User_Username(reviewId, gymUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
-        review.setReply(request.getReply());
-        review.setRepliedBy(gymUsername);
-        review.setRepliedAt(LocalDateTime.now());
-        notificationDispatcher.reviewReplied(review);
-        return ReviewResponse.of(review);
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public PageResponse<ReviewResponse> gymReviews(String gymUsername, Pageable pageable) {
         return PageResponse.of(
@@ -179,9 +171,16 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ReviewReportResponse> reports(ReportStatus status, Pageable pageable) {
-        ReportStatus effective = status != null ? status : ReportStatus.OPEN;
+        // Bug S2-07 (cùng lỗi đã sửa ở RefundServiceImpl): không truyền status
+        // = KHÔNG lọc, thay vì ép về OPEN — nếu ép, moderator không có cách nào
+        // xem lại các report đã xử lý.
+        if (status == null) {
+            return PageResponse.of(
+                    reviewReportRepository.findAllByOrderByIdDesc(pageable),
+                    ReviewReportResponse::of);
+        }
         return PageResponse.of(
-                reviewReportRepository.findByStatusOrderByIdDesc(effective, pageable),
+                reviewReportRepository.findByStatusOrderByIdDesc(status, pageable),
                 ReviewReportResponse::of);
     }
 

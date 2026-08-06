@@ -6,6 +6,8 @@ import com.fitmatch.entity.PtProfile;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 /**
  * Specification cho tìm kiếm PT trên marketplace (UC-008/UC-021):
  * PT ACTIVE thuộc Gym đã APPROVED và đang hiển thị.
@@ -40,10 +42,20 @@ public final class PtProfileSpecifications {
                 cb.like(cb.lower(root.get("bio")), like));
     }
 
-    public static Specification<PtProfile> specialization(String specialization) {
-        return StringUtils.hasText(specialization)
-                ? (root, q, cb) -> cb.like(cb.lower(root.get("specialization")), "%" + specialization.toLowerCase() + "%")
-                : null;
+    /**
+     * Sheet1#17: cho chọn NHIỀU chuyên môn cùng lúc — các giá trị nối bằng OR
+     * (PT khớp bất kỳ chuyên môn nào trong danh sách thì hiện).
+     * Danh sách rỗng/null = không lọc, giữ nguyên hành vi cũ.
+     */
+    public static Specification<PtProfile> specializationIn(List<String> specializations) {
+        List<String> values = specializations == null ? List.of()
+                : specializations.stream().filter(StringUtils::hasText).toList();
+        if (values.isEmpty()) {
+            return null;
+        }
+        return (root, q, cb) -> cb.or(values.stream()
+                .map(v -> cb.like(cb.lower(root.get("specialization")), "%" + v.toLowerCase() + "%"))
+                .toArray(jakarta.persistence.criteria.Predicate[]::new));
     }
 
     public static Specification<PtProfile> serviceArea(String area) {

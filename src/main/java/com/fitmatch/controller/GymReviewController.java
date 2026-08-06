@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/gym/reviews")
 @RequiredArgsConstructor
-@Tag(name = "H. Gym - Reviews", description = "Gym xem toàn bộ đánh giá của mình để phản hồi/theo dõi chất lượng (UC-023/069). Yêu cầu ROLE_GYM_OPERATOR.")
+@Tag(name = "H. Gym - Reviews", description = "Gym xem toàn bộ đánh giá của mình để theo dõi chất lượng (UC-023/069). Chỉ đọc — review là một chiều. Yêu cầu ROLE_GYM_OPERATOR.")
 @SecurityRequirement(name = "bearerAuth")
 @PreAuthorize("hasRole('GYM_OPERATOR')")
 public class GymReviewController {
@@ -30,7 +30,7 @@ public class GymReviewController {
 
     @Operation(
             summary = "UC-023/069 — Đánh giá của gym tôi (mọi trạng thái)",
-            description = "Actor: **Gym Operator**. Gồm cả review bị ẩn/gỡ để theo dõi chất lượng PT/dịch vụ; phản hồi qua PUT /api/reviews/{id}/reply.")
+            description = "Actor: **Gym Operator**. Gồm cả review bị ẩn/gỡ để theo dõi chất lượng PT/dịch vụ; nội dung không phản hồi được, chỉ báo cáo vi phạm qua POST /api/reviews/{id}/report.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> myGymReviews(
             @AuthenticationPrincipal UserDetails userDetails,
