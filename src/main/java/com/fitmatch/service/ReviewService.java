@@ -3,7 +3,6 @@ package com.fitmatch.service;
 import com.fitmatch.common.enums.ReportStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.review.ModerateReviewRequest;
-import com.fitmatch.dto.review.ReplyRequest;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewReportResponse;
 import com.fitmatch.dto.review.ReviewRequest;
@@ -12,7 +11,9 @@ import org.springframework.data.domain.Pageable;
 
 /**
  * Đánh giá & kiểm duyệt (UC-069..071). Review chỉ tạo cho booking COMPLETED của
- * chính khách; ngữ cảnh Gym/dịch vụ/PT lấy từ booking. Điểm công khai chỉ tính
+ * chính khách; ngữ cảnh Gym/dịch vụ/PT lấy từ booking — khách chỉ đánh giá được
+ * gym mình đã mua dịch vụ và chỉ chấm điểm PT khi buổi đó có PT. Review một
+ * chiều: chỉ hiển thị, không có phản hồi của gym (V59). Điểm công khai chỉ tính
  * review VISIBLE.
  */
 public interface ReviewService {
@@ -34,9 +35,7 @@ public interface ReviewService {
 
     PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, Pageable pageable);
 
-    // ----- Gym (UC-069, UC-023) -----
-    ReviewResponse reply(String gymUsername, Long reviewId, ReplyRequest request);
-
+    // ----- Gym (UC-023) -----
     PageResponse<ReviewResponse> gymReviews(String gymUsername, Pageable pageable);
 
     // ----- Moderator/Admin (UC-071) -----

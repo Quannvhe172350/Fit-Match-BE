@@ -20,15 +20,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-
 /**
  * Đánh giá sau buổi tập (UC-069). Một booking COMPLETED có tối đa một review;
- * ngữ cảnh Gym/dịch vụ/PT lấy từ booking. Gym được phản hồi một lần (UC-069).
+ * ngữ cảnh Gym/dịch vụ/PT lấy từ booking nên khách chỉ đánh giá được nơi mình
+ * đã thực sự mua/tập, và chỉ chấm điểm PT khi buổi đó có PT.
+ * Review là một chiều — chỉ hiển thị, không có phản hồi của gym (V59).
  * Điểm chỉ tính vào trung bình khi status = VISIBLE (UC-071).
  * Schema: reviews(id, booking_id FK UNIQUE, customer_id FK, gym_profile_id FK,
  * gym_service_id?, training_package_id?, pt_profile_id?, rating, comment, status,
- * reply, replied_by, replied_at, + audit).
+ * + audit).
  */
 @Entity
 @Table(name = "reviews", indexes = {
@@ -82,14 +82,4 @@ public class Review extends BaseEntity {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private ReviewStatus status = ReviewStatus.VISIBLE;
-
-    /** Phản hồi của Gym (UC-069). */
-    @Column(length = 2000)
-    private String reply;
-
-    @Column(name = "replied_by")
-    private String repliedBy;
-
-    @Column(name = "replied_at")
-    private LocalDateTime repliedAt;
 }

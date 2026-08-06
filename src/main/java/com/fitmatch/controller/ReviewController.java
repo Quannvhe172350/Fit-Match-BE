@@ -2,7 +2,6 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
-import com.fitmatch.dto.review.ReplyRequest;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
@@ -32,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/reviews")
 @RequiredArgsConstructor
-@Tag(name = "H. Reviews", description = "Đánh giá sau buổi tập (UC-069/070). Đọc theo gym/PT là công khai; tạo/sửa/xoá cần ROLE_CUSTOMER.")
+@Tag(name = "H. Reviews", description = "Đánh giá sau buổi tập (UC-069/070). Chỉ khách có booking COMPLETED tại gym/với PT đó mới đánh giá được; đọc theo gym/PT là công khai. Review một chiều — không có phản hồi của gym.")
 public class ReviewController {
 
     private final ReviewService reviewService;
@@ -107,22 +106,8 @@ public class ReviewController {
     }
 
     @Operation(
-            summary = "UC-069 — Gym phản hồi một đánh giá",
-            description = "Actor: **Gym Operator**. Phản hồi review của gym mình. Lỗi: 404 review không thuộc gym của bạn.")
-    @SecurityRequirement(name = "bearerAuth")
-    @PreAuthorize("hasRole('GYM_OPERATOR')")
-    @PutMapping("/{id}/reply")
-    public ResponseEntity<ApiResponse<ReviewResponse>> reply(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @PathVariable Long id,
-            @Valid @RequestBody ReplyRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Reply saved",
-                reviewService.reply(userDetails.getUsername(), id, request)));
-    }
-
-    @Operation(
             summary = "UC-009 — Đánh giá công khai của Gym",
-            description = "Actor: **Guest/Customer**. Chỉ review đang hiển thị (VISIBLE).")
+            description = "Actor: **Guest/Customer**. Chỉ review đang hiển thị (VISIBLE); review một chiều, không có phản hồi.")
     @SecurityRequirements
     @GetMapping("/gym/{gymId}")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> gymReviews(

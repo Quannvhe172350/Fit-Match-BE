@@ -10,10 +10,12 @@ import com.fitmatch.dto.review.ReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
 import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.GymProfile;
+import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.Review;
 import com.fitmatch.entity.ReviewReport;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
+import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.ReviewReportRepository;
 import com.fitmatch.repository.ReviewRepository;
@@ -68,6 +70,46 @@ class ReviewServiceImplTest {
 
         assertThat(res.getRating()).isEqualTo(5);
         assertThat(res.getStatus()).isEqualTo(ReviewStatus.VISIBLE);
+    }
+
+    @Test
+    void create_bookingWithPt_ratesGymAndPt() {
+        // UC-069: chỉ chấm điểm PT khi khách thực sự đặt buổi có PT đó.
+        Booking b = completedBooking();
+        b.setPtProfile(PtProfile.builder().id(7L).displayName("Coach T").build());
+        when(bookingRepository.findByIdAndCustomer_Username(10L, "john")).thenReturn(Optional.of(b));
+        when(reviewRepository.existsByBooking_Id(10L)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReviewResponse res = service.create("john", new ReviewRequest(10L, 4, "good pt"));
+
+        assertThat(res.getPtProfileId()).isEqualTo(7L);
+        verify(ratingAggregator).refreshGym(5L);
+        verify(ratingAggregator).refreshPt(7L);
+    }
+
+    @Test
+    void create_bookingWithoutPt_ratesGymOnly() {
+        when(bookingRepository.findByIdAndCustomer_Username(10L, "john"))
+                .thenReturn(Optional.of(completedBooking()));
+        when(reviewRepository.existsByBooking_Id(10L)).thenReturn(false);
+        when(reviewRepository.save(any(Review.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ReviewResponse res = service.create("john", new ReviewRequest(10L, 4, "nice gym"));
+
+        assertThat(res.getPtProfileId()).isNull();
+        verify(ratingAggregator).refreshGym(5L);
+        verify(ratingAggregator).refreshPt(null);
+    }
+
+    @Test
+    void create_bookingOfAnotherCustomer_throwsNotFound() {
+        // Chặn đánh giá gym/PT chưa từng đặt: booking phải thuộc chính khách.
+        when(bookingRepository.findByIdAndCustomer_Username(10L, "mallory")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.create("mallory", new ReviewRequest(10L, 5, "fake")))
+                .isInstanceOf(ResourceNotFoundException.class);
+        verify(reviewRepository, never()).save(any());
     }
 
     @Test
