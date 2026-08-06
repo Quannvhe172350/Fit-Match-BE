@@ -31,18 +31,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class AuthRateLimitFilter extends OncePerRequestFilter {
 
     /** Giới hạn request/phút/IP, khoá theo "METHOD path". */
-    private static final Map<String, Integer> LIMITS = Map.of(
-            "POST /api/auth/login", 10,
-            "POST /api/auth/register", 10,
-            "POST /api/auth/refresh", 30,
-            "POST /api/auth/forgot-password", 5,
-            "POST /api/auth/resend-verification", 5,
-            "POST /api/auth/reset-password", 10,
+    // Map.ofEntries (không phải Map.of) vì Map.of chỉ nhận tối đa 10 cặp.
+    private static final Map<String, Integer> LIMITS = Map.ofEntries(
+            Map.entry("POST /api/auth/login", 10),
+            // UC-003: đăng nhập Google không dò được mật khẩu, nhưng vẫn giới hạn để
+            // không ai spam BE gọi Google xác minh token rác.
+            Map.entry("POST /api/auth/google", 10),
+            Map.entry("POST /api/auth/register", 10),
+            Map.entry("POST /api/auth/refresh", 30),
+            Map.entry("POST /api/auth/forgot-password", 5),
+            Map.entry("POST /api/auth/resend-verification", 5),
+            Map.entry("POST /api/auth/reset-password", 10),
             // UC-18 (V55): proxy geocode công khai gọi Google bằng key của nền tảng —
             // không giới hạn thì một script có thể đốt sạch quota trong vài phút.
             // Hạn mức rộng tay vì người dùng thật gõ địa chỉ có debounce.
-            "GET /api/marketplace/geocode", 30,
-            "GET /api/marketplace/geocode/reverse", 30
+            Map.entry("GET /api/marketplace/geocode", 30),
+            Map.entry("GET /api/marketplace/geocode/reverse", 30)
     );
     private static final long WINDOW_MS = 60_000;
 

@@ -29,7 +29,11 @@ public enum ErrorCode {
     LEGACY_ENDPOINT_DISABLED(HttpStatus.GONE,
             "This endpoint belongs to the removed PT self-registration model. PTs are managed by their Gym (POST /api/gym/pts)"),
     ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "Account is locked or inactive"),
-    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests - please try again later");
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "Too many requests - please try again later"),
+    // UC-003 (đăng nhập Google): tách 3 mã để FE phân biệt "bấm lại đi" với "server chưa bật tính năng".
+    GOOGLE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "Google ID token is invalid or has expired"),
+    GOOGLE_AUTH_DISABLED(HttpStatus.SERVICE_UNAVAILABLE, "Google sign-in is not configured on this server"),
+    GOOGLE_AUTH_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Cannot reach Google to verify the account - please retry");
 
     private final HttpStatus status;
     private final String defaultMessage;

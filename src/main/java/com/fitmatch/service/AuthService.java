@@ -5,6 +5,7 @@ import com.fitmatch.dto.auth.ChangePasswordRequest;
 import com.fitmatch.dto.auth.LoginRequest;
 import com.fitmatch.dto.auth.RefreshTokenRequest;
 import com.fitmatch.dto.auth.ForgotPasswordRequest;
+import com.fitmatch.dto.auth.GoogleLoginRequest;
 import com.fitmatch.dto.auth.RegisterRequest;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
 import com.fitmatch.dto.auth.ResetPasswordRequest;
@@ -19,6 +20,15 @@ public interface AuthService {
     void register(RegisterRequest request);
 
     AuthResponse login(LoginRequest request);
+
+    /**
+     * UC-003: đăng nhập/đăng ký bằng Google ID token.
+     *
+     * <p>Chưa có tài khoản -> tạo mới role CUSTOMER, email coi như đã xác minh
+     * (Google đã kiểm chứng). Đã có tài khoản cùng email -> liên kết Google vào
+     * tài khoản đó thay vì báo trùng email.
+     */
+    AuthResponse googleLogin(GoogleLoginRequest request);
 
     AuthResponse refreshToken(RefreshTokenRequest request);
 

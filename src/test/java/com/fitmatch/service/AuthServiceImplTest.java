@@ -10,9 +10,11 @@ import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.repository.VerificationTokenRepository;
+import com.fitmatch.security.GoogleTokenVerifier;
 import com.fitmatch.security.JwtTokenProvider;
 import com.fitmatch.service.impl.AuthServiceImpl;
 import com.fitmatch.service.support.EmailVerificationIssuer;
+import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -40,6 +42,7 @@ class AuthServiceImplTest {
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private EmailService emailService;
     @Mock private EmailVerificationIssuer emailVerificationIssuer;
+    @Mock private GoogleTokenVerifier googleTokenVerifier;
     @InjectMocks private AuthServiceImpl service;
 
     private User user(UserStatus status, int tokenVersion) {
@@ -187,6 +190,108 @@ class AuthServiceImplTest {
         assertThat(u.getFailedLoginAttempts()).isZero();
         assertThat(u.getLockoutUntil()).isNull();
         org.mockito.Mockito.verify(userRepository).save(u);
+    }
+
+    // ─── UC-003: đăng nhập Google ─────────────────────────────────────────────
+
+    private GoogleIdToken.Payload googlePayload() {
+        GoogleIdToken.Payload payload = new GoogleIdToken.Payload();
+        payload.setSubject("google-sub-1");
+        payload.setEmail("john@x.com");
+        payload.setEmailVerified(true);
+        payload.set("name", "Nguyễn Văn A");
+        payload.set("picture", "https://lh3.googleusercontent.com/a/avatar");
+        return payload;
+    }
+
+    @Test
+    void googleLogin_newEmail_createsVerifiedCustomer() {
+        stubTokenIssue();
+        when(googleTokenVerifier.verify("id-token")).thenReturn(googlePayload());
+        when(userRepository.findByGoogleId("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("john@x.com")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("john")).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("random-hash");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var res = service.googleLogin(new com.fitmatch.dto.auth.GoogleLoginRequest("id-token"));
+
+        var saved = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.Mockito.verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getUsername()).isEqualTo("john");
+        assertThat(saved.getValue().getGoogleId()).isEqualTo("google-sub-1");
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.ROLE_CUSTOMER);
+        // Google đã xác minh email -> không phải bấm link verify mới đăng nhập được.
+        assertThat(saved.getValue().isEmailVerified()).isTrue();
+        assertThat(res.getAccessToken()).isEqualTo("access");
+    }
+
+    @Test
+    void googleLogin_usernameTaken_appendsSuffix() {
+        stubTokenIssue();
+        when(googleTokenVerifier.verify("id-token")).thenReturn(googlePayload());
+        when(userRepository.findByGoogleId("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("john@x.com")).thenReturn(Optional.empty());
+        when(userRepository.existsByUsername("john")).thenReturn(true);
+        when(userRepository.existsByUsername("john1")).thenReturn(false);
+        when(passwordEncoder.encode(anyString())).thenReturn("random-hash");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.googleLogin(new com.fitmatch.dto.auth.GoogleLoginRequest("id-token"));
+
+        var saved = org.mockito.ArgumentCaptor.forClass(User.class);
+        org.mockito.Mockito.verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getUsername()).isEqualTo("john1");
+    }
+
+    @Test
+    void googleLogin_existingEmail_linksAccountAndVerifiesEmail() {
+        // Đăng ký bằng mật khẩu, chưa bấm link verify, nay đăng nhập bằng Google
+        // cùng email -> liên kết vào tài khoản cũ thay vì báo trùng email.
+        User u = user(UserStatus.ACTIVE, 0);
+        stubTokenIssue();
+        when(googleTokenVerifier.verify("id-token")).thenReturn(googlePayload());
+        when(userRepository.findByGoogleId("google-sub-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("john@x.com")).thenReturn(Optional.of(u));
+
+        var res = service.googleLogin(new com.fitmatch.dto.auth.GoogleLoginRequest("id-token"));
+
+        assertThat(u.getGoogleId()).isEqualTo("google-sub-1");
+        assertThat(u.isEmailVerified()).isTrue();
+        assertThat(res.getAccessToken()).isEqualTo("access");
+        org.mockito.Mockito.verify(userRepository).save(u);
+    }
+
+    @Test
+    void googleLogin_lockedOutAccount_stillSucceeds() {
+        // P1-1.6: khóa tạm chống dò MẬT KHẨU — Google không dò mật khẩu nên không bị
+        // chặn, và bộ đếm được xóa vì danh tính đã do Google kiểm chứng.
+        User u = user(UserStatus.ACTIVE, 0);
+        u.setEmailVerified(true);
+        u.setGoogleId("google-sub-1");
+        u.setFailedLoginAttempts(4);
+        u.setLockoutUntil(java.time.LocalDateTime.now().plusMinutes(10));
+        stubTokenIssue();
+        when(googleTokenVerifier.verify("id-token")).thenReturn(googlePayload());
+        when(userRepository.findByGoogleId("google-sub-1")).thenReturn(Optional.of(u));
+
+        service.googleLogin(new com.fitmatch.dto.auth.GoogleLoginRequest("id-token"));
+
+        assertThat(u.getFailedLoginAttempts()).isZero();
+        assertThat(u.getLockoutUntil()).isNull();
+    }
+
+    @Test
+    void googleLogin_bannedAccount_returnsAccountLocked() {
+        User u = user(UserStatus.BANNED, 0);
+        u.setGoogleId("google-sub-1");
+        when(googleTokenVerifier.verify("id-token")).thenReturn(googlePayload());
+        when(userRepository.findByGoogleId("google-sub-1")).thenReturn(Optional.of(u));
+
+        assertThatThrownBy(() -> service.googleLogin(new com.fitmatch.dto.auth.GoogleLoginRequest("id-token")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.ACCOUNT_LOCKED);
     }
 
     @Test
