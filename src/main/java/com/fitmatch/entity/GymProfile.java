@@ -76,6 +76,21 @@ public class GymProfile extends BaseEntity {
     @Column(name = "formatted_address", length = 500)
     private String formattedAddress;
 
+    /**
+     * V59: độ chính xác Google báo về. APPROXIMATE nghĩa là chỉ khớp tới tâm
+     * phường/quận — khách sẽ được dẫn tới sai chỗ, nên tự bật cờ xác minh lại.
+     */
+    @Column(name = "location_type", length = 30)
+    private String locationType;
+
+    /**
+     * V60: toạ độ do chủ gym tự kéo ghim trên bản đồ, không phải Google đoán.
+     * Job làm mới định kỳ phải bỏ qua bản ghi này, nếu không công sửa tay bị xoá.
+     */
+    @Column(name = "coordinates_pinned", nullable = false)
+    @Builder.Default
+    private boolean coordinatesPinned = false;
+
     /** Thời điểm geocode gần nhất — null nghĩa là chưa từng geocode thành công. */
     @Column(name = "geocoded_at")
     private java.time.LocalDateTime geocodedAt;

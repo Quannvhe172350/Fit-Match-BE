@@ -31,6 +31,29 @@ public interface GymProfileRepository extends JpaRepository<GymProfile, Long>, J
     /** UC-18 (V55): hồ sơ chưa có toạ độ — đầu vào cho job/endpoint backfill geocoding. */
     List<GymProfile> findByLatitudeIsNullAndAddressIsNotNull();
 
+    // V60 — số liệu cho bảng theo dõi phủ toạ độ của Admin.
+    long countByLatitudeIsNotNull();
+
+    long countByCoordinatesPinnedTrue();
+
+    @Query("select count(g) from GymProfile g where g.locationType = :locationType")
+    long countByLocationType(@Param("locationType") String locationType);
+
+    /**
+     * V59/V60: hồ sơ có place_id nhưng toạ độ đã cũ — đầu vào của job làm mới.
+     *
+     * <p>Hai điều kiện loại trừ, mỗi cái chặn một kiểu hỏng khác nhau:
+     * <ul>
+     *   <li>{@code placeId is not null} — chỉ tra lại bản ghi biết CHÍNH XÁC mình
+     *       là địa điểm nào của Google; geocode lại chuỗi địa chỉ có thể ra một
+     *       nơi khác hẳn.</li>
+     *   <li>{@code coordinatesPinned = false} — chủ gym đã kéo ghim tay thì đó là
+     *       toạ độ đúng nhất hệ thống có; job kéo về chỗ Google nói là phá.</li>
+     * </ul>
+     */
+    List<GymProfile> findByPlaceIdIsNotNullAndCoordinatesPinnedFalseAndGeocodedAtBefore(
+            java.time.LocalDateTime before);
+
     /**
      * UC-18 (V55) — tìm gym theo bán kính quanh một toạ độ.
      *

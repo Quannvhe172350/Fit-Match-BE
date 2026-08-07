@@ -31,6 +31,13 @@ public class BranchResponse {
     /** Địa chỉ Google đã chuẩn hoá; null khi chưa geocode được. */
     private String formattedAddress;
 
+    /**
+     * V60: toạ độ do chủ gym kéo ghim tay. Form sửa PHẢI đọc và gửi lại cờ này —
+     * thiếu nó thì mỗi lần sửa số điện thoại là ghim tay bị hạ cấp về "Google
+     * đoán" và job làm mới sẽ kéo đi chỗ khác.
+     */
+    private boolean coordinatesPinned;
+
     /** Giờ mở cửa theo ngày — chỉ đổ ở luồng public marketplace (UC-009). */
     private java.util.List<OperatingHourDto> operatingHours;
 
@@ -48,6 +55,7 @@ public class BranchResponse {
                 .latitude(b.getLatitude())
                 .longitude(b.getLongitude())
                 .formattedAddress(b.getFormattedAddress())
+                .coordinatesPinned(b.isCoordinatesPinned())
                 .build();
     }
 

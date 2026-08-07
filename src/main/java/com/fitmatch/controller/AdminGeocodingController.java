@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -30,6 +31,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminGeocodingController {
 
     private final GeocodingBackfillService geocodingBackfillService;
+
+    @Operation(summary = "UC-18 — Tình trạng phủ toạ độ",
+            description = "Actor: **Admin**. Bao nhiêu gym/chi nhánh đã có toạ độ, bao nhiêu địa chỉ chỉ "
+                    + "khớp ở mức tương đối, và số câu trả lời đang được đệm. Dùng để quyết định có cần "
+                    + "chạy backfill hay không.")
+    @GetMapping("/coverage")
+    public ResponseEntity<ApiResponse<GeocodingBackfillService.GeocodingCoverage>> coverage() {
+        return ResponseEntity.ok(ApiResponse.success(geocodingBackfillService.coverage()));
+    }
 
     @Operation(summary = "UC-18 — Backfill toạ độ",
             description = "Actor: **Admin**. Geocode các hồ sơ gym / chi nhánh còn thiếu lat-lng để chúng "

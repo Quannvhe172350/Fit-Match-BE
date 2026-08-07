@@ -54,7 +54,7 @@ public class GymProfileServiceImpl implements GymProfileService {
                 .verificationStatus(VerificationStatus.PENDING)
                 .active(false)
                 .build();
-        applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
+        applyGeolocation(profile, pinOf(request),
                 request.getAddress(), request.getDistrict(), request.getCity());
         profile = gymProfileRepository.save(profile);
 
@@ -86,7 +86,7 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setCity(request.getCity());
         profile.setDistrict(request.getDistrict());
         profile.setPhone(request.getPhone());
-        applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
+        applyGeolocation(profile, pinOf(request),
                 request.getAddress(), request.getDistrict(), request.getCity());
         profile.setVerificationStatus(VerificationStatus.PENDING);
         profile.setRejectionReason(null);
@@ -136,16 +136,20 @@ public class GymProfileServiceImpl implements GymProfileService {
         // lại). Nếu không, mỗi lần đổi số điện thoại lại tốn một lượt gọi Google
         // cho cùng một địa chỉ.
         boolean addressChanged = !addressKey.equals(addressKeyOf(profile));
-        if (addressChanged || request.getLatitude() != null || request.getLongitude() != null
-                || profile.getLatitude() == null) {
-            applyGeolocation(profile, request.getLatitude(), request.getLongitude(),
-                    profile.getAddress(), profile.getDistrict(), profile.getCity());
-        }
         // Bug S2-01: gym đã sửa địa chỉ theo yêu cầu của Admin -> gỡ cờ cảnh báo và
         // ghi chú cũ. Admin soát lại ở vòng sau nếu địa chỉ mới vẫn chưa đạt.
+        //
+        // V59: phải gỡ TRƯỚC khi geocode. Làm sau thì cờ mà applyGeolocation vừa
+        // bật vì địa chỉ mới cũng mơ hồ sẽ bị xoá ngay trong cùng một lần lưu, và
+        // gym không bao giờ biết địa chỉ vừa nhập vẫn chưa đạt.
         if (addressChanged && !profile.isAddressVerified()) {
             profile.setAddressVerified(true);
             profile.setAddressReviewNote(null);
+        }
+        if (addressChanged || request.getLatitude() != null || request.getLongitude() != null
+                || profile.getLatitude() == null) {
+            applyGeolocation(profile, pinOf(request),
+                    profile.getAddress(), profile.getDistrict(), profile.getCity());
         }
         gymProfileRepository.save(profile);
         log.info("Gym profile updated by {}", username);
@@ -155,19 +159,44 @@ public class GymProfileServiceImpl implements GymProfileService {
     /**
      * UC-18 (V55): gắn toạ độ cho hồ sơ gym. Không phân giải được thì GIỮ NGUYÊN
      * giá trị cũ — Google lỗi/hết quota không được phép xoá trắng toạ độ đang có.
+     *
+     * <p>place_id/formatted_address chỉ được ghi khi phân giải thực sự trả về giá
+     * trị mới. Ghi vô điều kiện là mỗi lần operator ghim toạ độ tay (resolution
+     * không kèm metadata) lại xoá trắng hai cột đó, dù địa chỉ chẳng đổi.
      */
-    private void applyGeolocation(GymProfile profile, java.math.BigDecimal explicitLat,
-                                  java.math.BigDecimal explicitLng,
+    private void applyGeolocation(GymProfile profile, com.fitmatch.service.support.AddressGeocoder.Pin pin,
                                   String address, String district, String city) {
-        var resolution = addressGeocoder.resolve(explicitLat, explicitLng, address, district, city);
+        var resolution = addressGeocoder.resolve(pin, address, district, city);
         if (!resolution.resolved()) {
             return;
         }
         profile.setLatitude(resolution.latitude());
         profile.setLongitude(resolution.longitude());
-        profile.setPlaceId(resolution.placeId());
-        profile.setFormattedAddress(resolution.formattedAddress());
+        if (resolution.placeId() != null) {
+            profile.setPlaceId(resolution.placeId());
+        }
+        if (resolution.formattedAddress() != null) {
+            profile.setFormattedAddress(resolution.formattedAddress());
+        }
+        profile.setLocationType(resolution.locationType());
+        profile.setCoordinatesPinned(resolution.pinnedByUser());
         profile.setGeocodedAt(resolution.geocodedAt());
+        // V59 (bug S2-01): Google chỉ khớp tới tâm phường/quận -> tự yêu cầu gym
+        // xác minh lại, thay vì chờ Admin soát tay từng hồ sơ.
+        com.fitmatch.service.support.AddressQuality.flagIfImprecise(profile, resolution.locationType());
+    }
+
+    /** Gom toạ độ + metadata Places mà client gửi kèm thành một {@code Pin}. */
+    private static com.fitmatch.service.support.AddressGeocoder.Pin pinOf(SubmitGymRegistrationRequest r) {
+        return new com.fitmatch.service.support.AddressGeocoder.Pin(
+                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(),
+                Boolean.TRUE.equals(r.getCoordinatesPinned()));
+    }
+
+    private static com.fitmatch.service.support.AddressGeocoder.Pin pinOf(UpdateGymProfileRequest r) {
+        return new com.fitmatch.service.support.AddressGeocoder.Pin(
+                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(),
+                Boolean.TRUE.equals(r.getCoordinatesPinned()));
     }
 
     /** Khoá so sánh "địa chỉ có đổi không" cho {@link #updateProfile}. */

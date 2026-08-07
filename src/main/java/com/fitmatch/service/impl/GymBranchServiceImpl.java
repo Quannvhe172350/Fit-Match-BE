@@ -101,15 +101,30 @@ public class GymBranchServiceImpl implements GymBranchService {
      * khỏi kết quả tìm quanh đây.
      */
     private void applyGeolocation(GymBranch branch, BranchRequest request) {
-        var resolution = addressGeocoder.resolve(request.getLatitude(), request.getLongitude(),
+        var pin = new com.fitmatch.service.support.AddressGeocoder.Pin(
+                request.getLatitude(), request.getLongitude(),
+                request.getPlaceId(), request.getFormattedAddress(),
+                Boolean.TRUE.equals(request.getCoordinatesPinned()));
+        var resolution = addressGeocoder.resolve(pin,
                 request.getAddress(), request.getDistrict(), request.getCity());
         if (!resolution.resolved()) {
             return;
         }
         branch.setLatitude(resolution.latitude());
         branch.setLongitude(resolution.longitude());
-        branch.setPlaceId(resolution.placeId());
-        branch.setFormattedAddress(resolution.formattedAddress());
+        // Chỉ ghi khi có giá trị mới — ghim toạ độ tay không kèm metadata mà vẫn
+        // set thì mỗi lần lưu là xoá trắng place_id/formatted_address đang có.
+        if (resolution.placeId() != null) {
+            branch.setPlaceId(resolution.placeId());
+        }
+        if (resolution.formattedAddress() != null) {
+            branch.setFormattedAddress(resolution.formattedAddress());
+        }
+        // V59: chi nhánh chỉ LƯU độ chính xác chứ không tự gắn cờ xác minh —
+        // address_verified (V58) là cờ của cả hồ sơ gym, không có ở cấp chi nhánh.
+        // Admin đọc cột này khi soát hồ sơ.
+        branch.setLocationType(resolution.locationType());
+        branch.setCoordinatesPinned(resolution.pinnedByUser());
         branch.setGeocodedAt(resolution.geocodedAt());
     }
 

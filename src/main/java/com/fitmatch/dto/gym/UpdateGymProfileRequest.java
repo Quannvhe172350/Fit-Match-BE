@@ -45,4 +45,21 @@ public class UpdateGymProfileRequest {
     @DecimalMin(value = "-180.0", message = "Longitude must be between -180 and 180")
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     private java.math.BigDecimal longitude;
+
+    /**
+     * Metadata của gợi ý Places đi kèm toạ độ ghim. Bỏ trống -> giữ nguyên giá trị
+     * đang lưu, KHÔNG xoá: hai cột này là dữ liệu đối chiếu, mất đi thì không có
+     * cách nào lấy lại ngoài geocode lại.
+     */
+    @Size(max = 255)
+    private String placeId;
+
+    @Size(max = 500)
+    private String formattedAddress;
+
+    /**
+     * V60 — toạ độ do người kéo ghim trên bản đồ chứ không lấy nguyên từ gợi ý
+     * Places; job làm mới định kỳ sẽ bỏ qua bản ghi này. Null = coi như false.
+     */
+    private Boolean coordinatesPinned;
 }

@@ -25,6 +25,21 @@ public interface GymBranchRepository extends JpaRepository<GymBranch, Long> {
     /** UC-18 (V55): chi nhánh chưa có toạ độ — đầu vào cho backfill geocoding. */
     List<GymBranch> findByLatitudeIsNullAndAddressIsNotNull();
 
+    // V60 — số liệu cho bảng theo dõi phủ toạ độ của Admin. Chỉ đếm chi nhánh đang
+    // hoạt động: chi nhánh đã tắt không xuất hiện trong tìm kiếm nên thiếu toạ độ
+    // cũng không phải vấn đề cần xử lý.
+    long countByActiveTrue();
+
+    long countByLatitudeIsNotNullAndActiveTrue();
+
+    /**
+     * V59/V60: chi nhánh có place_id nhưng toạ độ đã cũ — đầu vào của job làm mới.
+     * Bỏ qua bản ghi chủ gym đã kéo ghim tay; xem javadoc bản của
+     * {@code GymProfileRepository} để biết vì sao cần cả hai điều kiện.
+     */
+    List<GymBranch> findByPlaceIdIsNotNullAndCoordinatesPinnedFalseAndGeocodedAtBefore(
+            java.time.LocalDateTime before);
+
     /**
      * UC-030: khoá chi nhánh khi kiểm tra capacity lúc checkout/reschedule để
      * tuần tự hoá các giữ chỗ đồng thời (chống overbooking). Thứ tự khoá cố

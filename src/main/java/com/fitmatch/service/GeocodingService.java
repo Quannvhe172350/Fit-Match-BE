@@ -20,6 +20,16 @@ public interface GeocodingService {
     /** Địa chỉ -> toạ độ. Empty khi tắt geocoding, địa chỉ rỗng, hoặc Google không khớp. */
     Optional<GeoPoint> geocode(String address);
 
+    /**
+     * place_id -> toạ độ hiện tại của CHÍNH địa điểm đó (V59).
+     *
+     * <p>Dùng cho job làm mới toạ độ định kỳ: geocode lại chuỗi địa chỉ có thể ra
+     * một địa điểm khác hẳn (Google đổi cách hiểu chuỗi chữ, hoặc địa chỉ mơ hồ),
+     * qua đó dời ghim của phòng gym đi nơi khác. Tra theo place_id thì địa điểm
+     * luôn là địa điểm cũ, chỉ toạ độ được cập nhật.
+     */
+    Optional<GeoPoint> geocodeByPlaceId(String placeId);
+
     /** Toạ độ -> địa chỉ đã chuẩn hoá (dùng cho nút "Vị trí của tôi"). */
     Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude);
 }

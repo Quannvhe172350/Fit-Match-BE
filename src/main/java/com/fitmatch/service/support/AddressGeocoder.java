@@ -31,30 +31,78 @@ public class AddressGeocoder {
     private final GeocodingService geocodingService;
 
     /**
-     * Kết quả phân giải. {@code resolved} = false nghĩa là không xác định được toạ
-     * độ mới; caller giữ nguyên giá trị đang có thay vì ghi đè null.
+     * Địa điểm client đã ghim sẵn: toạ độ kèm metadata của chính gợi ý Google mà
+     * operator đã chọn. Mọi field đều nullable — client chỉ gõ tay thì rỗng hết.
+     *
+     * <p>{@code placeId}/{@code formattedAddress} đi cùng toạ độ chứ không phải
+     * thứ suy ra sau: FE đã cầm sẵn chúng trong kết quả Places Autocomplete, gửi
+     * kèm thì không phải geocode lại chỉ để lấy đúng hai giá trị đó.
      */
-    public record Resolution(boolean resolved, BigDecimal latitude, BigDecimal longitude,
-                             String formattedAddress, String placeId, LocalDateTime geocodedAt) {
+    /**
+     * @param pinnedByUser V60 — toạ độ này do người kéo ghim trên bản đồ chứ không
+     *                     phải lấy nguyên từ gợi ý Places. Đánh dấu để job làm mới
+     *                     định kỳ không kéo ghim về chỗ Google nói.
+     */
+    public record Pin(BigDecimal latitude, BigDecimal longitude,
+                      String placeId, String formattedAddress, boolean pinnedByUser) {
 
-        public static Resolution none() {
-            return new Resolution(false, null, null, null, null, null);
+        public static Pin none() {
+            return new Pin(null, null, null, null, false);
         }
 
-        public static Resolution of(GeoPoint point) {
-            return new Resolution(true, point.latitude(), point.longitude(),
-                    point.formattedAddress(), point.placeId(), LocalDateTime.now());
+        boolean hasValidCoordinates() {
+            return GeoUtils.isValidLatitude(latitude) && GeoUtils.isValidLongitude(longitude);
         }
     }
 
     /**
-     * @param explicitLat toạ độ client gửi kèm (nullable)
-     * @param explicitLng toạ độ client gửi kèm (nullable)
+     * Kết quả phân giải. {@code resolved} = false nghĩa là không xác định được toạ
+     * độ mới; caller giữ nguyên giá trị đang có thay vì ghi đè null.
+     *
+     * <p>{@code formattedAddress}/{@code placeId} vẫn có thể null ngay cả khi
+     * {@code resolved} = true (client ghim toạ độ mà không gửi kèm metadata) —
+     * caller phải hiểu null ở đây là "không có thông tin mới", KHÔNG phải "hãy xoá".
      */
-    public Resolution resolve(BigDecimal explicitLat, BigDecimal explicitLng,
-                              String address, String district, String city) {
-        if (GeoUtils.isValidLatitude(explicitLat) && GeoUtils.isValidLongitude(explicitLng)) {
-            return new Resolution(true, explicitLat, explicitLng, null, null, LocalDateTime.now());
+    public record Resolution(boolean resolved, BigDecimal latitude, BigDecimal longitude,
+                             String formattedAddress, String placeId, String locationType,
+                             boolean pinnedByUser, LocalDateTime geocodedAt) {
+
+        public static Resolution none() {
+            return new Resolution(false, null, null, null, null, null, false, null);
+        }
+
+        /** Kết quả geocode = Google đoán, nên {@code pinnedByUser} luôn false. */
+        public static Resolution of(GeoPoint point) {
+            return new Resolution(true, point.latitude(), point.longitude(),
+                    point.formattedAddress(), point.placeId(), point.locationType(),
+                    false, LocalDateTime.now());
+        }
+    }
+
+    /**
+     * Kết quả geocode có kém tới mức phải bắt gym xác minh lại địa chỉ không (V59)?
+     *
+     * <p>Google phân bốn mức: {@code ROOFTOP} (đúng toà nhà), {@code RANGE_INTERPOLATED}
+     * (nội suy giữa hai số nhà), {@code GEOMETRIC_CENTER} (giữa một đoạn phố) và
+     * {@code APPROXIMATE}. Ba mức đầu đều đủ để khách đi tới đúng nơi; chỉ
+     * APPROXIMATE là đáng lo — nó thường là tâm phường/quận, nghĩa là Google
+     * không hiểu được số nhà và ghim có thể lệch hàng km.
+     *
+     * <p>{@code locationType} null (operator tự ghim trên bản đồ) KHÔNG bị coi là
+     * kém: người ở đó biết vị trí thật rõ hơn dịch vụ đoán địa chỉ.
+     */
+    public static boolean isImprecise(String locationType) {
+        return "APPROXIMATE".equals(locationType);
+    }
+
+    /** @param pin địa điểm client ghim sẵn; {@link Pin#none()} khi không có. */
+    public Resolution resolve(Pin pin, String address, String district, String city) {
+        if (pin.hasValidCoordinates()) {
+            // locationType null: đây là toạ độ người thật ghim, không phải phỏng
+            // đoán của Google — không có "độ chính xác" nào để chấm điểm.
+            return new Resolution(true, pin.latitude(), pin.longitude(),
+                    emptyToNull(pin.formattedAddress()), emptyToNull(pin.placeId()),
+                    null, pin.pinnedByUser(), LocalDateTime.now());
         }
         String query = buildQuery(address, district, city);
         if (!StringUtils.hasText(query)) {
@@ -79,5 +127,9 @@ public class AddressGeocoder {
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("");
         return joined.isEmpty() ? "" : joined + ", Việt Nam";
+    }
+
+    private static String emptyToNull(String value) {
+        return StringUtils.hasText(value) ? value : null;
     }
 }

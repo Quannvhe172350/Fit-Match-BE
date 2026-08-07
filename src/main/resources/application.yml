@@ -91,3 +91,12 @@ app:
     public-geocode-enabled: ${GOOGLE_MAPS_PUBLIC_GEOCODE:false}
     max-search-radius-km: ${GYM_SEARCH_MAX_RADIUS_KM:50}
     default-search-radius-km: ${GYM_SEARCH_DEFAULT_RADIUS_KM:5}
+    # V59 — đệm kết quả geocode trong DB để không trả tiền hai lần cho cùng một câu trả lời.
+    cache-ttl-days: ${GEOCODE_CACHE_TTL_DAYS:90}
+    # Job nền tự bổ sung toạ độ còn thiếu + làm mới toạ độ cũ. Mặc định TẮT: nó
+    # tiêu quota Google mà không có ai nhìn. Chạy nhiều instance thì cần khoá phân tán.
+    backfill-job-enabled: ${GEOCODE_BACKFILL_JOB:false}
+    backfill-job-cron: ${GEOCODE_BACKFILL_CRON:0 30 3 * * *}
+    backfill-job-limit: ${GEOCODE_BACKFILL_LIMIT:100}
+    # Toạ độ cũ hơn ngần này ngày sẽ được tra lại THEO place_id; 0 = tắt làm mới.
+    refresh-after-days: ${GEOCODE_REFRESH_AFTER_DAYS:180}

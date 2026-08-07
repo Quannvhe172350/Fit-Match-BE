@@ -47,6 +47,24 @@ public class BranchRequest {
     @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
     private java.math.BigDecimal longitude;
 
+    /**
+     * Metadata của chính gợi ý Places mà operator đã chọn, gửi kèm toạ độ. Không
+     * có nó thì mỗi lần ghim toạ độ tay là hai cột này bị bỏ trống dù FE đang cầm
+     * sẵn giá trị đúng. Bỏ trống -> giữ nguyên giá trị đang lưu.
+     */
+    @Size(max = 255)
+    private String placeId;
+
+    @Size(max = 500)
+    private String formattedAddress;
+
+    /**
+     * V60 — toạ độ do người kéo ghim trên bản đồ chứ không lấy nguyên từ gợi ý
+     * Places. Job làm mới định kỳ bỏ qua bản ghi được đánh dấu, nếu không nó kéo
+     * ghim về chỗ Google nói và xoá sạch công sửa tay. Null = coi như false.
+     */
+    private Boolean coordinatesPinned;
+
     /** UC-016: tiện ích của chi nhánh, phân tách bằng dấu phẩy (vd "Parking,Sauna,Pool"). */
     @Size(max = 1000)
     private String amenities;
