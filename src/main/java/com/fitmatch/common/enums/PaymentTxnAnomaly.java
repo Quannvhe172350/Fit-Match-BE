@@ -19,5 +19,17 @@ public enum PaymentTxnAnomaly {
     LATE_ARRIVAL,
 
     /** Đơn không còn ở trạng thái chờ (đã thanh toán/hủy) — thường là chuyển khoản trùng. */
-    DUPLICATE
+    DUPLICATE,
+
+    /**
+     * V61 — giao dịch CHI trên sao kê nhưng nội dung không chứa mã lệnh rút nào.
+     * Tiền đã rời tài khoản nền tảng mà không gắn được với lệnh rút: phải soi tay.
+     */
+    PAYOUT_UNMATCHED,
+
+    /** V61 — khớp lệnh rút nhưng số tiền chi khác số tiền được duyệt. */
+    PAYOUT_AMOUNT_MISMATCH,
+
+    /** V61 — khớp lệnh rút nhưng lệnh không ở trạng thái APPROVED (chưa duyệt/đã chi rồi). */
+    PAYOUT_STATE_MISMATCH
 }

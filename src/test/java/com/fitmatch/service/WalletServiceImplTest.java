@@ -1,6 +1,8 @@
 package com.fitmatch.service;
 
+import com.fitmatch.common.enums.WalletOwnerType;
 import com.fitmatch.common.enums.WalletTxnType;
+import com.fitmatch.entity.User;
 import com.fitmatch.entity.Wallet;
 import com.fitmatch.entity.WalletTransaction;
 import com.fitmatch.exception.BusinessException;
@@ -120,5 +122,49 @@ class WalletServiceImplTest {
     void negativeAmount_rejected() {
         assertThatThrownBy(() -> service.hold(5L, 10L, new BigDecimal("-1")))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    // ----- V61: ví đa chủ sở hữu -----
+
+    /** Ví khách hàng để kiểm thử luồng hoàn tiền chạm hai ví. */
+    private Wallet secondWallet(long id, WalletOwnerType ownerType) {
+        Wallet w = Wallet.builder().id(id).ownerType(ownerType)
+                .heldBalance(BigDecimal.ZERO).pendingBalance(BigDecimal.ZERO)
+                .availableBalance(BigDecimal.ZERO).frozenBalance(BigDecimal.ZERO)
+                .build();
+        lenient().when(walletRepository.lockById(id)).thenReturn(Optional.of(w));
+        return w;
+    }
+
+    @Test
+    void refundToCustomer_debitsGymHeldAndCreditsCustomerAvailable() {
+        wallet.setOwnerType(WalletOwnerType.GYM);
+        wallet.setHeldBalance(new BigDecimal("300.00"));
+        Wallet customerWallet = secondWallet(2L, WalletOwnerType.CUSTOMER);
+        User customer = User.builder().id(42L).username("khach").build();
+        when(walletRepository.findByUser_Id(42L)).thenReturn(Optional.of(customerWallet));
+
+        service.refundToCustomer(5L, customer, 10L, new BigDecimal("120.00"));
+
+        assertThat(wallet.getHeldBalance()).isEqualByComparingTo("180.00");
+        assertThat(customerWallet.getAvailableBalance()).isEqualByComparingTo("120.00");
+
+        ArgumentCaptor<WalletTransaction> cap = ArgumentCaptor.forClass(WalletTransaction.class);
+        verify(walletTransactionRepository, org.mockito.Mockito.times(2)).save(cap.capture());
+        assertThat(cap.getAllValues()).extracting(WalletTransaction::getType)
+                .containsExactly(WalletTxnType.REFUND, WalletTxnType.REFUND_CREDIT);
+    }
+
+    @Test
+    void refundToCustomer_withoutCustomer_fallsBackToHeldDebitOnly() {
+        // Dữ liệu cũ không truy ra được khách: vẫn phải hoàn được, chỉ là không
+        // ghi có vào ví nào — chặn hẳn luồng refund còn tệ hơn.
+        wallet.setOwnerType(WalletOwnerType.GYM);
+        wallet.setHeldBalance(new BigDecimal("300.00"));
+
+        service.refundToCustomer(5L, null, 10L, new BigDecimal("120.00"));
+
+        assertThat(wallet.getHeldBalance()).isEqualByComparingTo("180.00");
+        verify(walletTransactionRepository, org.mockito.Mockito.times(1)).save(any(WalletTransaction.class));
     }
 }

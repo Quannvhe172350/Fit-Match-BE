@@ -6,6 +6,7 @@ import com.fitmatch.common.enums.SettlementStatus;
 import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.Dispute;
 import com.fitmatch.entity.GymProfile;
+import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.service.support.DisputeFinancialApplier;
@@ -28,11 +29,15 @@ class DisputeFinancialApplierTest {
 
     @Mock private WalletService walletService;
     @Mock private BookingRepository bookingRepository;
+    @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private DisputeFinancialApplier applier;
+
+    private static final User CUSTOMER = User.builder().id(42L).username("john").build();
 
     private Dispute dispute(BigDecimal frozen) {
         Booking b = Booking.builder().id(10L)
                 .gymProfile(GymProfile.builder().id(5L).build())
+                .customer(CUSTOMER)
                 .settlementStatus(SettlementStatus.DISPUTED)
                 .build();
         return Dispute.builder().id(1L).booking(b).frozenAmount(frozen).build();
@@ -44,7 +49,7 @@ class DisputeFinancialApplierTest {
 
         applier.apply(d, DisputeResolution.REFUND_FULL, null);
 
-        verify(walletService).refundFromHeld(5L, 10L, new BigDecimal("200.00"));
+        verify(walletService).refundToCustomer(5L, CUSTOMER, 10L, new BigDecimal("200.00"));
         verify(walletService, never()).moveToPending(any(), any(), any());
         assertThat(d.getBooking().getSettlementStatus()).isEqualTo(SettlementStatus.REFUNDED);
     }
@@ -56,7 +61,7 @@ class DisputeFinancialApplierTest {
         applier.apply(d, DisputeResolution.RELEASE_TO_GYM, null);
 
         verify(walletService).moveToPending(5L, 10L, new BigDecimal("200.00"));
-        verify(walletService, never()).refundFromHeld(any(), any(), any());
+        verify(walletService, never()).refundToCustomer(any(), any(), any(), any());
         assertThat(d.getBooking().getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
     }
 
@@ -66,7 +71,7 @@ class DisputeFinancialApplierTest {
 
         applier.apply(d, DisputeResolution.SPLIT, new BigDecimal("120.00"));
 
-        verify(walletService).refundFromHeld(5L, 10L, new BigDecimal("120.00"));
+        verify(walletService).refundToCustomer(5L, CUSTOMER, 10L, new BigDecimal("120.00"));
         verify(walletService).moveToPending(5L, 10L, new BigDecimal("80.00"));
         assertThat(d.getBooking().getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
         assertThat(d.getBooking().getSettlementAmount()).isEqualByComparingTo("80.00");
@@ -88,7 +93,7 @@ class DisputeFinancialApplierTest {
 
         applier.apply(d, DisputeResolution.REFUND_FULL, null);
 
-        verify(walletService, never()).refundFromHeld(any(), any(), any());
+        verify(walletService, never()).refundToCustomer(any(), any(), any(), any());
         assertThat(d.getBooking().getSettlementStatus()).isEqualTo(SettlementStatus.NONE);
     }
 }

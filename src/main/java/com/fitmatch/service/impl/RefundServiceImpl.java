@@ -133,7 +133,10 @@ public class RefundServiceImpl implements RefundService {
 
         Long gymId = booking.getGymProfile().getId();
         if (refund.compareTo(BigDecimal.ZERO) > 0) {
-            walletService.refundFromHeld(gymId, booking.getId(), refund);
+            // V61: tiền hoàn ghi có thẳng vào ví khách thay vì chỉ trừ held. Trước
+            // đây khoản này rời ví gym rồi biến mất khỏi sổ sách — không có bản ghi
+            // nào chứng minh khách đã nhận lại, và khách không có đường tự rút.
+            walletService.refundToCustomer(gymId, booking.getCustomer(), booking.getId(), refund);
         }
         // Phần không hoàn (phí giữ lại theo chính sách) thuộc về Gym — vào pending settlement.
         BigDecimal retained = request.getAmount().subtract(refund);
@@ -155,6 +158,9 @@ public class RefundServiceImpl implements RefundService {
 
         if (refund.compareTo(BigDecimal.ZERO) > 0) {
             notificationDispatcher.refundExecuted(booking, refund);
+            if (booking.getCustomer() != null) {
+                notificationDispatcher.refundCreditedToWallet(booking.getCustomer(), refund, booking.getId());
+            }
         }
         auditService.record(AuditActions.REFUND_EXECUTE, "RefundRequest", refundId,
                 "Refund " + refund + " executed by " + actorUsername
