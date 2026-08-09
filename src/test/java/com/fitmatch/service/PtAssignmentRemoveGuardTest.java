@@ -1,6 +1,9 @@
 package com.fitmatch.service;
 
+import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.VerificationStatus;
+import com.fitmatch.dto.pt.PtAssignmentRequest;
+import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.PtAssignment;
 import com.fitmatch.entity.PtProfile;
@@ -67,6 +70,42 @@ class PtAssignmentRemoveGuardTest {
         service.remove("gym", 2L, 7L);
 
         verify(ptAssignmentRepository).delete(a);
+    }
+
+    @Test
+    void assign_toDeactivatedBranch_blocked() {
+        // Chi nhánh đã ngừng không nhận booking nào, nên phân công vào đó chỉ tạo
+        // bản ghi treo — chặn ở BE vì dropdown FE không phải chốt cuối.
+        when(ptProfileRepository.findByIdAndGymProfile_User_Username(2L, "gym"))
+                .thenReturn(Optional.of(PtProfile.builder().id(2L).build()));
+        when(ptAssignmentRepository.existsByPtProfile_IdAndGymBranch_Id(2L, 4L)).thenReturn(false);
+        when(gymBranchRepository.findByIdAndGymProfile_User_Username(4L, "gym"))
+                .thenReturn(Optional.of(GymBranch.builder().id(4L).active(false).build()));
+
+        PtAssignmentRequest request = PtAssignmentRequest.builder().branchId(4L).build();
+
+        assertThatThrownBy(() -> service.assign("gym", 2L, request))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_STATE);
+        verify(ptAssignmentRepository, never()).save(any());
+    }
+
+    @Test
+    void assign_toActiveBranch_saves() {
+        when(ptProfileRepository.findByIdAndGymProfile_User_Username(2L, "gym"))
+                .thenReturn(Optional.of(PtProfile.builder().id(2L).build()));
+        when(ptAssignmentRepository.existsByPtProfile_IdAndGymBranch_Id(2L, 4L)).thenReturn(false);
+        when(gymBranchRepository.findByIdAndGymProfile_User_Username(4L, "gym"))
+                .thenReturn(Optional.of(GymBranch.builder().id(4L).active(true).build()));
+        when(ptAssignmentRepository.save(any(PtAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        PtAssignmentRequest request = PtAssignmentRequest.builder().branchId(4L).build();
+
+        service.assign("gym", 2L, request);
+
+        verify(ptAssignmentRepository).save(any(PtAssignment.class));
     }
 
     @Test
