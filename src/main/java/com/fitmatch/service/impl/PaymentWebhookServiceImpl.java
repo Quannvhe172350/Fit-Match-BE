@@ -3,19 +3,25 @@ package com.fitmatch.service.impl;
 import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
+import com.fitmatch.common.enums.PaymentTxnDirection;
 import com.fitmatch.common.enums.ReconStatus;
+import com.fitmatch.common.enums.WithdrawalStatus;
 import com.fitmatch.dto.payment.CassoWebhookRequest;
 import com.fitmatch.entity.PaymentOrder;
 import com.fitmatch.entity.PaymentTransaction;
+import com.fitmatch.entity.WithdrawalRequest;
 import com.fitmatch.repository.PaymentOrderRepository;
 import com.fitmatch.repository.PaymentTransactionRepository;
+import com.fitmatch.repository.WithdrawalRequestRepository;
 import com.fitmatch.service.PaymentWebhookService;
+import com.fitmatch.service.WithdrawalService;
 import com.fitmatch.service.support.BookingPaymentHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -25,12 +31,20 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class PaymentWebhookServiceImpl implements PaymentWebhookService {
 
-    /** refCode dạng FM<digits><6 hex uppercase>, dò trong nội dung chuyển khoản. */
+    /** refCode tiền VÀO dạng FM<digits><6 hex uppercase>, dò trong nội dung chuyển khoản. */
     private static final Pattern REF_PATTERN = Pattern.compile("FM\\d+[0-9A-F]{6}");
+
+    /**
+     * refCode tiền RA dạng FMW<digits><6 hex uppercase> — mã lệnh rút.
+     * Không đụng {@link #REF_PATTERN} vì sau "FM" mẫu kia bắt buộc là chữ số.
+     */
+    private static final Pattern PAYOUT_REF_PATTERN = Pattern.compile("FMW\\d+[0-9A-F]{6}");
 
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentOrderRepository paymentOrderRepository;
+    private final WithdrawalRequestRepository withdrawalRequestRepository;
     private final BookingPaymentHandler bookingPaymentHandler;
+    private final WithdrawalService withdrawalService;
     private final TransactionTemplate transactionTemplate;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
@@ -61,7 +75,8 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
     }
 
     /**
-     * Trả về true nếu giao dịch khớp và thanh toán được xác nhận.
+     * Trả về true nếu giao dịch khớp và được áp tự động (xác nhận thanh toán ở
+     * chiều VÀO, hoặc chốt chi trả lệnh rút ở chiều RA).
      * <p>
      * Mọi giao dịch đều được lưu kèm kết quả phân loại đối soát: khớp trọn vẹn ->
      * {@link ReconStatus#APPLIED}; còn lại -> {@link ReconStatus#NEEDS_REVIEW} kèm
@@ -75,7 +90,17 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
             log.info("Casso txn {} already processed - skipped", item.getId());
             return false;
         }
-        String refCode = extractRef(item.getDescription());
+        // Casso gửi amount ÂM cho giao dịch ghi nợ (tiền rời tài khoản nền tảng).
+        boolean outgoing = item.getAmount() != null && item.getAmount().signum() < 0;
+        return outgoing ? processOutgoing(item) : processIncoming(item);
+    }
+
+    // ------------------------------------------------------------------
+    // Chiều VÀO: khách thanh toán booking
+    // ------------------------------------------------------------------
+
+    private boolean processIncoming(CassoWebhookRequest.Item item) {
+        String refCode = extractRef(item.getDescription(), REF_PATTERN);
         PaymentOrder order = refCode != null
                 ? paymentOrderRepository.findByRefCode(refCode).orElse(null) : null;
 
@@ -86,6 +111,7 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
         // OVERPAID vẫn phải review: booking đã xác nhận nhưng phần thừa còn nợ khách.
         paymentTransactionRepository.save(PaymentTransaction.builder()
                 .externalId(item.getId())
+                .direction(PaymentTxnDirection.IN)
                 .amount(item.getAmount())
                 .refCode(refCode)
                 .rawDescription(item.getDescription())
@@ -151,11 +177,72 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
         // DUPLICATE: đơn đã xử lý xong -> không làm khách hoang mang, Finance đối soát.
     }
 
-    private String extractRef(String description) {
+    // ------------------------------------------------------------------
+    // Chiều RA (V61): nền tảng chi trả lệnh rút
+    // ------------------------------------------------------------------
+
+    /**
+     * Khớp một giao dịch ghi nợ trên sao kê với lệnh rút đã duyệt và tự chuyển
+     * lệnh sang PAID — đây là bước "verify bằng biến động số dư": tiền chỉ được
+     * ghi nhận đã chi khi ngân hàng thực sự trừ tài khoản nền tảng, chứ không
+     * dựa vào việc admin có bấm nút hay không.
+     * <p>
+     * Chỉ tự động khi khớp TUYỆT ĐỐI: đúng mã lệnh rút trong nội dung, đúng số
+     * tiền, lệnh đang ở APPROVED. Mọi sai lệch đi vào hàng đợi đối soát để người
+     * thật xem — chi sai tiền là việc không được đoán.
+     */
+    private boolean processOutgoing(CassoWebhookRequest.Item item) {
+        BigDecimal debited = item.getAmount().abs();
+        String refCode = extractRef(item.getDescription(), PAYOUT_REF_PATTERN);
+        WithdrawalRequest request = refCode != null
+                ? withdrawalRequestRepository.findByRefCode(refCode).orElse(null) : null;
+
+        PaymentTxnAnomaly anomaly = classifyOutgoing(request, debited);
+
+        paymentTransactionRepository.save(PaymentTransaction.builder()
+                .externalId(item.getId())
+                .direction(PaymentTxnDirection.OUT)
+                .amount(item.getAmount())
+                .refCode(refCode)
+                .rawDescription(item.getDescription())
+                .withdrawalRequest(request)
+                .anomaly(anomaly)
+                .reconStatus(anomaly == null ? ReconStatus.APPLIED : ReconStatus.NEEDS_REVIEW)
+                .build());
+
+        if (anomaly != null) {
+            log.warn("Casso payout txn {} flagged {} (ref {}, debited {}, withdrawal {}) "
+                            + "- queued for manual reconciliation",
+                    item.getId(), anomaly, refCode, debited,
+                    request != null ? request.getId() : null);
+            return false;
+        }
+
+        withdrawalService.markPaidByReconciliation(request.getId(), item.getId());
+        return true;
+    }
+
+    /** Null = giao dịch chi khớp trọn vẹn một lệnh rút đã duyệt. */
+    private PaymentTxnAnomaly classifyOutgoing(WithdrawalRequest request, BigDecimal debited) {
+        if (request == null) {
+            return PaymentTxnAnomaly.PAYOUT_UNMATCHED;
+        }
+        if (request.getStatus() != WithdrawalStatus.APPROVED) {
+            // Đã PAID = webhook bắn trùng hoặc chi hai lần; PENDING/REJECTED = tiền
+            // ra khỏi tài khoản cho một lệnh chưa/không được duyệt.
+            return PaymentTxnAnomaly.PAYOUT_STATE_MISMATCH;
+        }
+        if (debited.compareTo(request.getAmount()) != 0) {
+            return PaymentTxnAnomaly.PAYOUT_AMOUNT_MISMATCH;
+        }
+        return null;
+    }
+
+    private String extractRef(String description, Pattern pattern) {
         if (description == null) {
             return null;
         }
-        Matcher m = REF_PATTERN.matcher(description.toUpperCase());
+        Matcher m = pattern.matcher(description.toUpperCase());
         return m.find() ? m.group() : null;
     }
 }

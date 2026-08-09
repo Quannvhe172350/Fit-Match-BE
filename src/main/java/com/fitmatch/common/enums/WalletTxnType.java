@@ -30,5 +30,8 @@ public enum WalletTxnType {
     WITHDRAWAL,
 
     /** Kéo tiền từ pending về held khi mở tranh chấp (UC-063/067) — bảo vệ khỏi auto-release. */
-    DISPUTE_HOLD
+    DISPUTE_HOLD,
+
+    /** Ví khách hàng nhận tiền hoàn từ held của gym (refund/tranh chấp). V61. */
+    REFUND_CREDIT
 }

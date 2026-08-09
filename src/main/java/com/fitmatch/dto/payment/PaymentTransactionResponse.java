@@ -3,7 +3,9 @@ package com.fitmatch.dto.payment;
 import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
+import com.fitmatch.common.enums.PaymentTxnDirection;
 import com.fitmatch.common.enums.ReconStatus;
+import com.fitmatch.common.enums.WithdrawalStatus;
 import com.fitmatch.entity.PaymentTransaction;
 import lombok.Builder;
 import lombok.Getter;
@@ -21,12 +23,22 @@ public class PaymentTransactionResponse {
     /** Id giao dịch bên Casso — dùng để tra cứu ở sao kê ngân hàng. */
     private String externalId;
 
+    /** Âm với giao dịch ghi nợ (chi trả lệnh rút). */
     private BigDecimal amount;
     private String refCode;
     private String rawDescription;
 
+    /** V61: IN = khách trả tiền booking, OUT = nền tảng chi trả lệnh rút. */
+    private PaymentTxnDirection direction;
+
     private ReconStatus reconStatus;
     private PaymentTxnAnomaly anomaly;
+
+    /** V61: lệnh rút khớp được (chỉ với direction = OUT). */
+    private Long withdrawalRequestId;
+    private BigDecimal withdrawalAmount;
+    private WithdrawalStatus withdrawalStatus;
+    private String withdrawalOwnerName;
 
     /** Đơn thanh toán khớp được (null khi UNMATCHED). */
     private Long paymentOrderId;
@@ -52,6 +64,7 @@ public class PaymentTransactionResponse {
                 .amount(t.getAmount())
                 .refCode(t.getRefCode())
                 .rawDescription(t.getRawDescription())
+                .direction(t.getDirection())
                 .reconStatus(t.getReconStatus())
                 .anomaly(t.getAnomaly())
                 .resolutionNote(t.getResolutionNote())
@@ -59,6 +72,18 @@ public class PaymentTransactionResponse {
                 .resolvedAt(t.getResolvedAt())
                 .createdAt(t.getCreatedAt());
 
+        if (t.getWithdrawalRequest() != null) {
+            var wr = t.getWithdrawalRequest();
+            b.withdrawalRequestId(wr.getId())
+                    .withdrawalAmount(wr.getAmount())
+                    .withdrawalStatus(wr.getStatus())
+                    .withdrawalOwnerName(wr.getAccountHolder());
+            if (t.getAmount() != null && wr.getAmount() != null) {
+                // Chiều chi: amount âm nên so sánh trên giá trị tuyệt đối, dương =
+                // chi thừa so với số đã duyệt.
+                b.amountDifference(t.getAmount().abs().subtract(wr.getAmount()));
+            }
+        }
         if (t.getPaymentOrder() != null) {
             var order = t.getPaymentOrder();
             b.paymentOrderId(order.getId())

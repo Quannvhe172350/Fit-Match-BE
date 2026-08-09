@@ -28,6 +28,7 @@ public class DisputeFinancialApplier {
 
     private final WalletService walletService;
     private final BookingRepository bookingRepository;
+    private final NotificationDispatcher notificationDispatcher;
 
     public void apply(Dispute dispute, DisputeResolution resolution, BigDecimal refundAmount) {
         Booking booking = dispute.getBooking();
@@ -72,7 +73,12 @@ public class DisputeFinancialApplier {
         BigDecimal toGym = held.subtract(refund);
 
         if (refund.compareTo(BigDecimal.ZERO) > 0) {
-            walletService.refundFromHeld(gymId, booking.getId(), refund);
+            // V61: cùng lý do như RefundServiceImpl — phần hoàn cho khách phải ghi
+            // có vào ví khách, không được chỉ trừ held rồi mất dấu.
+            walletService.refundToCustomer(gymId, booking.getCustomer(), booking.getId(), refund);
+            if (booking.getCustomer() != null) {
+                notificationDispatcher.refundCreditedToWallet(booking.getCustomer(), refund, booking.getId());
+            }
         }
         if (toGym.compareTo(BigDecimal.ZERO) > 0) {
             walletService.moveToPending(gymId, booking.getId(), toGym);

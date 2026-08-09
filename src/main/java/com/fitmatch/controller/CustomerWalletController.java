@@ -27,60 +27,61 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Ví khách hàng (V61). Tiền vào ví là các khoản hoàn từ refund/tranh chấp —
+ * trước đây khoản này chỉ trừ khỏi held của gym rồi phải chuyển khoản tay.
+ */
 @RestController
-@RequestMapping("/api/gym/wallet")
+@RequestMapping("/api/customer/wallet")
 @RequiredArgsConstructor
-@Tag(name = "F. Gym - Wallet", description = "Ví Gym: số dư, sổ cái, rút tiền (UC-061/062). Yêu cầu ROLE_GYM_OPERATOR + Gym APPROVED.")
+@Tag(name = "D. Customer - Wallet", description = "Ví khách hàng: số dư tiền hoàn, sổ cái, rút tiền (UC-061/062).")
 @SecurityRequirement(name = "bearerAuth")
-@PreAuthorize("hasRole('GYM_OPERATOR')")
-public class GymWalletController {
+@PreAuthorize("isAuthenticated()")
+public class CustomerWalletController {
 
     private final WalletQueryService walletQueryService;
     private final WithdrawalService withdrawalService;
 
     @Operation(
-            summary = "UC-061 — Xem số dư ví",
-            description = "Actor: **Gym Operator**. 4 bucket: held (escrow) / pending (chờ hết holding period) / available (rút được) / frozen (dispute hoặc rút tiền đang xử lý). Lỗi: 409 Gym chưa APPROVED; 404 chưa có hồ sơ Gym.")
+            summary = "UC-061 — Xem số dư ví khách hàng",
+            description = "Actor: **Customer**. available = tiền hoàn đã về, rút được bất cứ lúc nào; frozen = đang có lệnh rút chờ xử lý. Ví được tạo tự động ở lần xem đầu tiên.")
     @GetMapping
     public ResponseEntity<ApiResponse<WalletResponse>> getWallet(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(
-                walletQueryService.getForOwner(userDetails.getUsername(), WalletOwnerType.GYM)));
+                walletQueryService.getForOwner(userDetails.getUsername(), WalletOwnerType.CUSTOMER)));
     }
 
     @Operation(
-            summary = "UC-061 — Lịch sử bút toán ví",
-            description = "Actor: **Gym Operator**. Sổ cái append-only, mới nhất trước; mỗi bút toán kèm snapshot 4 bucket sau khi áp.")
+            summary = "UC-061 — Lịch sử bút toán ví khách hàng",
+            description = "Actor: **Customer**. REFUND_CREDIT = tiền hoàn vào ví; WITHDRAWAL = đã rút về ngân hàng.")
     @GetMapping("/transactions")
     public ResponseEntity<ApiResponse<PageResponse<WalletTransactionResponse>>> transactions(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
                 walletQueryService.transactionsForOwner(
-                        userDetails.getUsername(), WalletOwnerType.GYM, pageable)));
+                        userDetails.getUsername(), WalletOwnerType.CUSTOMER, pageable)));
     }
 
     @Operation(
-            summary = "UC-062 — Gửi yêu cầu rút tiền",
-            description = "Actor: **Gym Operator**. Chọn tài khoản thụ hưởng đã lưu (`bankAccountId`); số tiền được giữ chỗ ngay (available -> frozen) chờ Finance duyệt, từ chối sẽ trả lại available. Lỗi: 409 số dư khả dụng không đủ; 404 tài khoản ngân hàng không thuộc về bạn.")
+            summary = "UC-062 — Khách hàng gửi yêu cầu rút tiền hoàn",
+            description = "Actor: **Customer**. Chọn tài khoản thụ hưởng đã lưu (`bankAccountId`). Lỗi: 409 số dư khả dụng không đủ.")
     @PostMapping("/withdrawals")
     public ResponseEntity<ApiResponse<WithdrawalResponse>> requestWithdrawal(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody WithdrawalCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
                 "Withdrawal requested",
-                withdrawalService.create(userDetails.getUsername(), WalletOwnerType.GYM, request)));
+                withdrawalService.create(userDetails.getUsername(), WalletOwnerType.CUSTOMER, request)));
     }
 
-    @Operation(
-            summary = "UC-062 — Danh sách yêu cầu rút tiền của Gym",
-            description = "Actor: **Gym Operator**.")
+    @Operation(summary = "UC-062 — Danh sách yêu cầu rút tiền của khách hàng", description = "Actor: **Customer**.")
     @GetMapping("/withdrawals")
     public ResponseEntity<ApiResponse<PageResponse<WithdrawalResponse>>> myWithdrawals(
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                withdrawalService.listForOwner(userDetails.getUsername(), WalletOwnerType.GYM, pageable)));
+                withdrawalService.listForOwner(userDetails.getUsername(), WalletOwnerType.CUSTOMER, pageable)));
     }
-
 }

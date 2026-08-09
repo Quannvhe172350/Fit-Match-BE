@@ -1,6 +1,7 @@
 package com.fitmatch.entity;
 
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
+import com.fitmatch.common.enums.PaymentTxnDirection;
 import com.fitmatch.common.enums.ReconStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,14 +51,28 @@ public class PaymentTransaction extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Đơn thanh toán khớp được (null nếu không khớp refCode nào). */
+    /** Đơn thanh toán khớp được (chỉ với direction = IN; null nếu không khớp refCode nào). */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_order_id")
     private PaymentOrder paymentOrder;
 
+    /** V61 — lệnh rút khớp được (chỉ với direction = OUT). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "withdrawal_request_id")
+    private WithdrawalRequest withdrawalRequest;
+
     /** Id giao dịch từ Casso — khoá idempotency. */
     @Column(name = "external_id", nullable = false, unique = true, length = 100)
     private String externalId;
+
+    /**
+     * V61 — chiều tiền. IN = khách thanh toán booking; OUT = nền tảng chi trả
+     * lệnh rút. Casso gửi {@code amount} âm cho giao dịch ghi nợ.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "direction", nullable = false, length = 10)
+    @Builder.Default
+    private PaymentTxnDirection direction = PaymentTxnDirection.IN;
 
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;
