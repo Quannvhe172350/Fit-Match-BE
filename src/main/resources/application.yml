@@ -79,6 +79,12 @@ app:
     webhook-secret: ${CASSO_WEBHOOK_SECRET:}
   payment:
     order-ttl-hours: ${PAYMENT_ORDER_TTL_HOURS:24}
+  # UC-003: OAuth Client ID (loại Web application) dùng để kiểm tra claim `aud` của
+  # ID token do FE gửi lên — phải TRÙNG với NEXT_PUBLIC_GOOGLE_CLIENT_ID của FE.
+  # Không cần client secret. Nhiều client (web/Android/iOS) thì cách nhau bằng dấu phẩy.
+  # Để trống -> /api/auth/google trả 503 GOOGLE_AUTH_DISABLED, FE tự ẩn nút Google.
+  google-oauth:
+    client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
   # UC-18 (V55): tìm phòng gym theo bán kính. Key SERVER dùng cho Geocoding API
   # (nên giới hạn theo IP) — khác key browser của FE dùng Maps JavaScript + Places.
   # Không set key -> mọi luồng geocode tự tắt, gym vẫn lưu địa chỉ nhưng không có toạ độ.
