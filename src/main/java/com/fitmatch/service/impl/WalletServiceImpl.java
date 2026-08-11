@@ -1,7 +1,6 @@
 package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.ErrorCode;
-import com.fitmatch.common.enums.WalletOwnerType;
 import com.fitmatch.common.enums.WalletTxnType;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.User;
@@ -12,13 +11,17 @@ import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.WalletRepository;
 import com.fitmatch.repository.WalletTransactionRepository;
 import com.fitmatch.service.WalletService;
+import com.fitmatch.service.support.WalletCreator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Optional;
+import java.util.function.Supplier;
 
 @Slf4j
 @Service
@@ -27,25 +30,47 @@ public class WalletServiceImpl implements WalletService {
 
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
+    private final WalletCreator walletCreator;
 
     @Override
     @Transactional
     public Wallet getOrCreate(GymProfile gymProfile) {
         return walletRepository.findByGymProfile_Id(gymProfile.getId())
-                .orElseGet(() -> walletRepository.save(Wallet.builder()
-                        .ownerType(WalletOwnerType.GYM)
-                        .gymProfile(gymProfile)
-                        .build()));
+                .orElseGet(() -> createOrReuse(
+                        () -> walletCreator.createForGym(gymProfile),
+                        () -> walletRepository.lockByGymProfileId(gymProfile.getId())));
     }
 
     @Override
     @Transactional
     public Wallet getOrCreateForCustomer(User user) {
         return walletRepository.findByUser_Id(user.getId())
-                .orElseGet(() -> walletRepository.save(Wallet.builder()
-                        .ownerType(WalletOwnerType.CUSTOMER)
-                        .user(user)
-                        .build()));
+                .orElseGet(() -> createOrReuse(
+                        () -> walletCreator.createForCustomer(user),
+                        () -> walletRepository.lockByUserId(user.getId())));
+    }
+
+    /**
+     * Tạo ví (ở transaction riêng của {@link WalletCreator}) rồi đọc lại bằng
+     * truy vấn KHOÁ.
+     * <p>
+     * Đọc lại kể cả khi tạo thành công, vì ví do transaction bên trong tạo ra là
+     * detached với transaction này — trả thẳng ra thì mọi thay đổi số dư sau đó
+     * sẽ không được dirty-checking ghi xuống DB. Đọc lại còn xử lý luôn ca thua
+     * cuộc đua: ví mà request song song vừa tạo chính là ví ta cần.
+     * <p>
+     * Đọc lại mà vẫn rỗng nghĩa là lỗi UNIQUE đến từ nguyên nhân khác (vd
+     * {@code chk_wallet_single_owner}) — ném lại lỗi gốc thay vì che đi.
+     */
+    private Wallet createOrReuse(Runnable create, Supplier<Optional<Wallet>> lockedReread) {
+        try {
+            create.run();
+        } catch (DataIntegrityViolationException e) {
+            log.debug("Wallet was created by a concurrent request - reusing it", e);
+            return lockedReread.get().orElseThrow(() -> e);
+        }
+        return lockedReread.get().orElseThrow(
+                () -> new IllegalStateException("Wallet was just created but cannot be read back"));
     }
 
     // ------------------------------------------------------------------

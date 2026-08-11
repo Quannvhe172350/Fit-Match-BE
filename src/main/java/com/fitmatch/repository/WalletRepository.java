@@ -27,4 +27,19 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select w from Wallet w where w.id = :id")
     Optional<Wallet> lockById(@Param("id") Long id);
+
+    /**
+     * Đọc lại ví Gym sau khi tạo ví lần đầu. PHẢI là truy vấn khoá: dưới
+     * REPEATABLE READ (mặc định của InnoDB), SELECT thường vẫn trả về snapshot
+     * chụp từ lần đọc đầu transaction nên KHÔNG thấy ví do request song song vừa
+     * commit — đọc lại bằng {@code findByGymProfile_Id} sẽ rỗng y như cũ.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from Wallet w where w.gymProfile.id = :gymProfileId")
+    Optional<Wallet> lockByGymProfileId(@Param("gymProfileId") Long gymProfileId);
+
+    /** V61 — đọc lại ví khách hàng bằng truy vấn khoá; xem {@link #lockByGymProfileId}. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from Wallet w where w.user.id = :userId")
+    Optional<Wallet> lockByUserId(@Param("userId") Long userId);
 }

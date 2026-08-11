@@ -36,6 +36,7 @@ class WalletServiceImplTest {
 
     @Mock private WalletRepository walletRepository;
     @Mock private WalletTransactionRepository walletTransactionRepository;
+    @Mock private com.fitmatch.service.support.WalletCreator walletCreator;
     @InjectMocks private WalletServiceImpl service;
 
     private Wallet wallet;
@@ -166,5 +167,62 @@ class WalletServiceImplTest {
 
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("180.00");
         verify(walletTransactionRepository, org.mockito.Mockito.times(1)).save(any(WalletTransaction.class));
+    }
+
+    // ----- Tạo ví lazy dưới truy cập đồng thời -----
+
+    @Test
+    void getOrCreateForCustomer_losesCreationRace_reusesWalletFromWinner() {
+        // FE mở màn hình ví bắn nhiều request song song; tất cả cùng thấy ví
+        // chưa có rồi cùng INSERT. Request thua UK_wallets_user phải nhận ví của
+        // request thắng, không được ném lỗi ra người dùng.
+        User customer = User.builder().id(42L).username("khach").build();
+        Wallet created = secondWallet(2L, WalletOwnerType.CUSTOMER);
+        when(walletRepository.findByUser_Id(42L)).thenReturn(Optional.empty());
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("UK_wallets_user"))
+                .when(walletCreator).createForCustomer(customer);
+        when(walletRepository.lockByUserId(42L)).thenReturn(Optional.of(created));
+
+        assertThat(service.getOrCreateForCustomer(customer)).isSameAs(created);
+    }
+
+    @Test
+    void getOrCreateForCustomer_createsWallet_returnsManagedInstanceFromReread() {
+        // Kể cả khi tạo thành công vẫn phải đọc lại: bản ghi do transaction bên
+        // trong tạo ra là detached, trả thẳng ra thì đổi số dư sẽ không xuống DB.
+        User customer = User.builder().id(42L).username("khach").build();
+        Wallet created = secondWallet(2L, WalletOwnerType.CUSTOMER);
+        when(walletRepository.findByUser_Id(42L)).thenReturn(Optional.empty());
+        when(walletRepository.lockByUserId(42L)).thenReturn(Optional.of(created));
+
+        assertThat(service.getOrCreateForCustomer(customer)).isSameAs(created);
+        verify(walletCreator).createForCustomer(customer);
+    }
+
+    @Test
+    void getOrCreate_losesCreationRace_reusesWalletFromWinner() {
+        com.fitmatch.entity.GymProfile gym = com.fitmatch.entity.GymProfile.builder().id(7L).build();
+        Wallet created = secondWallet(3L, WalletOwnerType.GYM);
+        when(walletRepository.findByGymProfile_Id(7L)).thenReturn(Optional.empty());
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("gym_profile_id"))
+                .when(walletCreator).createForGym(gym);
+        when(walletRepository.lockByGymProfileId(7L)).thenReturn(Optional.of(created));
+
+        assertThat(service.getOrCreate(gym)).isSameAs(created);
+    }
+
+    @Test
+    void getOrCreate_integrityErrorFromAnotherCause_rethrows() {
+        // Đọc lại vẫn rỗng -> lỗi không đến từ cuộc đua (vd chk_wallet_single_owner);
+        // che đi sẽ biến lỗi dữ liệu thật thành "không tìm thấy ví".
+        com.fitmatch.entity.GymProfile gym = com.fitmatch.entity.GymProfile.builder().id(7L).build();
+        when(walletRepository.findByGymProfile_Id(7L)).thenReturn(Optional.empty());
+        org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("chk_wallet_single_owner"))
+                .when(walletCreator).createForGym(gym);
+        when(walletRepository.lockByGymProfileId(7L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getOrCreate(gym))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_wallet_single_owner");
     }
 }
