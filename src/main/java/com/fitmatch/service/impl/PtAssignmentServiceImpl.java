@@ -61,12 +61,14 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
             GymBranch branch = gymBranchRepository
                     .findByIdAndGymProfile_User_Username(request.getBranchId(), gymUsername)
                     .orElseThrow(() -> new ResourceNotFoundException("Gym branch", request.getBranchId()));
-            // Chi nhánh đã ngừng thì không nhận booking nào (ScheduleConflictValidator
-            // chặn ở khâu đặt lịch), nên phân công vào đó chỉ tạo bản ghi treo.
+            // Chi nhánh đã ngừng hoạt động không nhận PT mới: gán vào đó thì PT không
+            // thể phục vụ ai (marketplace chỉ trả chi nhánh active) mà nhìn danh sách
+            // phân công lại tưởng PT đã có chỗ làm việc. Chi nhánh ngừng cũng không
+            // nhận booking nào (ScheduleConflictValidator chặn ở khâu đặt lịch).
             if (!branch.isActive()) {
                 throw new BusinessException(ErrorCode.INVALID_STATE,
-                        "Cannot assign PT to branch #" + branch.getId()
-                                + ": the branch is deactivated. Reactivate it first.");
+                        "Cannot assign PT to a deactivated branch #" + branch.getId()
+                                + ". Reactivate it first.");
             }
             builder.gymBranch(branch);
         } else if (request.getServiceId() != null) {
