@@ -34,7 +34,10 @@ public class AttendanceSupport {
     private final BookingLifecycle bookingLifecycle;
     private final AuditService auditService;
 
-    /** UC-046: ghi nhận check-in — CONFIRMED, trong cửa sổ [startAt-30', endAt], chưa check-in. */
+    /**
+     * UC-046: ghi nhận check-in — CONFIRMED, trong cửa sổ [startAt-30', endAt], chưa check-in.
+     * TẠM: chặn "sớm hơn 30 phút" đang bị comment để test nhanh (xem bên dưới), nhớ mở lại.
+     */
     public void checkIn(Booking booking, String actorLabel) {
         if (booking.getStatus() != BookingStatus.CONFIRMED) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
@@ -44,11 +47,13 @@ public class AttendanceSupport {
             throw new BusinessException(ErrorCode.INVALID_STATE, "Booking is already checked in");
         }
         LocalDateTime now = LocalDateTime.now();
-        if (booking.getStartAt() == null
-                || now.isBefore(booking.getStartAt().minusMinutes(EARLY_CHECK_IN_MINUTES))) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Check-in opens " + EARLY_CHECK_IN_MINUTES + " minutes before the session start");
-        }
+        // TODO(test): tạm bỏ chặn check-in sớm để khỏi phải chờ tới sát giờ khi test.
+        // MỞ LẠI trước khi merge — bỏ comment nguyên khối dưới đây là xong.
+        // if (booking.getStartAt() == null
+        //         || now.isBefore(booking.getStartAt().minusMinutes(EARLY_CHECK_IN_MINUTES))) {
+        //     throw new BusinessException(ErrorCode.INVALID_STATE,
+        //             "Check-in opens " + EARLY_CHECK_IN_MINUTES + " minutes before the session start");
+        // }
         if (booking.getEndAt() != null && now.isAfter(booking.getEndAt())) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "The session has already ended - ask the gym to correct attendance instead");
