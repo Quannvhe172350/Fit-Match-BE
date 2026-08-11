@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 /** Customer gửi/sửa đánh giá cho một booking COMPLETED (UC-069). */
 @Getter
 @Setter
@@ -26,4 +28,14 @@ public class ReviewRequest {
 
     @Size(max = 2000)
     private String comment;
+
+    /**
+     * Ảnh đính kèm — id trả về từ {@code POST /api/media/upload} với
+     * {@code entityType=REVIEW, imageType=REVIEW_IMAGE} và không truyền entityId.
+     * Chỉ gắn được ảnh do chính người gửi đánh giá upload; ảnh của người khác bị
+     * từ chối 404. Khi sửa đánh giá, danh sách này là trạng thái CUỐI CÙNG: ảnh cũ
+     * không còn trong danh sách sẽ bị gỡ và xoá khỏi storage.
+     */
+    @Size(max = 10, message = "at most 10 images per review")
+    private List<Long> mediaIds;
 }

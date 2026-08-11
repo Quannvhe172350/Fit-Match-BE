@@ -36,6 +36,17 @@ application-local.yml
 application-local.yaml
 .env
 
+# Service account key của Google Cloud (Storage/Maps). Ưu tiên Application Default
+# Credentials để không có file key nào tồn tại; nếu buộc phải dùng key ở máy dev
+# thì để NGOÀI repo. Các mẫu dưới đây là lưới an toàn cuối cùng.
+*-service-account*.json
+*service-account*.json
+gcp-*.json
+gcs-*.json
+*credentials*.json
+*.pem
+*.p12
+
 ### Logs ###
 logs/
 *.log

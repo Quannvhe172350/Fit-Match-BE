@@ -3,6 +3,7 @@ package com.fitmatch.service;
 import com.fitmatch.common.enums.ReportStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.review.ModerateReviewRequest;
+import com.fitmatch.dto.review.RatingSummaryResponse;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewReportResponse;
 import com.fitmatch.dto.review.ReviewRequest;
@@ -34,6 +35,11 @@ public interface ReviewService {
     PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, Pageable pageable);
 
     PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, Pageable pageable);
+
+    /** UC-009: điểm trung bình + phổ điểm 1..5 sao của một gym (chỉ review VISIBLE). */
+    RatingSummaryResponse gymRatingSummary(Long gymProfileId);
+
+    RatingSummaryResponse ptRatingSummary(Long ptProfileId);
 
     // ----- Gym (UC-023) -----
     PageResponse<ReviewResponse> gymReviews(String gymUsername, Pageable pageable);

@@ -8,6 +8,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Tổng hợp điểm đánh giá VISIBLE (UC-071) cho marketplace/monitor. Truy vấn AVG
@@ -37,6 +40,23 @@ public class RatingAggregator {
 
     public Rating forPt(Long ptProfileId) {
         return Rating.from(reviewRepository.aggregatePt(ptProfileId));
+    }
+
+    /** Phổ điểm {sao -> số lượng} của gym; sao không có review nào thì vắng khỏi map. */
+    public Map<Integer, Long> distributionForGym(Long gymProfileId) {
+        return toDistribution(reviewRepository.ratingDistributionGym(gymProfileId));
+    }
+
+    public Map<Integer, Long> distributionForPt(Long ptProfileId) {
+        return toDistribution(reviewRepository.ratingDistributionPt(ptProfileId));
+    }
+
+    private Map<Integer, Long> toDistribution(List<Object[]> rows) {
+        Map<Integer, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            result.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
+        }
+        return result;
     }
 
     // ----- UC-008 (V51): đồng bộ cột denorm avg_rating/rating_count để sort marketplace -----

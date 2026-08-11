@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -35,4 +36,18 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     @Query("select coalesce(avg(r.rating), 0), count(r) from Review r "
             + "where r.ptProfile.id = :ptId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE")
     Object[] aggregatePt(@Param("ptId") Long ptId);
+
+    /**
+     * Phổ điểm 1..5 sao của một gym — trả về các cặp (rating, count) cho biểu đồ
+     * thanh trên trang chi tiết. Gom nhóm ở DB thay vì tải hết review về đếm.
+     */
+    @Query("select r.rating, count(r) from Review r "
+            + "where r.gymProfile.id = :gymId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE "
+            + "group by r.rating")
+    List<Object[]> ratingDistributionGym(@Param("gymId") Long gymId);
+
+    @Query("select r.rating, count(r) from Review r "
+            + "where r.ptProfile.id = :ptId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE "
+            + "group by r.rating")
+    List<Object[]> ratingDistributionPt(@Param("ptId") Long ptId);
 }

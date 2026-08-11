@@ -1,6 +1,8 @@
 package com.fitmatch.service.impl;
 
 import com.fitmatch.common.enums.CatalogStatus;
+import com.fitmatch.common.enums.MediaEntityType;
+import com.fitmatch.common.enums.MediaImageType;
 import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.VerificationStatus;
 import com.fitmatch.common.response.PageResponse;
@@ -17,7 +19,6 @@ import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.GymBranchRepository;
-import com.fitmatch.repository.GymMediaRepository;
 import com.fitmatch.repository.GymProfileRepository;
 import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.OperatingHourRepository;
@@ -28,6 +29,7 @@ import com.fitmatch.repository.projection.GymDistanceView;
 import com.fitmatch.repository.spec.GymProfileSpecifications;
 import com.fitmatch.repository.spec.PtProfileSpecifications;
 import com.fitmatch.service.MarketplaceService;
+import com.fitmatch.service.MediaService;
 import com.fitmatch.service.support.GeoUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -37,6 +39,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -52,7 +55,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final GymBranchRepository gymBranchRepository;
     private final GymServiceRepository gymServiceRepository;
     private final TrainingPackageRepository trainingPackageRepository;
-    private final GymMediaRepository gymMediaRepository;
+    private final MediaService mediaService;
     private final OperatingHourRepository operatingHourRepository;
     private final com.fitmatch.repository.AvailabilitySlotRepository availabilitySlotRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
@@ -163,9 +166,12 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private GymPublicProfileResponse toCardResponse(GymProfile gym) {
         var rating = ratingAggregator.forGym(gym.getId());
         var response = GymPublicProfileResponse.of(gym, rating.average(), rating.count());
-        gymMediaRepository.findByGymProfile_Id(gym.getId()).stream()
-                .findFirst()
-                .ifPresent(m -> response.setCoverUrl(m.getUrl()));
+        // V64: ưu tiên ảnh bìa gym tự chọn; chưa đặt bìa thì lấy ảnh chính của thư viện.
+        var cover = mediaService.primaryFor(MediaEntityType.GYM, gym.getId(), MediaImageType.COVER);
+        if (cover == null) {
+            cover = mediaService.primaryFor(MediaEntityType.GYM, gym.getId(), MediaImageType.GALLERY);
+        }
+        if (cover != null) response.setCoverUrl(cover.getUrl());
         return response;
     }
 
@@ -259,8 +265,16 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Transactional(readOnly = true)
     public List<GymMediaResponse> listGymMedia(Long gymProfileId) {
         requireVisibleGym(gymProfileId);
-        return gymMediaRepository.findByGymProfile_Id(gymProfileId)
-                .stream().map(GymMediaResponse::of).toList();
+        // Ảnh chung của Gym + ảnh riêng của từng chi nhánh đang hoạt động — khách
+        // xem trang gym mong thấy toàn bộ, có branchId để lọc phía FE.
+        List<GymMediaResponse> media = new ArrayList<>(
+                mediaService.list(null, MediaEntityType.GYM, gymProfileId, null)
+                        .stream().map(GymMediaResponse::of).toList());
+        List<Long> branchIds = gymBranchRepository.findByGymProfile_IdAndActiveTrue(gymProfileId)
+                .stream().map(com.fitmatch.entity.GymBranch::getId).toList();
+        mediaService.listForEntities(MediaEntityType.BRANCH, branchIds, null)
+                .values().forEach(list -> list.forEach(m -> media.add(GymMediaResponse.of(m))));
+        return media;
     }
 
     @Override

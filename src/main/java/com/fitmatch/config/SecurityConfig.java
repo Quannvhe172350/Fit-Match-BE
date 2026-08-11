@@ -104,6 +104,12 @@ public class SecurityConfig {
                         // nên trang chi tiết gym/PT chỉ hiện điểm TB, danh sách review 401).
                         // Chỉ 2 nhánh này; /api/reviews/me và các thao tác ghi vẫn cần đăng nhập.
                         .requestMatchers(HttpMethod.GET, "/api/reviews/gym/**", "/api/reviews/pt/**").permitAll()
+                        // V64: đọc ảnh của hồ sơ công khai (gym/chi nhánh/dịch vụ/gói/PT/đánh giá)
+                        // phải mở cho khách vãng lai — nếu không trang chi tiết gym sẽ toàn ảnh vỡ.
+                        // MediaAccessGuard mới là nơi quyết định loại nào công khai: ảnh check-in
+                        // vẫn 403 với người ngoài dù endpoint được permitAll ở đây.
+                        .requestMatchers(HttpMethod.GET, "/api/media", "/api/media/page",
+                                "/api/media/raw/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 // UC-003: 401 trả mã cụ thể (TOKEN_EXPIRED/TOKEN_INVALID), 403 chuẩn JSON.

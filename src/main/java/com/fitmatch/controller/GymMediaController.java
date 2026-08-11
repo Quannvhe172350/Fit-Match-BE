@@ -1,15 +1,15 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.MediaImageType;
 import com.fitmatch.common.response.ApiResponse;
-import com.fitmatch.dto.gym.GymMediaRequest;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.service.GymMediaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -18,10 +18,11 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -35,14 +36,22 @@ public class GymMediaController {
 
     private final GymMediaService gymMediaService;
 
-    @Operation(summary = "UC-016 — Thêm ảnh cho Gym/chi nhánh",
-            description = "Actor: **Gym Operator**. URL lấy từ /api/files/upload; branchId null = ảnh chung của Gym. Lỗi: 404 branch không thuộc Gym; 409 Gym chưa APPROVED.")
-    @PostMapping
-    public ResponseEntity<ApiResponse<GymMediaResponse>> add(
+    @Operation(summary = "UC-016 — Upload ảnh cho Gym/chi nhánh",
+            description = """
+                    Actor: **Gym Operator**. Gửi trực tiếp file (multipart) — V64 bỏ bước
+                    "upload lấy URL rồi POST URL": ảnh đi thẳng lên Google Cloud Storage và
+                    được ghi metadata trong cùng một giao dịch.
+                    `branchId` null = ảnh chung của Gym; `imageType` mặc định GALLERY, dùng COVER cho ảnh bìa.
+                    Lỗi: 404 branch không thuộc Gym; 409 Gym chưa APPROVED; 400 file sai định dạng/quá lớn.""")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<List<GymMediaResponse>>> upload(
             @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody GymMediaRequest request) {
+            @RequestPart("files") MultipartFile[] files,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) MediaImageType imageType,
+            @RequestParam(required = false) String caption) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Media added",
-                gymMediaService.add(userDetails.getUsername(), request)));
+                gymMediaService.upload(userDetails.getUsername(), branchId, imageType, caption, files)));
     }
 
     @Operation(summary = "UC-016 — Xoá ảnh",

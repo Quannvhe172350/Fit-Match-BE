@@ -99,8 +99,27 @@ jobs:
           JWT_SECRET=${{ secrets.JWT_SECRET }}
           APP_BASE_URL=${{ secrets.APP_BASE_URL }}
           FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+          # Storage: ảnh nằm trên Google Cloud Storage, KHÔNG trên đĩa container
+          # (đĩa container bị xoá mỗi lần redeploy). GCS_ENABLED viết tường minh dù
+          # application-dev.yml đã bật sẵn — đọc file này phải thấy được là đang
+          # dùng bucket nào, không phải lần mò trong YAML profile.
+          GCS_ENABLED=true
           GCS_BUCKET=${{ secrets.GCS_BUCKET }}
           GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}
+          # Bucket được cấp allUsers:objectViewer -> trả URL công khai cố định
+          # (cache được ở CDN). Đổi bucket sang private thì PHẢI đổi cờ này thành
+          # false, nếu không mọi ảnh sẽ 403 trên trình duyệt.
+          MEDIA_PUBLIC_READ=true
+          # Dùng `|| 'x'`: vars chưa khai báo sẽ render thành chuỗi RỖNG, mà env
+          # rỗng vẫn là "đã định nghĩa" nên default trong application.yml không cứu
+          # -> Spring bind "" vào int và app chết lúc khởi động.
+          MAX_IMAGE_SIZE_MB=${{ vars.MAX_IMAGE_SIZE_MB || '5' }}
+          MAX_IMAGES_PER_ENTITY=${{ vars.MAX_IMAGES_PER_ENTITY || '10' }}
+          # Hạn mức tầng servlet PHẢI lớn hơn MAX_IMAGE_SIZE_MB: nhỏ hơn thì request
+          # bị chặn trước khi vào controller và người dùng nhận lỗi kỹ thuật thay vì
+          # thông báo "ảnh vượt quá N MB".
+          MAX_UPLOAD_FILE_SIZE=${{ vars.MAX_UPLOAD_FILE_SIZE || '12MB' }}
+          MAX_UPLOAD_REQUEST_SIZE=${{ vars.MAX_UPLOAD_REQUEST_SIZE || '80MB' }}
           MAIL_HOST=smtp.gmail.com
           MAIL_PORT=587
           MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}

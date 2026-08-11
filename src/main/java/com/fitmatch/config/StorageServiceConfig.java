@@ -17,8 +17,9 @@ public class StorageServiceConfig {
     @ConditionalOnBean(Storage.class)
     public StorageService gcsStorageService(
             Storage storage,
-            @Value("${app.gcs.bucket}") String bucket) {
-        return new GCSStorageService(storage, bucket);
+            @Value("${app.gcs.bucket}") String bucket,
+            @Value("${app.media.public-read:true}") boolean publicRead) {
+        return new GCSStorageService(storage, bucket, publicRead);
     }
 
     @Bean

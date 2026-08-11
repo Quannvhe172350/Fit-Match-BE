@@ -3,7 +3,10 @@ package com.fitmatch.service.impl;
 import com.fitmatch.dto.user.EmergencyContactDto;
 import com.fitmatch.dto.user.FitnessPreferencesDto;
 import com.fitmatch.common.enums.ErrorCode;
+import com.fitmatch.common.enums.MediaEntityType;
+import com.fitmatch.common.enums.MediaImageType;
 import com.fitmatch.common.enums.UserStatus;
+import com.fitmatch.dto.media.MediaResponse;
 import com.fitmatch.dto.user.DeactivateAccountRequest;
 import com.fitmatch.dto.user.UpdateProfileRequest;
 import com.fitmatch.dto.user.UserResponse;
@@ -12,6 +15,7 @@ import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.mapper.UserMapper;
 import com.fitmatch.repository.UserRepository;
+import com.fitmatch.service.MediaService;
 import com.fitmatch.service.StorageService;
 import com.fitmatch.service.UserService;
 import com.fitmatch.service.support.EmailVerificationIssuer;
@@ -22,19 +26,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.UUID;
+import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private static final long MAX_AVATAR_SIZE_BYTES = 5L * 1024 * 1024;
-    private static final java.util.Set<String> ALLOWED_AVATAR_TYPES = java.util.Set.of(
-            "image/jpeg", "image/png", "image/gif", "image/webp");
-
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final MediaService mediaService;
     private final PasswordEncoder passwordEncoder;
     private final EmailVerificationIssuer emailVerificationIssuer;
 
@@ -97,43 +98,35 @@ public class UserServiceImpl implements UserService {
         return UserMapper.toResponse(user);
     }
 
+    /**
+     * UC-05 (V64): avatar đi qua Media system thay vì tự upload — nhờ đó dùng chung
+     * kiểm tra magic bytes, sinh thumbnail và dọn object khi rollback.
+     *
+     * <p>AVATAR là loại ảnh singleton: {@code MediaService.upload} tự xoá bản ghi +
+     * object của avatar cũ, nên không tích tụ ảnh cũ trên bucket. Cột
+     * {@code users.avatar_url} vẫn được cập nhật vì rất nhiều response (danh sách
+     * booking, review, chat) đọc thẳng cột này — bỏ đi sẽ thành N+1 khắp nơi.
+     */
     @Override
     @Transactional
     public UserResponse uploadAvatar(String username, MultipartFile file) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
 
-        // P1-23: validate ảnh (rỗng/kích thước/loại) — trước đây nhận mọi file kể cả
-        // .html/.exe. Chỉ ảnh, tối đa 5MB.
-        if (file.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Avatar file must not be empty");
-        }
-        if (file.getSize() > MAX_AVATAR_SIZE_BYTES) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Avatar exceeds the 5MB size limit");
-        }
-        if (file.getContentType() == null || !ALLOWED_AVATAR_TYPES.contains(file.getContentType())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "Unsupported avatar type. Allowed: JPEG, PNG, GIF, WEBP");
-        }
+        String previousUrl = user.getAvatarUrl();
+        List<MediaResponse> uploaded = mediaService.upload(username, MediaEntityType.USER, user.getId(),
+                MediaImageType.AVATAR, new MultipartFile[]{file});
 
-        String ext = switch (file.getContentType()) {
-            case "image/png" -> ".png";
-            case "image/gif" -> ".gif";
-            case "image/webp" -> ".webp";
-            default -> ".jpg";
-        };
-        String filename = UUID.randomUUID() + ext;
-
-        // Upload mới TRƯỚC rồi mới xoá cũ — nếu upload lỗi thì avatar cũ còn nguyên.
-        String publicUrl = storageService.upload("avatars", filename, file);
-        String oldUrl = user.getAvatarUrl();
-        user.setAvatarUrl(publicUrl);
+        user.setAvatarUrl(uploaded.get(0).getUrl());
         user = userRepository.save(user);
-        if (oldUrl != null) {
+
+        // Avatar cũ từ trước V64 chỉ tồn tại dưới dạng URL trong users.avatar_url —
+        // không có bản ghi media nào để MediaService dọn hộ, nên xoá tay ở đây.
+        if (previousUrl != null && !previousUrl.equals(user.getAvatarUrl())) {
             try {
-                storageService.delete(oldUrl);
+                storageService.delete(previousUrl);
             } catch (Exception e) {
-                log.warn("Failed to delete old avatar {}: {}", oldUrl, e.getMessage());
+                log.warn("Failed to delete old avatar {}: {}", previousUrl, e.getMessage());
             }
         }
 

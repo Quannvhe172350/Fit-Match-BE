@@ -2,6 +2,7 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.review.RatingSummaryResponse;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
@@ -125,5 +126,24 @@ public class ReviewController {
             @PathVariable Long ptId, @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
                 reviewService.visibleForPt(ptId, pageable)));
+    }
+
+    @Operation(
+            summary = "UC-009 — Điểm trung bình & phổ điểm của Gym",
+            description = "Actor: **Guest/Customer**. Trả về averageRating, totalReviews và số lượng theo từng mức sao. "
+                    + "Chỉ tính review VISIBLE — review bị gỡ/ẩn không kéo điểm xuống.")
+    @SecurityRequirements
+    @GetMapping("/gym/{gymId}/rating")
+    public ResponseEntity<ApiResponse<RatingSummaryResponse>> gymRating(@PathVariable Long gymId) {
+        return ResponseEntity.ok(ApiResponse.success(reviewService.gymRatingSummary(gymId)));
+    }
+
+    @Operation(
+            summary = "UC-009 — Điểm trung bình & phổ điểm của PT",
+            description = "Actor: **Guest/Customer**. Chỉ tính review VISIBLE.")
+    @SecurityRequirements
+    @GetMapping("/pt/{ptId}/rating")
+    public ResponseEntity<ApiResponse<RatingSummaryResponse>> ptRating(@PathVariable Long ptId) {
+        return ResponseEntity.ok(ApiResponse.success(reviewService.ptRatingSummary(ptId)));
     }
 }

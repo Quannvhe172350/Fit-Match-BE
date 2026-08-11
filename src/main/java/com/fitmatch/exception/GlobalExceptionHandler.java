@@ -16,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -130,6 +131,20 @@ public class GlobalExceptionHandler {
         log.warn("No handler for {} {}", request.getMethod(), request.getRequestURI());
         return build(ErrorCode.RESOURCE_NOT_FOUND,
                 "No endpoint " + request.getMethod() + " " + request.getRequestURI(), request);
+    }
+
+    /**
+     * V64: file vượt hạn mức của tầng servlet bị chặn TRƯỚC khi vào controller, nên
+     * kiểm tra dung lượng trong {@code ImageFileValidator} không kịp chạy. Không bắt
+     * ở đây thì người dùng nhận 500 "Internal server error" khi chọn nhầm ảnh 40MB
+     * từ điện thoại — hoàn toàn không hiểu chuyện gì xảy ra.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> handleUploadTooLarge(MaxUploadSizeExceededException ex,
+                                                              HttpServletRequest request) {
+        log.warn("Upload too large on path {}: {}", request.getRequestURI(), ex.getMessage());
+        return build(ErrorCode.VALIDATION_ERROR,
+                "The uploaded file is too large - please choose a smaller image", request);
     }
 
     @ExceptionHandler(Exception.class)

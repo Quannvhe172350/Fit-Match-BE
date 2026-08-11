@@ -19,6 +19,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +33,8 @@ class MarketplaceServiceImplTest {
     @Mock private com.fitmatch.repository.GymBranchRepository gymBranchRepository;
     @Mock private com.fitmatch.repository.GymServiceRepository gymServiceRepository;
     @Mock private com.fitmatch.repository.TrainingPackageRepository trainingPackageRepository;
-    @Mock private com.fitmatch.repository.GymMediaRepository gymMediaRepository;
+    // V64: ảnh gym/chi nhánh chuyển sang Media system dùng chung (media_assets).
+    @Mock private MediaService mediaService;
     @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
     @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
     @Mock private com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
@@ -132,7 +135,8 @@ class MarketplaceServiceImplTest {
         stubNearbyPage(view(5L, 0.03));
         when(gymProfileRepository.findAllById(List.of(5L))).thenReturn(List.of(gym));
         when(gymBranchRepository.findByGymProfile_IdInAndActiveTrue(List.of(5L))).thenReturn(List.of(branch));
-        when(gymMediaRepository.findByGymProfile_Id(5L)).thenReturn(List.of());
+        // Gym chưa có ảnh nào -> card không có coverUrl, nhưng vẫn phải render bình thường.
+        when(mediaService.primaryFor(any(), eq(5L), any())).thenReturn(null);
         when(ratingAggregator.forGym(5L)).thenReturn(
                 new com.fitmatch.service.support.RatingAggregator.Rating(new java.math.BigDecimal("4.5"), 3));
 

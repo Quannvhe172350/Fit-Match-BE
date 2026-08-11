@@ -17,6 +17,14 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MariaDBDialect
+  servlet:
+    multipart:
+      # Hạn mức của tầng servlet, PHẢI lớn hơn app.media.max-image-size-mb — nếu
+      # nhỏ hơn, request bị chặn trước khi vào controller và người dùng nhận lỗi
+      # kỹ thuật thay vì thông báo "ảnh vượt quá N MB" của tầng nghiệp vụ.
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:12MB}
+      # Upload nhiều ảnh một lần: đủ cho max-files-per-request tấm ảnh.
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:80MB}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -65,7 +73,25 @@ app:
     enabled: ${GCS_ENABLED:false}
     bucket: ${GCS_BUCKET:fit-match}
     project-id: ${GCP_PROJECT_ID:}
+    # Để trống ở môi trường Google Cloud -> dùng Application Default Credentials
+    # (Workload Identity / metadata server), KHÔNG cần service account JSON.
     credentials-path: ${GOOGLE_APPLICATION_CREDENTIALS:}
+  # V64 — hệ thống ảnh dùng chung. Giới hạn để ở đây chứ không hằng số trong code:
+  # dev cho phép ảnh to để test, prod siết lại theo hạn mức lưu trữ.
+  media:
+    max-image-size-mb: ${MAX_IMAGE_SIZE_MB:5}
+    max-images-per-entity: ${MAX_IMAGES_PER_ENTITY:10}
+    max-files-per-request: ${MAX_FILES_PER_REQUEST:10}
+    allowed-mime-types: ${ALLOWED_IMAGE_MIME_TYPES:image/jpeg,image/png,image/webp}
+    # true = bucket cho đọc ẩn danh (URL cố định, đặt được CDN).
+    # false = bucket private, mọi URL đều được ký lại với thời hạn bên dưới.
+    public-read: ${MEDIA_PUBLIC_READ:true}
+    signed-url-ttl-minutes: ${MEDIA_SIGNED_URL_TTL_MINUTES:60}
+    thumbnail-max-edge: ${MEDIA_THUMBNAIL_MAX_EDGE:400}
+    # Ảnh đã upload nhưng người dùng bỏ dở form -> dọn sau ngần này giờ.
+    orphan-retention-hours: ${MEDIA_ORPHAN_RETENTION_HOURS:24}
+    cleanup-job-enabled: ${MEDIA_CLEANUP_JOB:true}
+    cleanup-job-cron: ${MEDIA_CLEANUP_CRON:0 15 3 * * *}
   # VietQR: tài khoản nhận tiền của nền tảng (khách chuyển khoản theo QR)
   vietqr:
     bank-bin: ${VIETQR_BANK_BIN:970418}

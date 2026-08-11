@@ -73,7 +73,7 @@ class FlywayMigrationTest {
         var result = flyway.migrate();
         assertThat(result.success).as("Flyway migrate should succeed").isTrue();
         assertThat(flyway.info().current().getVersion().getVersion())
-                .as("latest applied migration version").isEqualTo("61");
+                .as("latest applied migration version").isEqualTo("64");
 
         try (Connection c = DriverManager.getConnection(schemaUrl(), user, password)) {
             // --- P0-3 guard: MỌI giá trị WalletTxnType phải có trong cột ENUM ---
@@ -120,6 +120,39 @@ class FlywayMigrationTest {
             // Mã đối soát backfill phải là DUY NHẤT, kể cả với dữ liệu cũ.
             assertThat(hasUniqueIndex(c, "withdrawal_requests", "ref_code"))
                     .as("withdrawal_requests.ref_code unique").isTrue();
+
+            // --- V64: media dùng chung (ảnh nằm trên GCS, DB chỉ giữ metadata) ---
+            for (String column : List.of("entity_type", "entity_id", "image_type", "storage_key",
+                    "bucket_name", "thumbnail_key", "mime_type", "file_size", "width", "height",
+                    "url", "sort_order", "is_primary", "owner_user_id")) {
+                assertThat(hasColumn(c, "media_assets", column))
+                        .as("media_assets." + column).isTrue();
+            }
+            // Ảnh nháp (chưa gắn entity) phải lưu được -> entity_id bắt buộc nullable.
+            assertThat(isNullable(c, "media_assets", "entity_id"))
+                    .as("media_assets.entity_id must be nullable for draft uploads").isTrue();
+            // Không có index này thì mọi lần mở trang gym là full scan bảng ảnh.
+            assertThat(hasIndex(c, "media_assets", "idx_media_entity"))
+                    .as("media_assets composite lookup index").isTrue();
+            assertThat(hasIndex(c, "media_assets", "idx_media_owner"))
+                    .as("media_assets owner index").isTrue();
+            // KHÔNG được có cột binary: nội dung ảnh phải nằm trên object storage.
+            assertThat(columnType(c, "media_assets", "data")).as("media_assets must not store blobs").isNull();
+            // gym_media giữ nguyên để rollback được — migration chỉ chép sang, không xoá.
+            assertThat(hasColumn(c, "gym_media", "url")).as("legacy gym_media preserved").isTrue();
+        }
+    }
+
+    private static boolean hasIndex(Connection c, String table, String indexName) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+                "select count(*) from information_schema.STATISTICS "
+                        + "where TABLE_SCHEMA = ? and TABLE_NAME = ? and INDEX_NAME = ?")) {
+            ps.setString(1, SCHEMA);
+            ps.setString(2, table);
+            ps.setString(3, indexName);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
         }
     }
 
