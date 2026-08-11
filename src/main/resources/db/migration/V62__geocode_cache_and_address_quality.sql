@@ -1,5 +1,5 @@
 -- =====================================================================
--- V59 (UC-18): giảm chi phí Google + tự phát hiện địa chỉ kém chất lượng.
+-- V62 (UC-18): giảm chi phí Google + tự phát hiện địa chỉ kém chất lượng.
 --
 -- 1) geocode_cache: cùng một chuỗi địa chỉ được geocode lại rất nhiều lần
 --    (5 chi nhánh cùng toà nhà, backfill chạy lặp, operator lưu đi lưu lại).
