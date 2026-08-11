@@ -61,6 +61,13 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
             GymBranch branch = gymBranchRepository
                     .findByIdAndGymProfile_User_Username(request.getBranchId(), gymUsername)
                     .orElseThrow(() -> new ResourceNotFoundException("Gym branch", request.getBranchId()));
+            // Chi nhánh đã ngừng hoạt động không nhận PT mới: gán vào đó thì PT không
+            // thể phục vụ ai (marketplace chỉ trả chi nhánh active) mà nhìn danh sách
+            // phân công lại tưởng PT đã có chỗ làm việc.
+            if (!branch.isActive()) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Cannot assign PT to a deactivated branch");
+            }
             builder.gymBranch(branch);
         } else if (request.getServiceId() != null) {
             if (ptAssignmentRepository.existsByPtProfile_IdAndGymService_Id(ptId, request.getServiceId())) {
@@ -92,6 +99,16 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
         PtAssignment assignment = ptAssignmentRepository
                 .findByIdAndPtProfile_GymProfile_User_Username(assignmentId, gymUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("PT assignment", assignmentId));
+        // PT phải luôn thuộc ít nhất một chi nhánh (UC-022): gỡ nốt chi nhánh cuối
+        // thì PT không còn nơi làm việc — không hiện ở marketplace và mọi booking
+        // đều bị BookingEligibilityChecker từ chối, nhưng PT vẫn ACTIVE nên gym
+        // không biết. Muốn PT ngừng làm thì tắt PT (UC-021), không phải gỡ hết.
+        if (assignment.getGymBranch() != null
+                && ptAssignmentRepository.countByPtProfile_IdAndGymBranchIsNotNull(ptId) <= 1) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Cannot remove the last branch of this PT. Assign another branch first, "
+                            + "or deactivate the PT instead.");
+        }
         // P1-16: không gỡ phân công khi PT còn booking giữ chỗ tương lai — nếu
         // không booking sẽ trỏ tới PT không còn được gán (bỏ rơi). Gym phải
         // reassign/hủy các booking đó trước (đồng nhất với chặn ở deactivate PT).

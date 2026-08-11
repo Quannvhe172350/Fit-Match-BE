@@ -1,5 +1,6 @@
 package com.fitmatch.dto.pt;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,4 +31,8 @@ public class UpdateGymPtRequest {
     private String serviceArea;
 
     private Integer experienceYears;
+
+    /** Liên hệ của PT (nằm ở User). Chuỗi rỗng = xoá số hiện có. */
+    @Pattern(regexp = "^$|^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
+    private String phone;
 }

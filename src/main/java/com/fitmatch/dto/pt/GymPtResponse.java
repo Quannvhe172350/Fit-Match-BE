@@ -21,6 +21,8 @@ public class GymPtResponse {
     private Long id;
     private String username;
     private String email;
+    /** Liên hệ của PT (User.phone) — Gym sửa được qua UpdateGymPtRequest. */
+    private String phone;
     private String displayName;
     private String bio;
     private String specialization;
@@ -35,6 +37,7 @@ public class GymPtResponse {
                 .id(p.getId())
                 .username(p.getUser() != null ? p.getUser().getUsername() : null)
                 .email(p.getUser() != null ? p.getUser().getEmail() : null)
+                .phone(p.getUser() != null ? p.getUser().getPhone() : null)
                 .displayName(p.getDisplayName())
                 .bio(p.getBio())
                 .specialization(p.getSpecialization())
