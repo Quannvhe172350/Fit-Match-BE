@@ -62,6 +62,19 @@ public class GoogleGeocodingService implements GeocodingService {
     }
 
     @Override
+    public Optional<GeoPoint> geocodeByPlaceId(String placeId) {
+        if (!isEnabled() || !StringUtils.hasText(placeId)) {
+            return Optional.empty();
+        }
+        return call(UriComponentsBuilder.fromUriString(GEOCODE_URL)
+                .queryParam("place_id", placeId)
+                .queryParam("language", properties.getLanguage())
+                .queryParam("key", properties.getApiKey())
+                .build(false)
+                .toUriString(), "geocode place_id " + placeId);
+    }
+
+    @Override
     public Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
         if (!isEnabled() || latitude == null || longitude == null) {
             return Optional.empty();
@@ -107,7 +120,9 @@ public class GoogleGeocodingService implements GeocodingService {
                     BigDecimal.valueOf(location.get("lat").asDouble()),
                     BigDecimal.valueOf(location.get("lng").asDouble()),
                     emptyToNull(first.path("formatted_address").asText(null)),
-                    emptyToNull(first.path("place_id").asText(null))));
+                    emptyToNull(first.path("place_id").asText(null)),
+                    // V59: nằm trong geometry, KHÔNG phải cạnh formatted_address.
+                    emptyToNull(first.path("geometry").path("location_type").asText(null))));
         } catch (Exception e) {
             log.warn("Không gọi được Google Maps khi {}: {}", what, e.getMessage());
             return Optional.empty();

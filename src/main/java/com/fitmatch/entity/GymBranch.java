@@ -66,6 +66,15 @@ public class GymBranch extends BaseEntity {
     @Column(name = "formatted_address", length = 500)
     private String formattedAddress;
 
+    /** V59: độ chính xác Google báo về (ROOFTOP / GEOMETRIC_CENTER / APPROXIMATE...). */
+    @Column(name = "location_type", length = 30)
+    private String locationType;
+
+    /** V60: toạ độ do chủ gym tự kéo ghim — job làm mới định kỳ không được đụng vào. */
+    @Column(name = "coordinates_pinned", nullable = false)
+    @Builder.Default
+    private boolean coordinatesPinned = false;
+
     @Column(name = "geocoded_at")
     private java.time.LocalDateTime geocodedAt;
 

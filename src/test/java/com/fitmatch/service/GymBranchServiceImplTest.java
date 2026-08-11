@@ -34,7 +34,7 @@ class GymBranchServiceImplTest {
     @org.junit.jupiter.api.BeforeEach
     void geocoderReturnsNothing() {
         org.mockito.Mockito.lenient()
-                .when(addressGeocoder.resolve(any(), any(), any(), any(), any()))
+                .when(addressGeocoder.resolve(any(), any(), any(), any()))
                 .thenReturn(com.fitmatch.service.support.AddressGeocoder.Resolution.none());
     }
 
@@ -83,7 +83,7 @@ class GymBranchServiceImplTest {
                 .phone("0909000111").build());
 
         org.mockito.Mockito.verify(addressGeocoder, org.mockito.Mockito.never())
-                .resolve(any(), any(), any(), any(), any());
+                .resolve(any(), any(), any(), any());
     }
 
     @Test
@@ -95,7 +95,7 @@ class GymBranchServiceImplTest {
         service.update("ops", 4L, BranchRequest.builder()
                 .name("Hoan Kiem").address("2 Le Thai To").city("Ha Noi").district("Hoan Kiem").build());
 
-        org.mockito.Mockito.verify(addressGeocoder).resolve(any(), any(), any(), any(), any());
+        org.mockito.Mockito.verify(addressGeocoder).resolve(any(), any(), any(), any());
     }
 
     /** Chi nhánh chưa có toạ độ phải được thử lại, kể cả khi địa chỉ giữ nguyên. */
@@ -110,7 +110,7 @@ class GymBranchServiceImplTest {
         service.update("ops", 4L, BranchRequest.builder()
                 .name("Hoan Kiem").address("1 Dinh Tien Hoang").city("Ha Noi").district("Hoan Kiem").build());
 
-        org.mockito.Mockito.verify(addressGeocoder).resolve(any(), any(), any(), any(), any());
+        org.mockito.Mockito.verify(addressGeocoder).resolve(any(), any(), any(), any());
     }
 
     /** Geocode hỏng KHÔNG được xoá trắng toạ độ đang có. */

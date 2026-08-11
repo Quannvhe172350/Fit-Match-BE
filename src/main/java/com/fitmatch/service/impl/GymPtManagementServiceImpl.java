@@ -37,6 +37,8 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final GymProfileResolver gymProfileResolver;
     private final AuditService auditService;
     private final com.fitmatch.repository.BookingRepository bookingRepository;
+    private final com.fitmatch.repository.GymBranchRepository gymBranchRepository;
+    private final com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.repository.DisputeRepository disputeRepository;
 
@@ -80,6 +82,20 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
                 .active(true)
                 .build());
 
+        // UC-019/022: gán chi nhánh ngay trong cùng transaction — PT không bao giờ
+        // tồn tại ở trạng thái "chưa thuộc chi nhánh nào". Chi nhánh phải thuộc
+        // chính Gym này và đang hoạt động (cùng luật với PtAssignmentServiceImpl).
+        for (Long branchId : request.getBranchIds().stream().filter(java.util.Objects::nonNull).distinct().toList()) {
+            var branch = gymBranchRepository.findByIdAndGymProfile_User_Username(branchId, gymUsername)
+                    .orElseThrow(() -> new ResourceNotFoundException("Gym branch", branchId));
+            if (!branch.isActive()) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Cannot assign PT to a deactivated branch: " + branch.getName());
+            }
+            ptAssignmentRepository.save(com.fitmatch.entity.PtAssignment.builder()
+                    .ptProfile(profile).gymBranch(branch).active(true).build());
+        }
+
         auditService.record(AuditActions.PT_CREATED_BY_GYM, "PtProfile", profile.getId(),
                 "PT " + ptUser.getUsername() + " created by gym " + gymUsername);
         log.info("PT {} created under gym {} (profile {})", ptUser.getUsername(), gymUsername, profile.getId());
@@ -117,6 +133,13 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         }
         if (request.getExperienceYears() != null) {
             profile.setExperienceYears(request.getExperienceYears());
+        }
+        // Số điện thoại nằm ở User chứ không ở PtProfile: Gym tạo tài khoản PT nên
+        // cũng là bên sửa liên hệ khi PT đổi số. Email/username là định danh đăng
+        // nhập nên KHÔNG sửa ở đây.
+        if (request.getPhone() != null && profile.getUser() != null) {
+            profile.getUser().setPhone(request.getPhone().isBlank() ? null : request.getPhone());
+            userRepository.save(profile.getUser());
         }
         ptProfileRepository.save(profile);
         log.info("PT profile {} updated by gym {}", ptId, gymUsername);

@@ -29,6 +29,12 @@ public class GymProfileResponse {
     private java.math.BigDecimal latitude;
     private java.math.BigDecimal longitude;
     private String formattedAddress;
+
+    /**
+     * V60: toạ độ do chủ gym kéo ghim tay. Form sửa PHẢI đọc và gửi lại cờ này —
+     * thiếu nó thì mỗi lần lưu hồ sơ là ghim tay bị hạ cấp về "Google đoán".
+     */
+    private boolean coordinatesPinned;
     private VerificationStatus verificationStatus;
     private String rejectionReason;
     private String reviewNote;
@@ -51,6 +57,7 @@ public class GymProfileResponse {
                 .latitude(g.getLatitude())
                 .longitude(g.getLongitude())
                 .formattedAddress(g.getFormattedAddress())
+                .coordinatesPinned(g.isCoordinatesPinned())
                 .verificationStatus(g.getVerificationStatus())
                 .rejectionReason(g.getRejectionReason())
                 .reviewNote(g.getReviewNote())

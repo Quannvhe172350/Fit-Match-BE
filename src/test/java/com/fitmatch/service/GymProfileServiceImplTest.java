@@ -42,7 +42,7 @@ class GymProfileServiceImplTest {
     @org.junit.jupiter.api.BeforeEach
     void geocoderReturnsNothing() {
         org.mockito.Mockito.lenient()
-                .when(addressGeocoder.resolve(any(), any(), any(), any(), any()))
+                .when(addressGeocoder.resolve(any(), any(), any(), any()))
                 .thenReturn(com.fitmatch.service.support.AddressGeocoder.Resolution.none());
     }
 

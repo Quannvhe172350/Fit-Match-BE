@@ -48,6 +48,30 @@ public class GoogleMapsProperties {
     /** Bán kính mặc định khi client chỉ gửi toạ độ mà không gửi radius. */
     private double defaultSearchRadiusKm = 5;
 
+    /**
+     * V59 — số ngày một kết quả geocode còn được coi là dùng lại được. Dài quá thì
+     * gym chuyển địa điểm vẫn trả toạ độ cũ; ngắn quá thì đệm gần như vô dụng.
+     */
+    private int cacheTtlDays = 90;
+
+    /** V59 — bật job nền tự bổ sung / làm mới toạ độ. Tắt = chỉ chạy tay qua endpoint admin. */
+    private boolean backfillJobEnabled = false;
+
+    /**
+     * Lịch chạy job. {@code @Scheduled} đọc thẳng từ Environment nên field này
+     * không bắt buộc — để ở đây cho cả khối cấu hình nằm cùng một chỗ.
+     */
+    private String backfillJobCron = "0 30 3 * * *";
+
+    /** Trần số bản ghi job xử lý mỗi lần chạy, cho MỖI pha (bổ sung và làm mới). */
+    private int backfillJobLimit = 100;
+
+    /**
+     * Toạ độ cũ hơn ngần này ngày sẽ được tra lại theo place_id. 0 = tắt hẳn việc
+     * làm mới, chỉ bổ sung hồ sơ còn thiếu toạ độ.
+     */
+    private int refreshAfterDays = 180;
+
     public boolean isEnabled() {
         return StringUtils.hasText(apiKey);
     }

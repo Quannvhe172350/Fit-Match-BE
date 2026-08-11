@@ -21,6 +21,12 @@ public interface PtAssignmentRepository extends JpaRepository<PtAssignment, Long
     boolean existsByPtProfile_IdAndTrainingPackage_Id(Long ptId, Long packageId);
 
     /**
+     * Số phân công CHI NHÁNH của một PT — dùng để giữ bất biến "PT luôn thuộc ít
+     * nhất một chi nhánh" khi gỡ phân công (UC-022).
+     */
+    long countByPtProfile_IdAndGymBranchIsNotNull(Long ptId);
+
+    /**
      * Bug S2-04: id các PT được phân công cho một chi nhánh. Khách chọn chi nhánh
      * rồi mới chọn PT — danh sách phải là PT thật sự phụ trách chi nhánh đó, không
      * phải toàn bộ PT của gym (BookingEligibilityChecker sẽ từ chối ở checkout).

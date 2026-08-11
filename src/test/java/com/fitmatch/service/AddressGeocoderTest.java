@@ -23,9 +23,13 @@ class AddressGeocoderTest {
     @Mock private GeocodingService geocodingService;
     @InjectMocks private AddressGeocoder addressGeocoder;
 
+    private static AddressGeocoder.Pin pin(String lat, String lng) {
+        return new AddressGeocoder.Pin(new BigDecimal(lat), new BigDecimal(lng), null, null, false);
+    }
+
     @Test
     void explicitCoordinatesWin_withoutCallingGoogle() {
-        var result = addressGeocoder.resolve(new BigDecimal("21.0287"), new BigDecimal("105.8524"),
+        var result = addressGeocoder.resolve(pin("21.0287", "105.8524"),
                 "1 Đinh Tiên Hoàng", "Hoàn Kiếm", "Hà Nội");
 
         assertThat(result.resolved()).isTrue();
@@ -35,12 +39,35 @@ class AddressGeocoderTest {
     }
 
     @Test
+    void explicitPlaceMetadata_isCarriedThrough_soCallerNeedNotGeocodeJustForIt() {
+        var result = addressGeocoder.resolve(
+                new AddressGeocoder.Pin(new BigDecimal("21.0287"), new BigDecimal("105.8524"),
+                        "place-42", "1 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội", false),
+                "1 Đinh Tiên Hoàng", "Hoàn Kiếm", "Hà Nội");
+
+        assertThat(result.placeId()).isEqualTo("place-42");
+        assertThat(result.formattedAddress()).isEqualTo("1 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội");
+        verify(geocodingService, never()).geocode(anyString());
+    }
+
+    @Test
+    void explicitCoordinatesWithoutMetadata_leaveMetadataNull_meaning_noNewInfo_notWipe() {
+        var result = addressGeocoder.resolve(
+                new AddressGeocoder.Pin(new BigDecimal("21.0287"), new BigDecimal("105.8524"), "  ", "", false),
+                "1 Đinh Tiên Hoàng", "Hoàn Kiếm", "Hà Nội");
+
+        assertThat(result.resolved()).isTrue();
+        assertThat(result.placeId()).isNull();
+        assertThat(result.formattedAddress()).isNull();
+    }
+
+    @Test
     void invalidExplicitCoordinates_fallBackToGeocodingAddress() {
         when(geocodingService.geocode("1 Đinh Tiên Hoàng, Hoàn Kiếm, Hà Nội, Việt Nam"))
                 .thenReturn(Optional.of(new GeoPoint(new BigDecimal("21.03"), new BigDecimal("105.85"),
-                        "1 Đinh Tiên Hoàng, Hà Nội", "place-1")));
+                        "1 Đinh Tiên Hoàng, Hà Nội", "place-1", "ROOFTOP")));
 
-        var result = addressGeocoder.resolve(new BigDecimal("999"), new BigDecimal("105.8524"),
+        var result = addressGeocoder.resolve(pin("999", "105.8524"),
                 "1 Đinh Tiên Hoàng", "Hoàn Kiếm", "Hà Nội");
 
         assertThat(result.resolved()).isTrue();
@@ -52,7 +79,7 @@ class AddressGeocoderTest {
     void googleFindsNothing_resolvesToNone_soCallerKeepsExistingCoordinates() {
         when(geocodingService.geocode(anyString())).thenReturn(Optional.empty());
 
-        var result = addressGeocoder.resolve(null, null, "địa chỉ rác", null, null);
+        var result = addressGeocoder.resolve(AddressGeocoder.Pin.none(), "địa chỉ rác", null, null);
 
         assertThat(result.resolved()).isFalse();
         assertThat(result.latitude()).isNull();
@@ -60,10 +87,48 @@ class AddressGeocoderTest {
 
     @Test
     void blankAddressAndNoCoordinates_neverCallsGoogle() {
-        var result = addressGeocoder.resolve(null, null, null, null, "  ");
+        var result = addressGeocoder.resolve(AddressGeocoder.Pin.none(), null, null, "  ");
 
         assertThat(result.resolved()).isFalse();
         verify(geocodingService, never()).geocode(anyString());
+    }
+
+    /**
+     * V60: cờ "người kéo ghim" phải đi hết đường từ request tới entity. Rơi mất ở
+     * giữa thì job làm mới coi đó là toạ độ Google đoán và kéo ghim đi chỗ khác
+     * sau 180 ngày — đúng thứ chủ gym vừa bỏ công sửa.
+     */
+    @Test
+    void userPinnedFlag_survivesResolution() {
+        var pinned = addressGeocoder.resolve(
+                new AddressGeocoder.Pin(new BigDecimal("21.0287"), new BigDecimal("105.8524"),
+                        "place-42", "1 Đinh Tiên Hoàng", true),
+                "1 Đinh Tiên Hoàng", "Hoàn Kiếm", "Hà Nội");
+
+        assertThat(pinned.pinnedByUser()).isTrue();
+    }
+
+    /** Ngược lại: kết quả geocode là máy đoán, không bao giờ được coi là ghim tay. */
+    @Test
+    void geocodedResult_isNeverMarkedAsUserPinned() {
+        when(geocodingService.geocode(anyString()))
+                .thenReturn(Optional.of(new GeoPoint(new BigDecimal("21.03"), new BigDecimal("105.85"),
+                        "Địa chỉ", "place-1", "ROOFTOP")));
+
+        var result = addressGeocoder.resolve(AddressGeocoder.Pin.none(), "12 Nguyễn Trãi", null, "Hà Nội");
+
+        assertThat(result.pinnedByUser()).isFalse();
+    }
+
+    /** V59: chỉ APPROXIMATE mới đáng bắt xác minh lại; ba mức còn lại đủ để tới đúng nơi. */
+    @Test
+    void isImprecise_onlyFlagsApproximateResults() {
+        assertThat(AddressGeocoder.isImprecise("APPROXIMATE")).isTrue();
+        assertThat(AddressGeocoder.isImprecise("ROOFTOP")).isFalse();
+        assertThat(AddressGeocoder.isImprecise("RANGE_INTERPOLATED")).isFalse();
+        assertThat(AddressGeocoder.isImprecise("GEOMETRIC_CENTER")).isFalse();
+        // Operator tự ghim trên bản đồ -> không có location_type, không phải "kém".
+        assertThat(AddressGeocoder.isImprecise(null)).isFalse();
     }
 
     @Test
