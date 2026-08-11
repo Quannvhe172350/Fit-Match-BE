@@ -218,10 +218,10 @@ public class GymBookingServiceImpl implements GymBookingService {
     @Transactional
     public BookingResponse complete(String gymUsername, Long bookingId) {
         Booking booking = requireOwned(gymUsername, bookingId);
-        if (booking.getStartAt() == null || booking.getStartAt().isAfter(java.time.LocalDateTime.now())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Booking can only be completed after the session start time");
-        }
+//        if (booking.getStartAt() == null || booking.getStartAt().isAfter(java.time.LocalDateTime.now())) {
+//            throw new BusinessException(ErrorCode.INVALID_STATE,
+//                    "Booking can only be completed after the session start time");
+//        }
         // UC-047/049: không cho hoàn tất buổi khách chưa từng check-in — nếu không
         // gym có thể COMPLETED một buổi khách vắng mặt để thu tiền + trừ buổi gói
         // + cộng điểm. Đối xứng với no-show (chặn khi ĐÃ check-in). Gym có thể
