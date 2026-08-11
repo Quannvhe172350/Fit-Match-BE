@@ -35,8 +35,11 @@ public class AdminPtVerificationServiceImpl implements AdminPtVerificationServic
     @Override
     @Transactional(readOnly = true)
     public PageResponse<PtProfileResponse> list(VerificationStatus status, Pageable pageable) {
-        VerificationStatus effective = status != null ? status : VerificationStatus.PENDING;
-        return PageResponse.of(ptProfileRepository.findByVerificationStatus(effective, pageable), this::toResponse);
+        // Bug S2-07 + Sheet1#14 — xem ghi chú tại AdminGymVerificationServiceImpl.
+        if (status == null) {
+            return PageResponse.of(ptProfileRepository.findAll(pageable), this::toResponse);
+        }
+        return PageResponse.of(ptProfileRepository.findByVerificationStatus(status, pageable), this::toResponse);
     }
 
     @Override

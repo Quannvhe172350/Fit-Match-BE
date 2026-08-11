@@ -8,8 +8,12 @@ import com.fitmatch.dto.payment.CassoWebhookRequest;
 import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.PaymentOrder;
 import com.fitmatch.entity.PaymentTransaction;
+import com.fitmatch.common.enums.PaymentTxnDirection;
+import com.fitmatch.common.enums.WithdrawalStatus;
+import com.fitmatch.entity.WithdrawalRequest;
 import com.fitmatch.repository.PaymentOrderRepository;
 import com.fitmatch.repository.PaymentTransactionRepository;
+import com.fitmatch.repository.WithdrawalRequestRepository;
 import com.fitmatch.service.impl.PaymentWebhookServiceImpl;
 import com.fitmatch.service.support.BookingPaymentHandler;
 import com.fitmatch.service.support.NotificationDispatcher;
@@ -50,7 +54,9 @@ class PaymentWebhookServiceImplTest {
 
     @Mock private PaymentTransactionRepository paymentTransactionRepository;
     @Mock private PaymentOrderRepository paymentOrderRepository;
+    @Mock private WithdrawalRequestRepository withdrawalRequestRepository;
     @Mock private BookingPaymentHandler bookingPaymentHandler;
+    @Mock private WithdrawalService withdrawalService;
     @Mock private TransactionTemplate transactionTemplate;
     // Thiếu mock này thì paymentFailed(...) ném NPE, bị per-item try/catch nuốt —
     // các case thiếu tiền/hết hạn trước đây "pass" mà không thực sự chạy hết luồng.
@@ -199,5 +205,91 @@ class PaymentWebhookServiceImplTest {
         PaymentTransaction txn = savedTxn();
         assertThat(txn.getAnomaly()).isEqualTo(PaymentTxnAnomaly.OVERPAID);
         assertThat(txn.getReconStatus()).isEqualTo(ReconStatus.NEEDS_REVIEW);
+    }
+
+    // ----- V61: chiều CHI — xác nhận lệnh rút bằng biến động số dư -----
+
+    private WithdrawalRequest withdrawal(WithdrawalStatus status, String amount) {
+        return WithdrawalRequest.builder()
+                .id(77L).refCode("FMW77ABC123").amount(new BigDecimal(amount)).status(status)
+                .build();
+    }
+
+    @Test
+    void outgoingMatchingApprovedWithdrawal_autoMarksPaid() {
+        when(paymentTransactionRepository.existsByExternalId("casso-8")).thenReturn(false);
+        WithdrawalRequest wr = withdrawal(WithdrawalStatus.APPROVED, "500000");
+        when(withdrawalRequestRepository.findByRefCode("FMW77ABC123")).thenReturn(Optional.of(wr));
+
+        // Casso gửi số tiền ÂM cho giao dịch ghi nợ.
+        int matched = service.processCasso(
+                oneItem("casso-8", new BigDecimal("-500000"), "CK FMW77ABC123"));
+
+        assertThat(matched).isEqualTo(1);
+        verify(withdrawalService).markPaidByReconciliation(77L, "casso-8");
+        PaymentTransaction txn = savedTxn();
+        assertThat(txn.getDirection()).isEqualTo(PaymentTxnDirection.OUT);
+        assertThat(txn.getAnomaly()).isNull();
+        assertThat(txn.getReconStatus()).isEqualTo(ReconStatus.APPLIED);
+        assertThat(txn.getWithdrawalRequest()).isSameAs(wr);
+        // Chiều chi không bao giờ được chạm vào luồng thanh toán booking.
+        verify(bookingPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
+    }
+
+    @Test
+    void outgoingWithWrongAmount_queuedNotAutoPaid() {
+        when(paymentTransactionRepository.existsByExternalId("casso-9")).thenReturn(false);
+        when(withdrawalRequestRepository.findByRefCode("FMW77ABC123"))
+                .thenReturn(Optional.of(withdrawal(WithdrawalStatus.APPROVED, "500000")));
+
+        int matched = service.processCasso(
+                oneItem("casso-9", new BigDecimal("-450000"), "CK FMW77ABC123"));
+
+        // Chi sai số tiền là việc không được đoán — người thật phải xem.
+        assertThat(matched).isZero();
+        verify(withdrawalService, never()).markPaidByReconciliation(any(), anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.PAYOUT_AMOUNT_MISMATCH);
+    }
+
+    @Test
+    void outgoingForAlreadyPaidWithdrawal_queuedAsStateMismatch() {
+        when(paymentTransactionRepository.existsByExternalId("casso-10")).thenReturn(false);
+        when(withdrawalRequestRepository.findByRefCode("FMW77ABC123"))
+                .thenReturn(Optional.of(withdrawal(WithdrawalStatus.PAID, "500000")));
+
+        int matched = service.processCasso(
+                oneItem("casso-10", new BigDecimal("-500000"), "CK FMW77ABC123"));
+
+        assertThat(matched).isZero();
+        verify(withdrawalService, never()).markPaidByReconciliation(any(), anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.PAYOUT_STATE_MISMATCH);
+    }
+
+    @Test
+    void outgoingWithoutPayoutRef_queuedAsPayoutUnmatched() {
+        when(paymentTransactionRepository.existsByExternalId("casso-11")).thenReturn(false);
+
+        int matched = service.processCasso(
+                oneItem("casso-11", new BigDecimal("-500000"), "thanh toan dich vu"));
+
+        assertThat(matched).isZero();
+        // Không được rơi nhầm sang nhánh tiền vào và tra payment_orders.
+        verify(paymentOrderRepository, never()).findByRefCode(anyString());
+        assertThat(savedTxn().getAnomaly()).isEqualTo(PaymentTxnAnomaly.PAYOUT_UNMATCHED);
+    }
+
+    @Test
+    void incomingRefPattern_doesNotMatchPayoutRef() {
+        // "FM" + chữ số: mã lệnh rút FMW... có 'W' sau FM nên không được lọt vào
+        // nhánh tiền vào; ngược lại mã đơn thanh toán không được coi là lệnh rút.
+        when(paymentTransactionRepository.existsByExternalId("casso-12")).thenReturn(false);
+        when(paymentOrderRepository.findByRefCode("FM10ABCDEF")).thenReturn(Optional.empty());
+
+        service.processCasso(oneItem("casso-12", new BigDecimal("100000"), "FM10ABCDEF"));
+
+        PaymentTransaction txn = savedTxn();
+        assertThat(txn.getDirection()).isEqualTo(PaymentTxnDirection.IN);
+        assertThat(txn.getRefCode()).isEqualTo("FM10ABCDEF");
+        verify(withdrawalRequestRepository, never()).findByRefCode(anyString());
     }
 }

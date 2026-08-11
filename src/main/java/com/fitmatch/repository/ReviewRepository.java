@@ -24,10 +24,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Page<Review> findByPtProfile_IdAndStatusOrderByIdDesc(Long ptProfileId, ReviewStatus status, Pageable pageable);
 
-    /** Review của các gym do một operator sở hữu (mọi trạng thái) — cho gym xem/phản hồi. */
+    /** Review của các gym do một operator sở hữu (mọi trạng thái) — cho gym theo dõi chất lượng. */
     Page<Review> findByGymProfile_User_UsernameOrderByIdDesc(String gymUsername, Pageable pageable);
-
-    Optional<Review> findByIdAndGymProfile_User_Username(Long id, String gymUsername);
 
     /** UC-071: điểm TB + số lượng review VISIBLE của một gym (chỉ tính công khai). */
     @Query("select coalesce(avg(r.rating), 0), count(r) from Review r "

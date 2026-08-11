@@ -36,8 +36,13 @@ public class AdminGymVerificationServiceImpl implements AdminGymVerificationServ
     @Override
     @Transactional(readOnly = true)
     public PageResponse<GymProfileResponse> list(VerificationStatus status, Pageable pageable) {
-        VerificationStatus effective = status != null ? status : VerificationStatus.PENDING;
-        return PageResponse.of(gymProfileRepository.findByVerificationStatus(effective, pageable), this::toResponse);
+        // Bug S2-07 + Sheet1#14: ép về PENDING khiến admin mở trang xác minh chỉ
+        // thấy hồ sơ đang chờ, tưởng "mọi phòng gym đều chưa xác thực" trong khi
+        // marketplace hiển thị đúng hồ sơ APPROVED. Không truyền status = KHÔNG lọc.
+        if (status == null) {
+            return PageResponse.of(gymProfileRepository.findAll(pageable), this::toResponse);
+        }
+        return PageResponse.of(gymProfileRepository.findByVerificationStatus(status, pageable), this::toResponse);
     }
 
     @Override

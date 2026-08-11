@@ -70,13 +70,28 @@ public class NotificationDispatcher {
                 "Buổi tập bị khách hủy", body, "/trainer/bookings", vars);
     }
 
-    /** UC-062: kết quả xử lý yêu cầu rút tiền — gym không còn phải tự vào kiểm tra. */
-    public void withdrawalDecided(User gymUser, Long withdrawalId, String decision, String detail) {
-        dispatch("WITHDRAWAL_DECIDED", gymUser, NotificationCategory.PAYMENT,
+    /**
+     * UC-062: kết quả xử lý yêu cầu rút tiền — chủ ví không còn phải tự vào kiểm tra.
+     * V61: {@code link} do bên gọi truyền vì trang xem lệnh rút khác nhau theo
+     * loại chủ ví (gym / PT / khách hàng); trước đây hằng số "/gym/withdrawals"
+     * còn trỏ vào một route không tồn tại.
+     */
+    public void withdrawalDecided(User owner, Long withdrawalId, String decision, String detail, String link) {
+        dispatch("WITHDRAWAL_DECIDED", owner, NotificationCategory.PAYMENT,
                 "Yêu cầu rút tiền #" + withdrawalId + " " + decision,
                 detail,
-                "/gym/withdrawals",
+                link,
                 Map.of("withdrawalId", s(withdrawalId), "decision", s(decision), "detail", s(detail)));
+    }
+
+    /** V61: khách hàng nhận tiền hoàn vào ví thay vì chờ chuyển khoản tay. */
+    public void refundCreditedToWallet(User customer, java.math.BigDecimal amount, Long bookingId) {
+        dispatch("REFUND_CREDITED_TO_WALLET", customer, NotificationCategory.PAYMENT,
+                "Đã hoàn " + amount + " đ vào ví",
+                "Tiền hoàn của booking #" + bookingId + " đã vào ví của bạn — "
+                        + "có thể tạo lệnh rút về tài khoản ngân hàng bất cứ lúc nào.",
+                "/profile/wallet",
+                Map.of("amount", s(amount), "bookingId", s(bookingId)));
     }
 
     /** UC-044: slot trống ra (booking hủy/từ chối) — báo khách đang chờ cùng dịch vụ/gói. */
@@ -317,15 +332,6 @@ public class NotificationDispatcher {
     }
 
     // ----- Review (UC-069/071) -----
-
-    /** UC-069: Gym phản hồi đánh giá của khách. */
-    public void reviewReplied(Review r) {
-        dispatch("REVIEW_REPLIED_CUSTOMER", r.getCustomer(), NotificationCategory.REVIEW,
-                "Phòng gym đã phản hồi đánh giá",
-                "Đánh giá của bạn cho " + r.getGymProfile().getGymName() + " đã được phản hồi.",
-                "/profile/reviews",
-                Map.of("gymName", s(r.getGymProfile().getGymName())));
-    }
 
     /** UC-071: đánh giá bị kiểm duyệt (ẩn/gỡ). */
     public void reviewModerated(Review r) {

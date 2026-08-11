@@ -112,6 +112,7 @@ jobs:
           VIETQR_BANK_BIN=${{ secrets.VIETQR_BANK_BIN }}
           VIETQR_ACCOUNT_NO=${{ secrets.VIETQR_ACCOUNT_NO }}
           VIETQR_ACCOUNT_NAME=${{ secrets.VIETQR_ACCOUNT_NAME }}
+          GOOGLE_OAUTH_CLIENT_IDS=${{ secrets.GOOGLE_OAUTH_CLIENT_IDS }}
           EOF
 
           cat > /tmp/gcp-sa.json << 'SAEOF'

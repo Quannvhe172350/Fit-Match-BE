@@ -5,6 +5,7 @@ import com.fitmatch.dto.auth.AuthResponse;
 import com.fitmatch.dto.auth.ChangePasswordRequest;
 import com.fitmatch.dto.auth.LoginRequest;
 import com.fitmatch.dto.auth.ForgotPasswordRequest;
+import com.fitmatch.dto.auth.GoogleLoginRequest;
 import com.fitmatch.dto.auth.RefreshTokenRequest;
 import com.fitmatch.dto.auth.RegisterRequest;
 import com.fitmatch.dto.auth.ResendVerificationRequest;
@@ -99,6 +100,23 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
+        return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @Operation(
+            summary = "UC-003 — Đăng nhập bằng Google",
+            description = """
+                    Actor: **Guest**. Nhận ID token từ Google Identity Services phía FE, xác minh chữ ký +
+                    audience rồi trả access/refresh token như đăng nhập thường.
+                    Chưa có tài khoản -> tạo mới role CUSTOMER, email coi như đã xác minh.
+                    Email trùng tài khoản sẵn có -> liên kết Google vào tài khoản đó.
+                    Lỗi: 401 token không hợp lệ/hết hạn; 403 tài khoản bị khoá hoặc email Google chưa xác minh;
+                    503 server chưa cấu hình GOOGLE_OAUTH_CLIENT_IDS.
+                    """)
+    @SecurityRequirements // public
+    @PostMapping("/google")
+    public ResponseEntity<ApiResponse<AuthResponse>> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        AuthResponse response = authService.googleLogin(request);
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 

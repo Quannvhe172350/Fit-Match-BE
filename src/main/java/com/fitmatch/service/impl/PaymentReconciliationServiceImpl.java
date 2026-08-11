@@ -5,6 +5,7 @@ import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
+import com.fitmatch.common.enums.PaymentTxnDirection;
 import com.fitmatch.common.enums.ReconStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.payment.PaymentTransactionResponse;
@@ -93,6 +94,13 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
                                                      boolean allowAmountMismatch,
                                                      String note, String actorUsername) {
         PaymentTransaction txn = requireOpenTransaction(transactionId);
+        // V61: giao dịch CHI không bao giờ là tiền khách trả cho booking. Áp nó
+        // vào booking sẽ hold ví một khoản tiền chưa từng vào tài khoản nền tảng.
+        if (txn.getDirection() == PaymentTxnDirection.OUT) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Giao dịch chi (OUT) không thể áp vào booking — đây là tiền nền tảng chuyển đi."
+                            + " Hãy đối chiếu với lệnh rút tương ứng rồi chọn kết cục phù hợp.");
+        }
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
 

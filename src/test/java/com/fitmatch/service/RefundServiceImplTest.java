@@ -36,6 +36,9 @@ class RefundServiceImplTest {
     @Mock private WalletService walletService;
     @Mock private SettlementService settlementService;
     @Mock private AuditService auditService;
+    // Thiếu mock này thì assertWithinRequestWindow ném NPE thay vì lỗi nghiệp vụ,
+    // và test cửa sổ yêu cầu hoàn tiền kiểm tra nhầm ngoại lệ.
+    @Mock private SystemConfigService systemConfigService;
     @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     @InjectMocks private RefundServiceImpl service;
 
@@ -43,6 +46,7 @@ class RefundServiceImplTest {
         return Booking.builder()
                 .id(10L)
                 .gymProfile(GymProfile.builder().id(5L).build())
+                .customer(com.fitmatch.entity.User.builder().id(42L).username("john").build())
                 .status(status)
                 .settlementStatus(settlement)
                 .payableAmount(new BigDecimal("200.00"))
@@ -96,7 +100,8 @@ class RefundServiceImplTest {
 
         RefundResponse res = service.approveAndExecute(1L, null, "ok", "finance");
 
-        verify(walletService).refundFromHeld(5L, 10L, new BigDecimal("200.00"));
+        // V61: khoản hoàn phải đi qua refundToCustomer để đồng thời ghi có ví khách.
+        verify(walletService).refundToCustomer(5L, b.getCustomer(), 10L, new BigDecimal("200.00"));
         verify(walletService, never()).moveToPending(any(), any(), any());
         assertThat(b.getSettlementStatus()).isEqualTo(SettlementStatus.REFUNDED);
         assertThat(res.getStatus()).isEqualTo(RefundStatus.EXECUTED);
@@ -111,7 +116,7 @@ class RefundServiceImplTest {
 
         service.approveAndExecute(1L, new BigDecimal("150.00"), "late cancel fee", "finance");
 
-        verify(walletService).refundFromHeld(5L, 10L, new BigDecimal("150.00"));
+        verify(walletService).refundToCustomer(5L, b.getCustomer(), 10L, new BigDecimal("150.00"));
         verify(walletService).moveToPending(5L, 10L, new BigDecimal("50.00"));
         assertThat(b.getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
         assertThat(b.getSettlementAmount()).isEqualByComparingTo("50.00");

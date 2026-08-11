@@ -7,7 +7,10 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-/** Đánh giá (UC-069). Giữ tên trường tương thích client cũ (customerName, ptName...). */
+/**
+ * Đánh giá (UC-069). Giữ tên trường tương thích client cũ (customerName, ptName...).
+ * V59: bỏ reply/repliedBy/repliedAt — review chỉ hiển thị, gym không phản hồi.
+ */
 @Getter
 @Builder
 public class ReviewResponse {
@@ -24,9 +27,6 @@ public class ReviewResponse {
     private int rating;
     private String comment;
     private ReviewStatus status;
-    private String reply;
-    private String repliedByName;
-    private LocalDateTime repliedAt;
     private LocalDateTime createdAt;
 
     public static ReviewResponse of(Review r) {
@@ -43,9 +43,6 @@ public class ReviewResponse {
                 .rating(r.getRating())
                 .comment(r.getComment())
                 .status(r.getStatus())
-                .reply(r.getReply())
-                .repliedByName(r.getRepliedBy())
-                .repliedAt(r.getRepliedAt())
                 .createdAt(r.getCreatedAt())
                 .build();
     }

@@ -1,5 +1,6 @@
 package com.fitmatch.controller;
 
+import com.fitmatch.common.enums.WalletOwnerType;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.payment.WalletResponse;
@@ -44,7 +45,7 @@ public class GymWalletController {
     public ResponseEntity<ApiResponse<WalletResponse>> getWallet(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(ApiResponse.success(
-                walletQueryService.getForGym(userDetails.getUsername())));
+                walletQueryService.getForOwner(userDetails.getUsername(), WalletOwnerType.GYM)));
     }
 
     @Operation(
@@ -55,19 +56,20 @@ public class GymWalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                walletQueryService.transactionsForGym(userDetails.getUsername(), pageable)));
+                walletQueryService.transactionsForOwner(
+                        userDetails.getUsername(), WalletOwnerType.GYM, pageable)));
     }
 
     @Operation(
             summary = "UC-062 — Gửi yêu cầu rút tiền",
-            description = "Actor: **Gym Operator**. Số tiền được giữ chỗ ngay (available -> frozen) chờ Finance duyệt; từ chối sẽ trả lại available. Lỗi: 409 số dư khả dụng không đủ.")
+            description = "Actor: **Gym Operator**. Chọn tài khoản thụ hưởng đã lưu (`bankAccountId`); số tiền được giữ chỗ ngay (available -> frozen) chờ Finance duyệt, từ chối sẽ trả lại available. Lỗi: 409 số dư khả dụng không đủ; 404 tài khoản ngân hàng không thuộc về bạn.")
     @PostMapping("/withdrawals")
     public ResponseEntity<ApiResponse<WithdrawalResponse>> requestWithdrawal(
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody WithdrawalCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
                 "Withdrawal requested",
-                withdrawalService.create(userDetails.getUsername(), request)));
+                withdrawalService.create(userDetails.getUsername(), WalletOwnerType.GYM, request)));
     }
 
     @Operation(
@@ -78,6 +80,7 @@ public class GymWalletController {
             @AuthenticationPrincipal UserDetails userDetails,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                withdrawalService.listForGym(userDetails.getUsername(), pageable)));
+                withdrawalService.listForOwner(userDetails.getUsername(), WalletOwnerType.GYM, pageable)));
     }
+
 }

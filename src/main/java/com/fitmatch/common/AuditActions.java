@@ -59,6 +59,7 @@ public final class AuditActions {
     public static final String NOTIFICATION_TEMPLATE_CHANGE = "NOTIFICATION_TEMPLATE_CHANGE";
     public static final String WALLET_FREEZE = "WALLET_FREEZE";
     public static final String WALLET_UNFREEZE = "WALLET_UNFREEZE";
+    public static final String BANK_ACCOUNT_CHANGE = "BANK_ACCOUNT_CHANGE";
     public static final String DISPUTE_OPEN = "DISPUTE_OPEN";
     public static final String DISPUTE_REVIEW = "DISPUTE_REVIEW";
     public static final String DISPUTE_RESOLVE = "DISPUTE_RESOLVE";

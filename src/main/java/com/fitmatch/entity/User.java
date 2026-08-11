@@ -39,6 +39,15 @@ public class User extends BaseEntity {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    /**
+     * UC-003: claim {@code sub} của Google — id ổn định của tài khoản Google, không
+     * đổi khi người dùng đổi email. Null = tài khoản chưa liên kết Google.
+     * Tài khoản tạo từ Google có passwordHash là chuỗi ngẫu nhiên (không ai biết)
+     * nên chỉ đăng nhập được bằng Google cho tới khi đặt mật khẩu qua "quên mật khẩu".
+     */
+    @Column(name = "google_id", length = 64, unique = true)
+    private String googleId;
+
     @Column(name = "full_name")
     private String fullName;
 

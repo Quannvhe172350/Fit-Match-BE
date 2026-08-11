@@ -73,7 +73,7 @@ class FlywayMigrationTest {
         var result = flyway.migrate();
         assertThat(result.success).as("Flyway migrate should succeed").isTrue();
         assertThat(flyway.info().current().getVersion().getVersion())
-                .as("latest applied migration version").isEqualTo("52");
+                .as("latest applied migration version").isEqualTo("61");
 
         try (Connection c = DriverManager.getConnection(schemaUrl(), user, password)) {
             // --- P0-3 guard: MỌI giá trị WalletTxnType phải có trong cột ENUM ---
@@ -94,6 +94,67 @@ class FlywayMigrationTest {
                     "refund_requests", "withdrawal_requests", "payment_orders", "gym_profiles")) {
                 assertThat(hasColumn(c, table, "version"))
                         .as(table + ".version").isTrue();
+            }
+
+            // --- V61: ví đa chủ sở hữu + hạ tầng chi trả ---
+            for (String column : List.of("owner_type", "user_id")) {
+                assertThat(hasColumn(c, "wallets", column)).as("wallets." + column).isTrue();
+            }
+            // gym_profile_id phải nullable, nếu không thì không tạo được ví khách hàng.
+            assertThat(isNullable(c, "wallets", "gym_profile_id"))
+                    .as("wallets.gym_profile_id must be nullable").isTrue();
+
+            for (String column : List.of("ref_code", "bank_bin", "qr_content", "paid_at", "auto_matched")) {
+                assertThat(hasColumn(c, "withdrawal_requests", column))
+                        .as("withdrawal_requests." + column).isTrue();
+            }
+            assertThat(hasColumn(c, "payment_transactions", "direction"))
+                    .as("payment_transactions.direction").isTrue();
+            assertThat(hasColumn(c, "payment_transactions", "withdrawal_request_id"))
+                    .as("payment_transactions.withdrawal_request_id").isTrue();
+            assertThat(hasColumn(c, "bank_accounts", "account_number")).as("bank_accounts").isTrue();
+
+            // Master data ngân hàng phải có sẵn — thiếu BIN thì không sinh được QR payout.
+            assertThat(rowCount(c, "banks")).as("seeded banks").isGreaterThan(30);
+
+            // Mã đối soát backfill phải là DUY NHẤT, kể cả với dữ liệu cũ.
+            assertThat(hasUniqueIndex(c, "withdrawal_requests", "ref_code"))
+                    .as("withdrawal_requests.ref_code unique").isTrue();
+        }
+    }
+
+    private static boolean isNullable(Connection c, String table, String column) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+                "select IS_NULLABLE from information_schema.COLUMNS "
+                        + "where TABLE_SCHEMA = ? and TABLE_NAME = ? and COLUMN_NAME = ?")) {
+            ps.setString(1, SCHEMA);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && "YES".equals(rs.getString(1));
+            }
+        }
+    }
+
+    private static int rowCount(Connection c, String table) throws SQLException {
+        try (Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery("select count(*) from " + table)) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    private static boolean hasUniqueIndex(Connection c, String table, String column) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(
+                "select NON_UNIQUE from information_schema.STATISTICS "
+                        + "where TABLE_SCHEMA = ? and TABLE_NAME = ? and COLUMN_NAME = ?")) {
+            ps.setString(1, SCHEMA);
+            ps.setString(2, table);
+            ps.setString(3, column);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    if (rs.getInt(1) == 0) return true;
+                }
+                return false;
             }
         }
     }
