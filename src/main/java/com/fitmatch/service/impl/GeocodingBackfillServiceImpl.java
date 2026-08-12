@@ -28,14 +28,14 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
     private final GymBranchRepository gymBranchRepository;
     private final GeocodingService geocodingService;
     private final com.fitmatch.repository.GeocodeCacheRepository geocodeCacheRepository;
-    private final com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
+    private final com.fitmatch.config.GeocodingProperties geocodingProperties;
 
     @Override
     @Transactional
     public BackfillResult backfill(int limit, String actorUsername) {
         if (!geocodingService.isEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Geocoding is disabled: set app.google-maps.api-key first.");
+                    "Geocoding is disabled: configure app.geocoding.provider and its API key first.");
         }
         List<GymProfile> gyms = gymProfileRepository.findByLatitudeIsNullAndAddressIsNotNull();
         List<GymBranch> branches = gymBranchRepository.findByLatitudeIsNullAndAddressIsNotNull();
@@ -75,6 +75,7 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
         gym.setLatitude(p.latitude());
         gym.setLongitude(p.longitude());
         gym.setPlaceId(p.placeId());
+        gym.setPlaceProvider(p.provider());
         gym.setFormattedAddress(p.formattedAddress());
         gym.setLocationType(p.locationType());
         gym.setGeocodedAt(LocalDateTime.now());
@@ -95,6 +96,7 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
         branch.setLatitude(p.latitude());
         branch.setLongitude(p.longitude());
         branch.setPlaceId(p.placeId());
+        branch.setPlaceProvider(p.provider());
         branch.setFormattedAddress(p.formattedAddress());
         branch.setLocationType(p.locationType());
         branch.setGeocodedAt(LocalDateTime.now());
@@ -105,7 +107,7 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
     @Override
     @Transactional
     public RefreshResult refreshStale(int limit) {
-        int refreshAfterDays = googleMapsProperties.getRefreshAfterDays();
+        int refreshAfterDays = geocodingProperties.getRefreshAfterDays();
         if (!geocodingService.isEnabled() || refreshAfterDays <= 0) {
             return new RefreshResult(0, 0);
         }
@@ -114,7 +116,7 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
 
         List<GymProfile> gyms = gymProfileRepository
                 .findByPlaceIdIsNotNullAndCoordinatesPinnedFalseAndGeocodedAtBefore(cutoff)
-                .stream().limit(budget).toList();
+                .stream().filter(g -> ownsPlaceId(g.getPlaceProvider())).limit(budget).toList();
         int updated = 0;
         for (GymProfile gym : gyms) {
             if (refresh(gym)) {
@@ -123,6 +125,7 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
         }
         List<GymBranch> branches = gymBranchRepository
                 .findByPlaceIdIsNotNullAndCoordinatesPinnedFalseAndGeocodedAtBefore(cutoff).stream()
+                .filter(b -> ownsPlaceId(b.getPlaceProvider()))
                 .limit(Math.max(0, budget - gyms.size())).toList();
         for (GymBranch branch : branches) {
             if (refresh(branch)) {
@@ -187,6 +190,22 @@ public class GeocodingBackfillServiceImpl implements GeocodingBackfillService {
                 gymBranchRepository.countByLatitudeIsNotNullAndActiveTrue(),
                 geocodeCacheRepository.count(),
                 geocodingService.isEnabled());
+    }
+
+    /**
+     * V65 — provider đang chạy có phải là nơi đã cấp {@code place_id} này không?
+     *
+     * <p>Lọc BẮT BUỘC trước khi tra lại. place_id của Google, Geoapify và Nominatim
+     * là ba không gian định danh riêng biệt, và không dịch vụ nào báo lỗi khi nhận
+     * id của dịch vụ khác — nó chỉ trả về một địa điểm khác hẳn. Thiếu bộ lọc này,
+     * lần đầu job chạy sau khi đổi provider sẽ dời ghim của TOÀN BỘ hồ sơ cũ sang
+     * những vị trí ngẫu nhiên, âm thầm, lúc 3 giờ sáng.
+     *
+     * <p>null = không rõ nguồn (toạ độ do ô gợi ý phía FE cấp) -> cũng bỏ qua:
+     * không tra lại thì chỉ mất một lần làm mới, tra nhầm thì mất luôn địa chỉ đúng.
+     */
+    private boolean ownsPlaceId(com.fitmatch.common.enums.GeocodingProvider stored) {
+        return stored != null && stored == geocodingProperties.getProvider();
     }
 
     /** So sánh theo giá trị số: BigDecimal.equals coi 21.03 khác 21.0300000. */

@@ -55,6 +55,13 @@ public class BranchRequest {
     @Size(max = 255)
     private String placeId;
 
+    /**
+     * V65 — dịch vụ đã cấp {@link #placeId}, lấy nguyên văn từ response gợi ý địa
+     * điểm của server. Thiếu giá trị này thì bản ghi bị coi là "không rõ nguồn" và
+     * job làm mới toạ độ sẽ bỏ qua nó.
+     */
+    private com.fitmatch.common.enums.GeocodingProvider placeProvider;
+
     @Size(max = 500)
     private String formattedAddress;
 

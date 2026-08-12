@@ -37,7 +37,7 @@ class MarketplaceServiceImplTest {
     @Mock private MediaService mediaService;
     @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
     @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
-    @Mock private com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
+    @Mock private com.fitmatch.config.GeocodingProperties geocodingProperties;
     @InjectMocks private MarketplaceServiceImpl service;
 
     @Test
@@ -154,7 +154,7 @@ class MarketplaceServiceImplTest {
     /** Bán kính client gửi vượt trần cấu hình phải bị kẹp trước khi vào truy vấn. */
     @Test
     void searchGyms_nearby_clampsRadiusToConfiguredMaximum() {
-        when(googleMapsProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
+        when(geocodingProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
         stubNearbyPage();
 
         service.searchGyms(new com.fitmatch.dto.gym.GymSearchCriteria(null, null, null, null, null,
@@ -176,8 +176,8 @@ class MarketplaceServiceImplTest {
     /** Bỏ trống radius -> dùng mặc định cấu hình, không phải 0 (sẽ không ra kết quả nào). */
     @Test
     void searchGyms_nearby_missingRadiusUsesConfiguredDefault() {
-        when(googleMapsProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
-        when(googleMapsProperties.getDefaultSearchRadiusKm()).thenReturn(5.0);
+        when(geocodingProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
+        when(geocodingProperties.getDefaultSearchRadiusKm()).thenReturn(5.0);
         stubNearbyPage();
 
         service.searchGyms(new com.fitmatch.dto.gym.GymSearchCriteria(null, null, null, null, null,
@@ -199,7 +199,7 @@ class MarketplaceServiceImplTest {
     /** Keyword phải tới truy vấn dưới dạng pattern LIKE viết thường (SQL không tự bọc %). */
     @Test
     void searchGyms_nearby_normalisesTextFiltersToLikePatterns() {
-        when(googleMapsProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
+        when(geocodingProperties.getMaxSearchRadiusKm()).thenReturn(50.0);
         stubNearbyPage();
 
         service.searchGyms(new com.fitmatch.dto.gym.GymSearchCriteria("  California ", "Hà Nội", null,

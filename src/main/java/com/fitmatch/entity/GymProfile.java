@@ -68,9 +68,18 @@ public class GymProfile extends BaseEntity {
     @Column(precision = 10, scale = 7)
     private java.math.BigDecimal longitude;
 
-    /** place_id của Google — định danh ổn định của địa điểm, dùng để tra cứu lại. */
+    /** Định danh ổn định của địa điểm ở phía nhà cung cấp, dùng để tra cứu lại. */
     @Column(name = "place_id", length = 255)
     private String placeId;
+
+    /**
+     * V65 — dịch vụ đã cấp {@link #placeId}. Bắt buộc đi kèm: id của ba nhà cung
+     * cấp không tương thích nhau và không cái nào báo lỗi khi nhận id lạ, nên
+     * thiếu nhãn này là job làm mới sẽ dời ghim sang một địa điểm khác hẳn.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "place_provider", length = 20)
+    private com.fitmatch.common.enums.GeocodingProvider placeProvider;
 
     /** Địa chỉ đã chuẩn hoá do Google trả về (hiển thị trên bản đồ/InfoWindow). */
     @Column(name = "formatted_address", length = 500)

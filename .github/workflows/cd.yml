@@ -132,6 +132,7 @@ jobs:
           VIETQR_ACCOUNT_NO=${{ secrets.VIETQR_ACCOUNT_NO }}
           VIETQR_ACCOUNT_NAME=${{ secrets.VIETQR_ACCOUNT_NAME }}
           GOOGLE_OAUTH_CLIENT_IDS=${{ secrets.GOOGLE_OAUTH_CLIENT_IDS }}
+          GEOAPIFY_API_KEY=${{ secrets.GEOAPIFY_API_KEY }}
           EOF
 
           cat > /tmp/gcp-sa.json << 'SAEOF'

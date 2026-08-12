@@ -103,7 +103,7 @@ public class GymBranchServiceImpl implements GymBranchService {
     private void applyGeolocation(GymBranch branch, BranchRequest request) {
         var pin = new com.fitmatch.service.support.AddressGeocoder.Pin(
                 request.getLatitude(), request.getLongitude(),
-                request.getPlaceId(), request.getFormattedAddress(),
+                request.getPlaceId(), request.getFormattedAddress(), request.getPlaceProvider(),
                 Boolean.TRUE.equals(request.getCoordinatesPinned()));
         var resolution = addressGeocoder.resolve(pin,
                 request.getAddress(), request.getDistrict(), request.getCity());
@@ -116,6 +116,8 @@ public class GymBranchServiceImpl implements GymBranchService {
         // set thì mỗi lần lưu là xoá trắng place_id/formatted_address đang có.
         if (resolution.placeId() != null) {
             branch.setPlaceId(resolution.placeId());
+            // V65: nhãn provider luôn đi kèm id — xem javadoc ở GymProfile#placeProvider.
+            branch.setPlaceProvider(resolution.placeProvider());
         }
         if (resolution.formattedAddress() != null) {
             branch.setFormattedAddress(resolution.formattedAddress());

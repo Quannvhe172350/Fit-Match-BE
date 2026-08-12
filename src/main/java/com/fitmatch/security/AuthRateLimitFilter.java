@@ -46,7 +46,11 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             // không giới hạn thì một script có thể đốt sạch quota trong vài phút.
             // Hạn mức rộng tay vì người dùng thật gõ địa chỉ có debounce.
             Map.entry("GET /api/marketplace/geocode", 30),
-            Map.entry("GET /api/marketplace/geocode/reverse", 30)
+            Map.entry("GET /api/marketplace/geocode/reverse", 30),
+            // V65: gợi ý địa điểm bị gọi theo NHỊP GÕ nên hạn mức phải rộng hơn hẳn
+            // hai endpoint trên. FE debounce 350ms, một phiên nhập địa chỉ thật tốn
+            // chừng 3–6 lượt; 90 là đủ thoải mái mà vẫn chặn được script quét.
+            Map.entry("GET /api/marketplace/geocode/autocomplete", 90)
     );
     private static final long WINDOW_MS = 60_000;
 

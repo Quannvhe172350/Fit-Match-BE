@@ -111,24 +111,43 @@ app:
   # Để trống -> /api/auth/google trả 503 GOOGLE_AUTH_DISABLED, FE tự ẩn nút Google.
   google-oauth:
     client-ids: ${GOOGLE_OAUTH_CLIENT_IDS:}
-  # UC-18 (V55): tìm phòng gym theo bán kính. Key SERVER dùng cho Geocoding API
-  # (nên giới hạn theo IP) — khác key browser của FE dùng Maps JavaScript + Places.
-  # Không set key -> mọi luồng geocode tự tắt, gym vẫn lưu địa chỉ nhưng không có toạ độ.
-  google-maps:
-    api-key: ${GOOGLE_MAPS_API_KEY:}
-    region: ${GOOGLE_MAPS_REGION:vn}
-    language: ${GOOGLE_MAPS_LANGUAGE:vi}
-    # Mở /api/marketplace/geocode cho khách vãng lai — chỉ bật khi FE KHÔNG có key
-    # Maps JavaScript riêng, vì proxy công khai tiêu quota Google của nền tảng.
-    public-geocode-enabled: ${GOOGLE_MAPS_PUBLIC_GEOCODE:false}
+  # UC-18 (V55, V65): tìm phòng gym theo bán kính.
+  #
+  # Bản đồ phía FE chạy Leaflet + tile OpenStreetMap nên KHÔNG cần khoá nào. Chỉ
+  # còn geocoding (địa chỉ <-> toạ độ) là gọi dịch vụ ngoài, và nó chạy ở SERVER.
+  #
+  # Đổi provider = đổi đúng một dòng dưới đây. Không set khoá tương ứng -> mọi
+  # luồng geocode tự tắt, gym vẫn lưu địa chỉ nhưng không có toạ độ.
+  geocoding:
+    # GEOAPIFY (mặc định) — 3.000 lượt/ngày miễn phí, không cần thẻ tín dụng.
+    # GOOGLE — chất lượng địa chỉ VN tốt nhất nhưng cần billing + thẻ.
+    # NOMINATIM — CHỈ dùng khi tự dựng instance; bản công cộng cấm tải lớn.
+    provider: ${GEOCODING_PROVIDER:GEOAPIFY}
+    region: ${GEOCODING_REGION:vn}
+    language: ${GEOCODING_LANGUAGE:vi}
+    google:
+      api-key: ${GOOGLE_MAPS_API_KEY:}
+    geoapify:
+      api-key: ${GEOAPIFY_API_KEY:}
+    nominatim:
+      # Trỏ vào instance tự dựng khi chạy thật. Máy chủ công cộng giới hạn tuyệt
+      # đối 1 lượt/giây và chỉ 4 lượt/phút cho script chạy định kỳ.
+      base-url: ${NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
+      # Chính sách Nominatim BẮT BUỘC User-Agent định danh được ứng dụng.
+      user-agent: ${NOMINATIM_USER_AGENT:FitMatch/1.0 (gym marketplace)}
+    # Mở /api/marketplace/geocode cho khách vãng lai. Mặc định BẬT vì FE không còn
+    # đường geocode nào khác; tắt đi là ô "tìm quanh đây" chỉ còn dùng được nút GPS.
+    public-geocode-enabled: ${GEOCODING_PUBLIC:true}
     max-search-radius-km: ${GYM_SEARCH_MAX_RADIUS_KM:50}
     default-search-radius-km: ${GYM_SEARCH_DEFAULT_RADIUS_KM:5}
-    # V59 — đệm kết quả geocode trong DB để không trả tiền hai lần cho cùng một câu trả lời.
+    # V59 — đệm kết quả geocode trong DB để không hỏi hai lần cùng một câu hỏi.
     cache-ttl-days: ${GEOCODE_CACHE_TTL_DAYS:90}
     # Job nền tự bổ sung toạ độ còn thiếu + làm mới toạ độ cũ. Mặc định TẮT: nó
-    # tiêu quota Google mà không có ai nhìn. Chạy nhiều instance thì cần khoá phân tán.
+    # tiêu hạn mức mà không có ai nhìn. Chạy nhiều instance thì cần khoá phân tán.
     backfill-job-enabled: ${GEOCODE_BACKFILL_JOB:false}
     backfill-job-cron: ${GEOCODE_BACKFILL_CRON:0 30 3 * * *}
+    # Giữ thấp trên gói miễn phí: hạn mức Geoapify tính theo NGÀY và không cộng dồn.
     backfill-job-limit: ${GEOCODE_BACKFILL_LIMIT:100}
     # Toạ độ cũ hơn ngần này ngày sẽ được tra lại THEO place_id; 0 = tắt làm mới.
+    # V65: chỉ tra lại bản ghi có place_provider TRÙNG provider đang chạy.
     refresh-after-days: ${GEOCODE_REFRESH_AFTER_DAYS:180}

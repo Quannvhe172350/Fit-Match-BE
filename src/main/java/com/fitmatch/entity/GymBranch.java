@@ -2,6 +2,8 @@ package com.fitmatch.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -62,6 +64,11 @@ public class GymBranch extends BaseEntity {
 
     @Column(name = "place_id", length = 255)
     private String placeId;
+
+    /** V65 — dịch vụ đã cấp {@link #placeId}; xem javadoc ở {@code GymProfile}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "place_provider", length = 20)
+    private com.fitmatch.common.enums.GeocodingProvider placeProvider;
 
     @Column(name = "formatted_address", length = 500)
     private String formattedAddress;

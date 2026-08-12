@@ -44,7 +44,7 @@ public class AdminGeocodingController {
     @Operation(summary = "UC-18 — Backfill toạ độ",
             description = "Actor: **Admin**. Geocode các hồ sơ gym / chi nhánh còn thiếu lat-lng để chúng "
                     + "xuất hiện trong tìm kiếm theo bán kính. Chạy lặp lại cho tới khi `remaining` = 0. "
-                    + "Lỗi: 409 khi chưa cấu hình app.google-maps.api-key.")
+                    + "Lỗi: 409 khi chưa cấu hình app.geocoding.provider và khoá API tương ứng.")
     @PostMapping("/backfill")
     public ResponseEntity<ApiResponse<GeocodingBackfillService.BackfillResult>> backfill(
             @Parameter(description = "Số bản ghi xử lý tối đa mỗi lần gọi (mỗi bản ghi = 1 lượt gọi Google)")

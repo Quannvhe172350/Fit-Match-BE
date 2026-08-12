@@ -59,7 +59,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final OperatingHourRepository operatingHourRepository;
     private final com.fitmatch.repository.AvailabilitySlotRepository availabilitySlotRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
-    private final com.fitmatch.config.GoogleMapsProperties googleMapsProperties;
+    private final com.fitmatch.config.GeocodingProperties geocodingProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -203,9 +203,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     /** Bán kính client gửi lên, kẹp vào [0, max] cấu hình; null -> mặc định. */
     private double effectiveRadiusKm(Double requested) {
-        double max = googleMapsProperties.getMaxSearchRadiusKm();
+        double max = geocodingProperties.getMaxSearchRadiusKm();
         if (requested == null || requested <= 0) {
-            return Math.min(googleMapsProperties.getDefaultSearchRadiusKm(), max);
+            return Math.min(geocodingProperties.getDefaultSearchRadiusKm(), max);
         }
         return Math.min(requested, max);
     }

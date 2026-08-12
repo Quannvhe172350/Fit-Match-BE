@@ -1,9 +1,11 @@
 package com.fitmatch.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fitmatch.config.GoogleMapsProperties;
+import com.fitmatch.common.enums.GeocodingProvider;
+import com.fitmatch.config.GeocodingProperties;
 import com.fitmatch.service.GeocodingService;
 import com.fitmatch.service.support.GeoPoint;
+import com.fitmatch.service.support.LocationPrecision;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
@@ -30,10 +32,10 @@ public class GoogleGeocodingService implements GeocodingService {
     /** Google trả status này khi địa chỉ hợp lệ nhưng không khớp địa điểm nào. */
     private static final String ZERO_RESULTS = "ZERO_RESULTS";
 
-    private final GoogleMapsProperties properties;
+    private final GeocodingProperties properties;
     private final RestClient restClient;
 
-    public GoogleGeocodingService(GoogleMapsProperties properties, RestTemplateBuilder builder) {
+    public GoogleGeocodingService(GeocodingProperties properties, RestTemplateBuilder builder) {
         this.properties = properties;
         this.restClient = RestClient.builder(builder
                         .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()))
@@ -42,9 +44,13 @@ public class GoogleGeocodingService implements GeocodingService {
                 .build();
     }
 
+    private String apiKey() {
+        return properties.getGoogle().getApiKey();
+    }
+
     @Override
     public boolean isEnabled() {
-        return properties.isEnabled();
+        return StringUtils.hasText(apiKey());
     }
 
     @Override
@@ -56,7 +62,7 @@ public class GoogleGeocodingService implements GeocodingService {
                 .queryParam("address", address)
                 .queryParam("region", properties.getRegion())
                 .queryParam("language", properties.getLanguage())
-                .queryParam("key", properties.getApiKey())
+                .queryParam("key", apiKey())
                 .build(false)
                 .toUriString(), "geocode \"" + address + "\"");
     }
@@ -69,7 +75,7 @@ public class GoogleGeocodingService implements GeocodingService {
         return call(UriComponentsBuilder.fromUriString(GEOCODE_URL)
                 .queryParam("place_id", placeId)
                 .queryParam("language", properties.getLanguage())
-                .queryParam("key", properties.getApiKey())
+                .queryParam("key", apiKey())
                 .build(false)
                 .toUriString(), "geocode place_id " + placeId);
     }
@@ -82,7 +88,7 @@ public class GoogleGeocodingService implements GeocodingService {
         return call(UriComponentsBuilder.fromUriString(GEOCODE_URL)
                 .queryParam("latlng", latitude.toPlainString() + "," + longitude.toPlainString())
                 .queryParam("language", properties.getLanguage())
-                .queryParam("key", properties.getApiKey())
+                .queryParam("key", apiKey())
                 .build(false)
                 .toUriString(), "reverse geocode " + latitude + "," + longitude);
     }
@@ -116,13 +122,16 @@ public class GoogleGeocodingService implements GeocodingService {
                 log.warn("Google Maps trả kết quả thiếu toạ độ khi {}", what);
                 return Optional.empty();
             }
+            // V59: nằm trong geometry, KHÔNG phải cạnh formatted_address.
+            LocationPrecision precision = LocationPrecision.fromGoogle(
+                    first.path("geometry").path("location_type").asText(null));
             return Optional.of(new GeoPoint(
                     BigDecimal.valueOf(location.get("lat").asDouble()),
                     BigDecimal.valueOf(location.get("lng").asDouble()),
                     emptyToNull(first.path("formatted_address").asText(null)),
                     emptyToNull(first.path("place_id").asText(null)),
-                    // V59: nằm trong geometry, KHÔNG phải cạnh formatted_address.
-                    emptyToNull(first.path("geometry").path("location_type").asText(null))));
+                    precision == null ? null : precision.storedValue(),
+                    GeocodingProvider.GOOGLE));
         } catch (Exception e) {
             log.warn("Không gọi được Google Maps khi {}: {}", what, e.getMessage());
             return Optional.empty();

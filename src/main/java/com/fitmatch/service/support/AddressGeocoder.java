@@ -43,11 +43,19 @@ public class AddressGeocoder {
      *                     phải lấy nguyên từ gợi ý Places. Đánh dấu để job làm mới
      *                     định kỳ không kéo ghim về chỗ Google nói.
      */
+    /**
+     * @param placeProvider V65 — dịch vụ đã cấp {@code placeId}. FE lấy giá trị này
+     *                      nguyên văn từ response gợi ý của server rồi gửi ngược
+     *                      lên. Null = không rõ nguồn; job làm mới sẽ bỏ qua bản
+     *                      ghi thay vì tra một id lạ trên dịch vụ đang chạy.
+     */
     public record Pin(BigDecimal latitude, BigDecimal longitude,
-                      String placeId, String formattedAddress, boolean pinnedByUser) {
+                      String placeId, String formattedAddress,
+                      com.fitmatch.common.enums.GeocodingProvider placeProvider,
+                      boolean pinnedByUser) {
 
         public static Pin none() {
-            return new Pin(null, null, null, null, false);
+            return new Pin(null, null, null, null, null, false);
         }
 
         boolean hasValidCoordinates() {
@@ -64,45 +72,55 @@ public class AddressGeocoder {
      * caller phải hiểu null ở đây là "không có thông tin mới", KHÔNG phải "hãy xoá".
      */
     public record Resolution(boolean resolved, BigDecimal latitude, BigDecimal longitude,
-                             String formattedAddress, String placeId, String locationType,
+                             String formattedAddress, String placeId,
+                             com.fitmatch.common.enums.GeocodingProvider placeProvider,
+                             String locationType,
                              boolean pinnedByUser, LocalDateTime geocodedAt) {
 
         public static Resolution none() {
-            return new Resolution(false, null, null, null, null, null, false, null);
+            return new Resolution(false, null, null, null, null, null, null, false, null);
         }
 
-        /** Kết quả geocode = Google đoán, nên {@code pinnedByUser} luôn false. */
+        /** Kết quả geocode = dịch vụ đoán, nên {@code pinnedByUser} luôn false. */
         public static Resolution of(GeoPoint point) {
             return new Resolution(true, point.latitude(), point.longitude(),
-                    point.formattedAddress(), point.placeId(), point.locationType(),
-                    false, LocalDateTime.now());
+                    point.formattedAddress(), point.placeId(), point.provider(),
+                    point.locationType(), false, LocalDateTime.now());
         }
     }
 
     /**
      * Kết quả geocode có kém tới mức phải bắt gym xác minh lại địa chỉ không (V59)?
      *
-     * <p>Google phân bốn mức: {@code ROOFTOP} (đúng toà nhà), {@code RANGE_INTERPOLATED}
-     * (nội suy giữa hai số nhà), {@code GEOMETRIC_CENTER} (giữa một đoạn phố) và
-     * {@code APPROXIMATE}. Ba mức đầu đều đủ để khách đi tới đúng nơi; chỉ
-     * APPROXIMATE là đáng lo — nó thường là tâm phường/quận, nghĩa là Google
-     * không hiểu được số nhà và ghim có thể lệch hàng km.
+     * <p>So với {@link LocationPrecision#APPROXIMATE} — mức duy nhất đáng lo, vì
+     * nó thường là tâm phường/quận, nghĩa là dịch vụ không hiểu được số nhà và
+     * ghim có thể lệch hàng km. Ba mức còn lại đều đủ để khách đi tới đúng nơi.
+     *
+     * <p>V65: mọi provider đều đã quy đổi tín hiệu riêng của mình về từ vựng này
+     * TRƯỚC khi trả {@code GeoPoint}. Nếu bỏ bước quy đổi đó, hàm này sẽ luôn trả
+     * false và cơ chế tự gắn cờ địa chỉ chết một cách hoàn toàn im lặng — không
+     * lỗi, không log, chỉ là không còn hồ sơ nào bị bắt xác minh lại.
      *
      * <p>{@code locationType} null (operator tự ghim trên bản đồ) KHÔNG bị coi là
      * kém: người ở đó biết vị trí thật rõ hơn dịch vụ đoán địa chỉ.
      */
     public static boolean isImprecise(String locationType) {
-        return "APPROXIMATE".equals(locationType);
+        return LocationPrecision.APPROXIMATE.storedValue().equals(locationType);
     }
 
     /** @param pin địa điểm client ghim sẵn; {@link Pin#none()} khi không có. */
     public Resolution resolve(Pin pin, String address, String district, String city) {
         if (pin.hasValidCoordinates()) {
             // locationType null: đây là toạ độ người thật ghim, không phải phỏng
-            // đoán của Google — không có "độ chính xác" nào để chấm điểm.
+            // đoán của dịch vụ — không có "độ chính xác" nào để chấm điểm.
+            //
+            // placeProvider đi thẳng từ pin (V65): ô gợi ý địa chỉ giờ chạy qua
+            // proxy của chính server này, nên nhãn nguồn là dữ liệu server tự cấp
+            // rồi nhận lại — không phải phỏng đoán. Vẫn có thể null khi operator
+            // gõ tay hoặc kéo ghim mà không chọn gợi ý nào.
             return new Resolution(true, pin.latitude(), pin.longitude(),
                     emptyToNull(pin.formattedAddress()), emptyToNull(pin.placeId()),
-                    null, pin.pinnedByUser(), LocalDateTime.now());
+                    pin.placeProvider(), null, pin.pinnedByUser(), LocalDateTime.now());
         }
         String query = buildQuery(address, district, city);
         if (!StringUtils.hasText(query)) {

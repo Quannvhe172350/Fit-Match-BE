@@ -1,6 +1,6 @@
 package com.fitmatch.scheduler;
 
-import com.fitmatch.config.GoogleMapsProperties;
+import com.fitmatch.config.GeocodingProperties;
 import com.fitmatch.repository.GeocodeCacheRepository;
 import com.fitmatch.service.GeocodingBackfillService;
 import com.fitmatch.service.GeocodingService;
@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  *   <li>Toạ độ geocode từ lâu không bao giờ được làm mới.</li>
  * </ol>
  *
- * <p>Mặc định TẮT ({@code app.google-maps.backfill-job-enabled=false}): job này
+ * <p>Mặc định TẮT ({@code app.geocoding.backfill-job-enabled=false}): job này
  * tiêu quota Google mà không có ai nhìn, nên phải là quyết định có ý thức của
  * người vận hành. Khi chạy nhiều instance, cần thêm khoá phân tán — hiện mỗi
  * instance sẽ tự chạy một bản.
@@ -36,9 +36,9 @@ public class GeocodingBackfillJob {
     private final GeocodingBackfillService geocodingBackfillService;
     private final GeocodingService geocodingService;
     private final GeocodeCacheRepository geocodeCacheRepository;
-    private final GoogleMapsProperties properties;
+    private final GeocodingProperties properties;
 
-    @Scheduled(cron = "${app.google-maps.backfill-job-cron:0 30 3 * * *}")
+    @Scheduled(cron = "${app.geocoding.backfill-job-cron:0 30 3 * * *}")
     public void run() {
         if (!properties.isBackfillJobEnabled() || !geocodingService.isEnabled()) {
             return;

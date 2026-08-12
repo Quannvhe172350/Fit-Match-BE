@@ -1,8 +1,10 @@
 package com.fitmatch.service;
 
 import com.fitmatch.service.support.GeoPoint;
+import com.fitmatch.service.support.GeoSuggestion;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,4 +34,19 @@ public interface GeocodingService {
 
     /** Toạ độ -> địa chỉ đã chuẩn hoá (dùng cho nút "Vị trí của tôi"). */
     Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude);
+
+    /**
+     * Gợi ý địa điểm khi người dùng đang gõ dở (V65) — thay cho Places Autocomplete
+     * chạy phía trình duyệt.
+     *
+     * <p>Mặc định trả danh sách RỖNG chứ không ném ngoại lệ: không phải nhà cung
+     * cấp nào cũng có API gợi ý dùng được, và ô nhập địa chỉ phía FE đã có sẵn chế
+     * độ lui — gõ xong nhấn Enter để geocode nguyên chuỗi. Danh sách rỗng nghĩa là
+     * "không có gợi ý", không phải "hỏng".
+     *
+     * @param limit trần số gợi ý; caller phải kẹp về khoảng hợp lý trước khi gọi
+     */
+    default List<GeoSuggestion> autocomplete(String query, int limit) {
+        return List.of();
+    }
 }

@@ -22,12 +22,20 @@ public class GeocodeResponse {
     private String formattedAddress;
     private String placeId;
 
+    /**
+     * V65 — dịch vụ đã cấp {@link #placeId}. FE gửi NGƯỢC giá trị này lên khi lưu
+     * hồ sơ để server biết nguồn gốc id mà không phải đoán; thiếu nó thì bản ghi
+     * bị đánh dấu "không rõ nguồn" và job làm mới sẽ bỏ qua.
+     */
+    private com.fitmatch.common.enums.GeocodingProvider placeProvider;
+
     public static GeocodeResponse of(GeoPoint point) {
         return GeocodeResponse.builder()
                 .latitude(point.latitude())
                 .longitude(point.longitude())
                 .formattedAddress(point.formattedAddress())
                 .placeId(point.placeId())
+                .placeProvider(point.provider())
                 .build();
     }
 }

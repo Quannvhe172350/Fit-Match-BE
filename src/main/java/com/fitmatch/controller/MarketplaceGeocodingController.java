@@ -2,8 +2,9 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.response.ApiResponse;
-import com.fitmatch.config.GoogleMapsProperties;
+import com.fitmatch.config.GeocodingProperties;
 import com.fitmatch.dto.gym.GeocodeResponse;
+import com.fitmatch.dto.gym.PlaceSuggestionResponse;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.service.GeocodingService;
@@ -13,6 +14,8 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,14 +26,19 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
- * Proxy geocoding cho FE (UC-18) — dùng khi FE KHÔNG có key Maps JavaScript riêng
- * và vì thế không tự geocode phía trình duyệt được.
+ * Proxy geocoding cho FE (UC-18).
  *
- * <p>Mặc định TẮT ({@code app.google-maps.public-geocode-enabled=false}): endpoint
- * công khai gọi Google bằng key của nền tảng là bề mặt lạm bị đốt quota. Khi bật,
- * {@code AuthRateLimitFilter} giới hạn theo IP.
+ * <p>Từ V65, FE không còn khoá geocode phía trình duyệt nào (bản đồ chạy Leaflet
+ * + tile OpenStreetMap, vốn không cần khoá), nên đây là đường DUY NHẤT để ô "tìm
+ * quanh đây" hoạt động — vì vậy {@code app.geocoding.public-geocode-enabled}
+ * mặc định bật.
+ *
+ * <p>Vẫn là bề mặt lạm dụng: endpoint công khai tiêu hạn mức của nền tảng, mà
+ * hạn mức gói miễn phí tính theo NGÀY. {@code AuthRateLimitFilter} giới hạn theo
+ * IP; tắt cấu hình trên là chặn hẳn.
  */
 @RestController
 @RequestMapping("/api/marketplace/geocode")
@@ -41,7 +49,7 @@ import java.math.BigDecimal;
 public class MarketplaceGeocodingController {
 
     private final GeocodingService geocodingService;
-    private final GoogleMapsProperties properties;
+    private final GeocodingProperties properties;
 
     @Operation(summary = "UC-18 — Địa chỉ -> toạ độ",
             description = "Actor: **Customer / Guest**. Phục vụ ô \"tìm theo địa điểm tự chọn\" khi FE "
@@ -70,11 +78,31 @@ public class MarketplaceGeocodingController {
                 .orElseThrow(() -> new ResourceNotFoundException("Location", lat + "," + lng))));
     }
 
+    @Operation(summary = "UC-18 — Gợi ý địa điểm khi đang gõ",
+            description = "Actor: **Customer / Guest / Gym owner**. Thay Places Autocomplete phía trình "
+                    + "duyệt — khoá API nằm lại ở server. Trả mảng RỖNG khi nhà cung cấp hiện tại không "
+                    + "hỗ trợ gợi ý; khi đó FE lui về chế độ nhấn Enter để tra cả chuỗi. "
+                    + "Lỗi: 409 khi tính năng chưa được bật, 429 khi vượt rate limit.")
+    @GetMapping("/autocomplete")
+    public ResponseEntity<ApiResponse<List<PlaceSuggestionResponse>>> autocomplete(
+            @Parameter(description = "Chuỗi người dùng đang gõ")
+            @RequestParam("q") @NotBlank String query,
+            @Parameter(description = "Số gợi ý tối đa (1..10)")
+            @RequestParam(required = false, defaultValue = "5") @Min(1) @Max(10) int limit) {
+        requireEnabled();
+        // Danh sách rỗng là kết quả hợp lệ ("không có gợi ý"), KHÔNG phải 404: ô nhập
+        // vẫn dùng được, người dùng gõ tiếp hoặc nhấn Enter để tra cả chuỗi.
+        return ResponseEntity.ok(ApiResponse.success(geocodingService.autocomplete(query, limit)
+                .stream()
+                .map(PlaceSuggestionResponse::of)
+                .toList()));
+    }
+
     private void requireEnabled() {
         if (!properties.isPublicGeocodeEnabled() || !geocodingService.isEnabled()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Server-side geocoding is not enabled. Configure app.google-maps.api-key and "
-                            + "app.google-maps.public-geocode-enabled, or use a browser Maps JavaScript key.");
+                    "Server-side geocoding is not enabled. Configure app.geocoding.provider with its "
+                            + "API key, and app.geocoding.public-geocode-enabled.");
         }
     }
 }

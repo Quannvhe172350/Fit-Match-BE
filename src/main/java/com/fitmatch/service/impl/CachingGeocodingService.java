@@ -1,11 +1,13 @@
 package com.fitmatch.service.impl;
 
-import com.fitmatch.config.GoogleMapsProperties;
+import com.fitmatch.config.GeocodingProperties;
+import com.fitmatch.config.GeocodingProviderConfig;
 import com.fitmatch.entity.GeocodeCache;
 import com.fitmatch.repository.GeocodeCacheRepository;
 import com.fitmatch.service.GeocodingService;
 import com.fitmatch.service.support.GeoPoint;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -27,8 +29,8 @@ import java.util.Optional;
  * đổi.
  *
  * <p>Là {@code @Primary} nên mọi chỗ inject {@code GeocodingService} đều đi qua
- * đây; {@code GoogleGeocodingService} được inject theo kiểu cụ thể để không tự
- * trỏ vào chính mình.
+ * đây; provider thật được lấy qua qualifier {@code geocodingDelegate} để lớp đệm
+ * không tự trỏ vào chính mình.
  *
  * <p>CHỈ đệm hai chiều tra cứu có khoá rời rạc (địa chỉ, place_id). Reverse
  * geocode nhận toạ độ GPS liên tục — hai lần bấm "Vị trí của tôi" gần như không
@@ -39,13 +41,13 @@ import java.util.Optional;
 @Service
 public class CachingGeocodingService implements GeocodingService {
 
-    private final GoogleGeocodingService delegate;
+    private final GeocodingService delegate;
     private final GeocodeCacheRepository cacheRepository;
-    private final GoogleMapsProperties properties;
+    private final GeocodingProperties properties;
 
-    public CachingGeocodingService(GoogleGeocodingService delegate,
+    public CachingGeocodingService(@Qualifier(GeocodingProviderConfig.DELEGATE) GeocodingService delegate,
                                    GeocodeCacheRepository cacheRepository,
-                                   GoogleMapsProperties properties) {
+                                   GeocodingProperties properties) {
         this.delegate = delegate;
         this.cacheRepository = cacheRepository;
         this.properties = properties;
@@ -68,9 +70,32 @@ public class CachingGeocodingService implements GeocodingService {
                 () -> delegate.geocodeByPlaceId(placeId));
     }
 
+    /**
+     * Gắn tên provider vào khoá đệm (V65).
+     *
+     * <p>Không có tiền tố này thì sau khi đổi provider, mọi bản ghi đệm cũ vẫn
+     * khớp: hệ thống trả về toạ độ VÀ place_id của dịch vụ cũ dưới danh nghĩa
+     * dịch vụ mới, rồi job làm mới đem place_id đó đi tra nhầm chỗ. Bản ghi cũ
+     * đơn giản là không bao giờ khớp nữa và tự hết hạn theo TTL.
+     */
+    private String providerScoped(String cacheKey) {
+        return properties.getProvider().name() + "|" + cacheKey;
+    }
+
     @Override
     public Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
         return delegate.reverseGeocode(latitude, longitude);
+    }
+
+    /**
+     * Chuyển tiếp thẳng, KHÔNG đệm (V65). Cùng lý do với reverse geocode: khoá tra
+     * cứu ở đây là chuỗi gõ dở, nên "ngu", "nguy", "nguyen" là ba khoá khác nhau
+     * cho cùng một ý định. Đệm chúng chỉ làm phình bảng bằng những dòng gần như
+     * không bao giờ trúng lại.
+     */
+    @Override
+    public java.util.List<com.fitmatch.service.support.GeoSuggestion> autocomplete(String query, int limit) {
+        return delegate.autocomplete(query, limit);
     }
 
     /**
@@ -85,7 +110,7 @@ public class CachingGeocodingService implements GeocodingService {
         if (!isEnabled() || !StringUtils.hasText(rawQuery)) {
             return Optional.empty();
         }
-        String hash = sha256(cacheKey);
+        String hash = sha256(providerScoped(cacheKey));
         if (hash == null) {
             return loader.get();
         }
@@ -95,8 +120,11 @@ public class CachingGeocodingService implements GeocodingService {
         if (hit.isPresent()) {
             GeocodeCache entry = hit.get();
             log.debug("Geocode cache hit cho \"{}\"", rawQuery);
+            // Khoá đệm đã gắn tên provider nên một lần trúng chắc chắn là kết quả
+            // của CHÍNH provider đang chạy — không cần lưu thêm cột nào trong bảng.
             return Optional.of(new GeoPoint(entry.getLatitude(), entry.getLongitude(),
-                    entry.getFormattedAddress(), entry.getPlaceId(), entry.getLocationType()));
+                    entry.getFormattedAddress(), entry.getPlaceId(), entry.getLocationType(),
+                    properties.getProvider()));
         }
         Optional<GeoPoint> fresh = loader.get();
         fresh.ifPresent(point -> store(hash, rawQuery, point));

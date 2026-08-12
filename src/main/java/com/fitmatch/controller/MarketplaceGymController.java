@@ -59,7 +59,7 @@ public class MarketplaceGymController {
             @RequestParam(required = false) @DecimalMin("-90.0") @DecimalMax("90.0") java.math.BigDecimal lat,
             @Parameter(description = "Kinh độ tâm tìm kiếm (-180..180); phải đi kèm lat")
             @RequestParam(required = false) @DecimalMin("-180.0") @DecimalMax("180.0") java.math.BigDecimal lng,
-            @Parameter(description = "Bán kính (km); mặc định và trần lấy từ cấu hình app.google-maps")
+            @Parameter(description = "Bán kính (km); mặc định và trần lấy từ cấu hình app.geocoding")
             @RequestParam(required = false) @Positive Double radiusKm,
             @PageableDefault(size = 20) Pageable pageable) {
         // Chỉ có một trong hai toạ độ là lỗi của client (thường do quên bind state

@@ -174,6 +174,10 @@ public class GymProfileServiceImpl implements GymProfileService {
         profile.setLongitude(resolution.longitude());
         if (resolution.placeId() != null) {
             profile.setPlaceId(resolution.placeId());
+            // V65: nhãn provider đi LIỀN với id, không bao giờ tách rời — id mới của
+            // dịch vụ này mà còn nhãn cũ của dịch vụ kia là đúng kịch bản khiến job
+            // làm mới tra nhầm địa điểm.
+            profile.setPlaceProvider(resolution.placeProvider());
         }
         if (resolution.formattedAddress() != null) {
             profile.setFormattedAddress(resolution.formattedAddress());
@@ -189,13 +193,13 @@ public class GymProfileServiceImpl implements GymProfileService {
     /** Gom toạ độ + metadata Places mà client gửi kèm thành một {@code Pin}. */
     private static com.fitmatch.service.support.AddressGeocoder.Pin pinOf(SubmitGymRegistrationRequest r) {
         return new com.fitmatch.service.support.AddressGeocoder.Pin(
-                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(),
+                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(), r.getPlaceProvider(),
                 Boolean.TRUE.equals(r.getCoordinatesPinned()));
     }
 
     private static com.fitmatch.service.support.AddressGeocoder.Pin pinOf(UpdateGymProfileRequest r) {
         return new com.fitmatch.service.support.AddressGeocoder.Pin(
-                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(),
+                r.getLatitude(), r.getLongitude(), r.getPlaceId(), r.getFormattedAddress(), r.getPlaceProvider(),
                 Boolean.TRUE.equals(r.getCoordinatesPinned()));
     }
 
