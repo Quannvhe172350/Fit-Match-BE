@@ -9,6 +9,7 @@ import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.GymBranchRepository;
+import com.fitmatch.repository.GymFacilityRepository;
 import com.fitmatch.repository.GymProfileRepository;
 import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.PtProfileRepository;
@@ -37,11 +38,12 @@ public class MediaAccessGuard {
     private static final Set<MediaEntityType> PUBLICLY_READABLE = EnumSet.of(
             MediaEntityType.GYM, MediaEntityType.BRANCH, MediaEntityType.SERVICE,
             MediaEntityType.PACKAGE, MediaEntityType.TRAINER, MediaEntityType.REVIEW,
-            MediaEntityType.USER);
+            MediaEntityType.USER, MediaEntityType.FACILITY);
 
     private final UserRepository userRepository;
     private final GymProfileRepository gymProfileRepository;
     private final GymBranchRepository gymBranchRepository;
+    private final GymFacilityRepository gymFacilityRepository;
     private final GymServiceRepository gymServiceRepository;
     private final TrainingPackageRepository trainingPackageRepository;
     private final PtProfileRepository ptProfileRepository;
@@ -72,6 +74,9 @@ public class MediaAccessGuard {
             case GYM -> gymProfileRepository.findByUser_Username(username)
                     .map(g -> g.getId().equals(entityId)).orElse(false);
             case BRANCH -> gymBranchRepository
+                    .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
+            // Cơ sở vật chất thuộc gym nào thì chỉ chủ gym đó sửa được ảnh (UC-47).
+            case FACILITY -> gymFacilityRepository
                     .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
             case SERVICE -> gymServiceRepository
                     .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
@@ -124,7 +129,7 @@ public class MediaAccessGuard {
                     || imageType == MediaImageType.GALLERY;
             case GYM, BRANCH -> imageType == MediaImageType.COVER
                     || imageType == MediaImageType.GALLERY;
-            case SERVICE, PACKAGE -> imageType == MediaImageType.GALLERY;
+            case SERVICE, PACKAGE, FACILITY -> imageType == MediaImageType.GALLERY;
             case REVIEW -> imageType == MediaImageType.REVIEW_IMAGE;
             case CHECK_IN -> imageType == MediaImageType.CHECKIN_IMAGE;
         };

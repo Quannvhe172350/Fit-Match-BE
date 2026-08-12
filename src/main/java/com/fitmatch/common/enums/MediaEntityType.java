@@ -22,7 +22,9 @@ public enum MediaEntityType {
     CHECK_IN("check-ins"),
     /** Hồ sơ PT (pt_profiles). */
     TRAINER("trainers"),
-    REVIEW("reviews");
+    REVIEW("reviews"),
+    /** Cơ sở vật chất của gym (gym_facilities, UC-47..49). */
+    FACILITY("facilities");
 
     private final String folder;
 

@@ -27,4 +27,13 @@ public class FacilityRequest {
 
     /** UC-016: chi nhánh chứa cơ sở vật chất (phải thuộc Gym); null = chưa gắn. */
     private Long branchId;
+
+    /**
+     * Ảnh minh hoạ cơ sở vật chất (media FACILITY/GALLERY đã upload trước).
+     *
+     * <p>Đây là TRẠNG THÁI CUỐI CÙNG chứ không phải "thêm vào": ảnh đang gắn mà
+     * vắng mặt trong danh sách sẽ bị xoá hẳn. {@code null} = không đụng tới ảnh,
+     * nên client cũ chỉ sửa tên/mô tả vẫn chạy đúng.
+     */
+    private java.util.List<Long> mediaIds;
 }

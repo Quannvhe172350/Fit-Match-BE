@@ -37,7 +37,11 @@ public class GymFacilityController {
 
     @Operation(
             summary = "UC-47 — Tạo cơ sở vật chất",
-            description = "Actor: **Gym Operator** (Gym đã APPROVED). Lỗi: 409 Gym chưa được duyệt; 404 chưa có hồ sơ Gym; 403 không phải Gym Operator.")
+            description = """
+                    Actor: **Gym Operator** (Gym đã APPROVED).
+                    Ảnh: upload trước qua `POST /api/media/upload` với `entityType=FACILITY&imageType=GALLERY`
+                    (bỏ trống `entityId` = ảnh nháp), rồi gửi các id nhận được trong `mediaIds`.
+                    Lỗi: 409 Gym chưa được duyệt; 404 chưa có hồ sơ Gym; 403 không phải Gym Operator.""")
     @PostMapping
     public ResponseEntity<ApiResponse<FacilityResponse>> create(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -46,7 +50,13 @@ public class GymFacilityController {
                 .body(ApiResponse.success("Facility created", facilityService.create(userDetails.getUsername(), request)));
     }
 
-    @Operation(summary = "UC-48 — Cập nhật cơ sở vật chất", description = "Actor: **Gym Operator** (chủ sở hữu). Lỗi: 404 không tồn tại/không thuộc về bạn.")
+    @Operation(
+            summary = "UC-48 — Cập nhật cơ sở vật chất",
+            description = """
+                    Actor: **Gym Operator** (chủ sở hữu).
+                    `mediaIds` là trạng thái cuối cùng của thư viện ảnh: ảnh đang gắn mà vắng mặt sẽ bị xoá hẳn;
+                    bỏ trường này = giữ nguyên ảnh hiện có.
+                    Lỗi: 404 không tồn tại/không thuộc về bạn.""")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<FacilityResponse>> update(
             @AuthenticationPrincipal UserDetails userDetails,

@@ -229,9 +229,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     @Override
     @Transactional(readOnly = true)
     public GymPublicProfileResponse getGymDetail(Long gymProfileId) {
-        var gym = requireVisibleGym(gymProfileId);
-        var rating = ratingAggregator.forGym(gymProfileId);
-        return GymPublicProfileResponse.of(gym, rating.average(), rating.count());
+        // Dùng chung toCardResponse để trang chi tiết có ảnh bìa GIỐNG card danh sách;
+        // trước đây chỉ card set coverUrl nên mở chi tiết là ảnh biến mất.
+        return toCardResponse(requireVisibleGym(gymProfileId));
     }
 
     @Override
