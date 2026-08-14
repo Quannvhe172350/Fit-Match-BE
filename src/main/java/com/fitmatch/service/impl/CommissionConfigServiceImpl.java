@@ -19,10 +19,15 @@ import java.math.BigDecimal;
 @RequiredArgsConstructor
 public class CommissionConfigServiceImpl implements CommissionConfigService {
 
-    /** Mặc định khi chưa cấu hình: hoa hồng 15%, phí 0%, giữ tiền 3 ngày. */
+    /**
+     * Mặc định khi chưa cấu hình: hoa hồng 15%, phí 0%, giữ tiền 7 ngày.
+     *
+     * <p>D-18: 7 ngày để bằng {@code app.dispute.open-window-days} — tiền phải còn
+     * nằm trong hệ thống suốt thời gian khách còn quyền mở tranh chấp.
+     */
     private static final BigDecimal DEFAULT_COMMISSION = new BigDecimal("15.00");
     private static final BigDecimal DEFAULT_FEE = new BigDecimal("0.00");
-    private static final int DEFAULT_HOLD_DAYS = 3;
+    private static final int DEFAULT_HOLD_DAYS = 7;
 
     private final CommissionConfigRepository commissionConfigRepository;
     private final AuditService auditService;

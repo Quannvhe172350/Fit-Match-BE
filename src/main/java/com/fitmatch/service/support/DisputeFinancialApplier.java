@@ -49,8 +49,13 @@ public class DisputeFinancialApplier {
                 }
                 return;
             }
-            ticket.setSettlementStatus(SettlementStatus.NONE);
-            ticketRepository.save(ticket);
+            // Chỉ dọn trạng thái của vé mà chính tranh chấp này đã treo lên. Vé
+            // đang PENDING_RELEASE/HELD mà tranh chấp không giữ đồng nào thì để
+            // yên — đặt NONE ở đây sẽ xoá mất chỗ neo của tiền đang chờ.
+            if (ticket.getSettlementStatus() == SettlementStatus.DISPUTED) {
+                ticket.setSettlementStatus(SettlementStatus.NONE);
+                ticketRepository.save(ticket);
+            }
             return;
         }
 
@@ -76,16 +81,31 @@ public class DisputeFinancialApplier {
         }
         if (toGym.compareTo(BigDecimal.ZERO) > 0) {
             walletService.moveToPendingForTicket(gymId, ticket.getId(), toGym);
+        }
+        // Tranh chấp cấp buổi chỉ đóng băng giá trị một ngày; phần còn lại của vé
+        // vẫn nằm ở pending và settlementAmount đang giữ đúng con số đó (xem
+        // TicketDisputeServiceImpl#protectFunds). Cộng vào chứ không ghi đè —
+        // ghi đè là bỏ rơi phần dư: vé rời PENDING_RELEASE nên job giải ngân
+        // không bao giờ quét tới, tiền kẹt ở pending vĩnh viễn.
+        BigDecimal stillPending = ticket.getSettlementAmount() != null
+                ? ticket.getSettlementAmount() : BigDecimal.ZERO;
+        BigDecimal pendingTotal = stillPending.add(toGym);
+        if (pendingTotal.compareTo(BigDecimal.ZERO) > 0) {
             ticket.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
-            ticket.setSettlementAmount(toGym);
-            ticket.setSettlementPendingAt(LocalDateTime.now());
+            ticket.setSettlementAmount(pendingTotal);
+            // Giữ mốc cũ nếu vé đã từng chờ giải ngân: nó là điểm neo của CẢ hạn
+            // giữ tiền lẫn hạn khiếu nại (DisputeWindow), và gym không đáng bị
+            // dời hạn thêm một chu kỳ vì một tranh chấp đã có kết luận.
+            if (ticket.getSettlementPendingAt() == null) {
+                ticket.setSettlementPendingAt(LocalDateTime.now());
+            }
         } else {
             ticket.setSettlementStatus(SettlementStatus.REFUNDED);
             ticket.setSettlementAmount(BigDecimal.ZERO);
         }
         ticketRepository.save(ticket);
-        log.info("Dispute {} applied: resolution={}, refund={}, toGym={}, ticket={}, session={}",
-                dispute.getId(), resolution, refund, toGym, ticket.getId(),
+        log.info("Dispute {} applied: resolution={}, refund={}, toGym={}, stillPending={}, ticket={}, session={}",
+                dispute.getId(), resolution, refund, toGym, stillPending, ticket.getId(),
                 dispute.getSession() != null ? dispute.getSession().getId() : null);
     }
 }

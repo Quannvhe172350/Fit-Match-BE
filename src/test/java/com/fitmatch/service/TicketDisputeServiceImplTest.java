@@ -63,6 +63,7 @@ class TicketDisputeServiceImplTest {
     @Mock private SettlementService settlementService;
     @Mock private AuditService auditService;
     @Mock private NotificationDispatcher notificationDispatcher;
+    @Mock private com.fitmatch.service.support.DisputeWindow disputeWindow;
     @InjectMocks private TicketDisputeServiceImpl service;
 
     @BeforeEach
@@ -128,6 +129,54 @@ class TicketDisputeServiceImplTest {
 
         verify(walletService).reverseToHeldForTicket(GYM_ID, TICKET_ID, BigDecimal.valueOf(1_000_000));
         assertThat(t.getSettlementStatus()).isEqualTo(SettlementStatus.DISPUTED);
+        // Kéo hết về held nghĩa là pending không còn đồng nào của vé này.
+        assertThat(t.getSettlementAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    /**
+     * D-18: hết cửa sổ khiếu nại thì chặn ngay, không để khách mở một tranh chấp
+     * rỗng rồi mắc ở khâu quyết định vì tiền đã giải ngân.
+     */
+    @Test
+    void open_afterWindowClosed_isRejected() {
+        Ticket t = ticket(TicketStatus.USED_UP, SettlementStatus.PENDING_RELEASE);
+        when(disputeWindow.expired(t)).thenReturn(true);
+        when(disputeWindow.deadline(t)).thenReturn(LocalDate.now().minusDays(1));
+
+        assertThatThrownBy(() -> service.open("customer1", TICKET_ID, null, "khiếu nại muộn"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("hết hạn mở tranh chấp");
+        verify(disputeRepository, never()).save(any(Dispute.class));
+        verify(walletService, never()).reverseToHeldForTicket(any(), any(), any());
+    }
+
+    /** Vé còn đang dùng chưa có mốc kết toán -> chưa có hạn, luôn mở được. */
+    @Test
+    void open_beforeSettlement_hasNoDeadline() {
+        Ticket t = ticket(TicketStatus.ACTIVE, SettlementStatus.HELD);
+        when(disputeWindow.expired(t)).thenReturn(false);
+
+        var response = service.open("customer1", TICKET_ID, null, "Gym đóng cửa");
+
+        assertThat(response.getFrozenAmount()).isEqualByComparingTo(BigDecimal.valueOf(1_000_000));
+    }
+
+    /**
+     * Tranh chấp cấp buổi trên vé đang chờ giải ngân: chỉ một ngày bị đóng băng,
+     * settlementAmount phải hạ về đúng phần CÒN nằm ở pending — đó là chỗ neo để
+     * DisputeFinancialApplier trả lại phần dư cho gym sau khi có kết luận.
+     */
+    @Test
+    void sessionLevel_pendingRelease_keepsRemainderAnchored() {
+        Ticket t = ticket(TicketStatus.USED_UP, SettlementStatus.PENDING_RELEASE);
+        t.setSettlementAmount(BigDecimal.valueOf(1_000_000));
+        session(t, SessionStatus.DONE);
+
+        var response = service.open("customer1", TICKET_ID, SESSION_ID, "PT không đến");
+
+        assertThat(response.getFrozenAmount()).isEqualByComparingTo(BigDecimal.valueOf(100_000));
+        verify(walletService).reverseToHeldForTicket(GYM_ID, TICKET_ID, BigDecimal.valueOf(100_000));
+        assertThat(t.getSettlementAmount()).isEqualByComparingTo(BigDecimal.valueOf(900_000));
     }
 
     /** Tiền đã giải ngân xong thì không còn gì để bảo vệ — frozen = 0. */

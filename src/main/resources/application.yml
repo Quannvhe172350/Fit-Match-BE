@@ -57,14 +57,18 @@ cors:
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
-  # D-18 (chốt 2026-07-17, phương án A): số ngày được mở tranh chấp kể từ khi buổi tập
-  # kết thúc (hoặc từ lúc booking bị hủy/từ chối). Đổi ở đây thì sửa cả
-  # DISPUTE_WINDOW_DAYS phía FE (booking-pages) cho khớp thông báo/ẩn nút.
+  # D-18: số ngày được mở tranh chấp, tính từ khi vé được chốt hoàn thành/hết hạn
+  # (settlementPendingAt) — xem DisputeWindow. Giá trị trong system_configs override
+  # số này. PHẢI <= commission_configs.settlement_hold_days, nếu không tiền đã giải
+  # ngân cho gym trong khi khách vẫn còn quyền khiếu nại; FE lấy hạn từ
+  # TicketResponse.disputeDeadline nên không cần đồng bộ hằng số bên đó.
   dispute:
-    open-window-days: ${DISPUTE_OPEN_WINDOW_DAYS:14}
-  # Bug S2-09: số ngày khách được gửi yêu cầu hoàn tiền, tính từ khi buổi tập kết
-  # thúc (hoặc từ lúc booking bị hủy/từ chối nếu chưa tới giờ tập). 0 = không giới hạn.
-  # Chỉ áp cho khách; Admin mở hộ (UC-055) và luồng tự động không bị chặn.
+    open-window-days: ${DISPUTE_OPEN_WINDOW_DAYS:7}
+  # Bug S2-09: số ngày khách được gửi yêu cầu hoàn tiền, tính từ NGÀY TẬP ĐẦU TIÊN
+  # của vé (tickets.start_date) — xem RefundRequestWindow. Vé chưa xếp lịch hoặc
+  # chưa tới ngày bắt đầu thì không áp hạn (và đang được hoàn 100%). Giá trị trong
+  # system_configs override số này. 0 = không giới hạn, chỉ đặt được qua env vì API
+  # admin chặn số <= 0. Hết hạn hoàn tiền vẫn còn đường tranh chấp.
   refund:
     request-window-days: ${REFUND_REQUEST_WINDOW_DAYS:7}
   mail:

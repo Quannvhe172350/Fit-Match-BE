@@ -64,6 +64,7 @@ class TicketRefundServiceImplTest {
     @Mock private TicketRepository ticketRepository;
     @Mock private TrainingSessionRepository sessionRepository;
     @Spy private PartialRefundCalculator refundCalculator = new PartialRefundCalculator();
+    @Mock private com.fitmatch.service.support.RefundRequestWindow refundRequestWindow;
     @Mock private WalletService walletService;
     @Mock private SettlementService settlementService;
     @Mock private TicketLifecycle ticketLifecycle;
@@ -136,6 +137,26 @@ class TicketRefundServiceImplTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("đã hết hạn")
                 .hasMessageContaining("tranh chấp");
+    }
+
+    /**
+     * S2-09: quá cửa sổ đổi ý thì từ chối, nhưng chỉ ra đường tranh chấp — khách
+     * bị gym làm sai vẫn còn lối đi, chỉ là không đi bằng nút hoàn tiền.
+     */
+    @Test
+    void request_afterRefundWindow_isRejectedAndPointsToDispute() {
+        Ticket t = ticket(TicketStatus.ACTIVE, 30, LocalDate.now().minusDays(20));
+        when(settlementService.heldAmountOfTicket(t)).thenReturn(BigDecimal.valueOf(1_000_000));
+        when(refundRequestWindow.expired(t)).thenReturn(true);
+        when(refundRequestWindow.deadline(t)).thenReturn(LocalDate.now().minusDays(13));
+
+        assertThatThrownBy(() -> service.requestByCustomer(USERNAME, TICKET_ID, "Đổi ý muộn"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("hết hạn gửi yêu cầu hoàn tiền")
+                .hasMessageContaining("tranh chấp");
+        verify(refundRequestRepository, never()).save(any(RefundRequest.class));
+        // Không được đụng vào settlement: vé vẫn HELD, auto-release vẫn chạy bình thường.
+        assertThat(t.getSettlementStatus()).isEqualTo(SettlementStatus.HELD);
     }
 
     @Test

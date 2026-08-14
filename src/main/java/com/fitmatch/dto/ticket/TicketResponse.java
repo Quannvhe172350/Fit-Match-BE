@@ -73,6 +73,14 @@ public class TicketResponse {
     /** Số ngày đã đặt lịch (không tính ngày đã huỷ) — FE hiện "3/10 ngày". */
     private Integer scheduledDays;
 
+    /**
+     * D-18: ngày cuối còn mở được tranh chấp; null = chưa tới hạn (vé chưa kết
+     * toán) hoặc không áp hạn. Server tính (cần config runtime) rồi trả xuống để
+     * FE không phải nhân bản luật — hằng số ở FE là cách chắc chắn nhất để hai
+     * bên lệch nhau khi admin đổi cấu hình.
+     */
+    private LocalDate disputeDeadline;
+
     /** Chỉ có ở endpoint chi tiết; danh sách trang thì để null cho nhẹ. */
     private List<TrainingSessionResponse> sessions;
 

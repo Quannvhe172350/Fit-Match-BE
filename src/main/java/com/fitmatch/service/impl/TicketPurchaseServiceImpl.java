@@ -73,6 +73,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     private final TicketLifecycle ticketLifecycle;
     private final TicketPaymentHandler ticketPaymentHandler;
     private final TicketPromotionReleaser ticketPromotionReleaser;
+    private final com.fitmatch.service.support.DisputeWindow disputeWindow;
 
     @Override
     @Transactional(readOnly = true)
@@ -205,8 +206,9 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
         Map<Long, Integer> scheduled = scheduledDaysOf(
                 page.getContent().stream().map(Ticket::getId).toList());
 
-        return PageResponse.of(page, ticket -> TicketResponse.withScheduledCount(
-                ticket, scheduled.getOrDefault(ticket.getId(), 0)));
+        return PageResponse.of(page, ticket -> withDisputeDeadline(
+                TicketResponse.withScheduledCount(ticket, scheduled.getOrDefault(ticket.getId(), 0)),
+                ticket));
     }
 
     private Map<Long, Integer> scheduledDaysOf(List<Long> ticketIds) {
@@ -225,8 +227,14 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     @Transactional(readOnly = true)
     public TicketResponse detail(String customerUsername, Long ticketId) {
         Ticket ticket = requireOwned(customerUsername, ticketId);
-        return TicketResponse.withSessions(ticket,
-                trainingSessionRepository.findByTicket_IdOrderByDayIndexAsc(ticketId));
+        return withDisputeDeadline(TicketResponse.withSessions(ticket,
+                trainingSessionRepository.findByTicket_IdOrderByDayIndexAsc(ticketId)), ticket);
+    }
+
+    /** D-18: hạn mở tranh chấp — chỉ gắn ở API của khách, đây là bên cần biết. */
+    private TicketResponse withDisputeDeadline(TicketResponse response, Ticket ticket) {
+        response.setDisputeDeadline(disputeWindow.deadline(ticket));
+        return response;
     }
 
     @Override

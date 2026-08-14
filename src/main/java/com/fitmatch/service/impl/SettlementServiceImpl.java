@@ -32,6 +32,7 @@ public class SettlementServiceImpl implements SettlementService {
     private final WalletService walletService;
     private final CommissionConfigService commissionConfigService;
     private final AuditService auditService;
+    private final com.fitmatch.service.support.DisputeWindow disputeWindow;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
@@ -69,7 +70,14 @@ public class SettlementServiceImpl implements SettlementService {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(holdDays);
         return ticketRepository
                 .findBySettlementStatusAndSettlementPendingAtBefore(SettlementStatus.PENDING_RELEASE, cutoff)
-                .stream().map(Ticket::getId).toList();
+                // D-18: hết hạn giữ tiền là chưa đủ — cửa sổ khiếu nại cũng phải
+                // đóng. Hai tham số này do admin chỉnh riêng nên sẽ có lúc lệch;
+                // giải ngân sớm hơn hạn khiếu nại là tiền ra khỏi hệ thống trong
+                // khi khách vẫn còn quyền mở tranh chấp, và lúc đó chỉ còn đường
+                // thu hồi thủ công.
+                .stream()
+                .filter(disputeWindow::releaseAllowed)
+                .map(Ticket::getId).toList();
     }
 
     @Override

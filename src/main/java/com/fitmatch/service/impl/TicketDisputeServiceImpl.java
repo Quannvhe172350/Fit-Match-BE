@@ -21,6 +21,7 @@ import com.fitmatch.service.AuditService;
 import com.fitmatch.service.SettlementService;
 import com.fitmatch.service.TicketDisputeService;
 import com.fitmatch.service.WalletService;
+import com.fitmatch.service.support.DisputeWindow;
 import com.fitmatch.service.support.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,6 +58,7 @@ public class TicketDisputeServiceImpl implements TicketDisputeService {
     private final SettlementService settlementService;
     private final AuditService auditService;
     private final NotificationDispatcher notificationDispatcher;
+    private final DisputeWindow disputeWindow;
 
     @Override
     @Transactional
@@ -65,6 +67,15 @@ public class TicketDisputeServiceImpl implements TicketDisputeService {
         if (!DISPUTABLE_TICKET_STATES.contains(ticket.getStatus())) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Không mở được tranh chấp cho vé ở trạng thái " + ticket.getStatus());
+        }
+        // D-18: hết cửa sổ khiếu nại thì chặn ngay tại đây. Trước đây vé quá hạn
+        // vẫn mở được tranh chấp nhưng tiền đã giải ngân xong nên đóng băng được
+        // 0đ — tới lúc moderator quyết hoàn tiền mới báo "cần thu hồi thủ công".
+        // Chặn sớm và nói rõ ngày hết hạn tử tế hơn nhiều so với cái bẫy đó.
+        if (disputeWindow.expired(ticket)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Đã hết hạn mở tranh chấp cho vé này (hạn cuối "
+                            + disputeWindow.deadline(ticket) + ")");
         }
 
         TrainingSession session = null;
@@ -121,6 +132,13 @@ public class TicketDisputeServiceImpl implements TicketDisputeService {
      * phần đang giữ; tranh chấp cấp buổi chỉ bảo vệ giá trị MỘT ngày
      * ({@code payableAmount / dayCount}) — phần còn lại của vé không bị treo
      * theo, vì các buổi khác vẫn diễn ra bình thường.
+     *
+     * <p>Với vé đang PENDING_RELEASE, phần KHÔNG bị đóng băng vẫn nằm ở
+     * {@code pendingBalance} của ví gym, nên {@code settlementAmount} được hạ
+     * xuống đúng phần đó — nó là con số {@code SettlementReleaseJob} sẽ giải ngân
+     * và là con số {@link com.fitmatch.service.support.DisputeFinancialApplier}
+     * cộng lại khi tranh chấp có kết luận. Không hạ thì phần dư mất chỗ neo:
+     * tranh chấp một buổi của vé 10 ngày sẽ khoá luôn 9 ngày tiền còn lại.
      */
     private BigDecimal protectFunds(Ticket ticket, TrainingSession session) {
         SettlementStatus status = ticket.getSettlementStatus();
@@ -140,6 +158,12 @@ public class TicketDisputeServiceImpl implements TicketDisputeService {
         }
         if (status == SettlementStatus.PENDING_RELEASE) {
             walletService.reverseToHeldForTicket(ticket.getGymProfile().getId(), ticket.getId(), amount);
+            ticket.setSettlementAmount(available.subtract(amount));
+        } else {
+            // Đóng băng từ held (HELD/REFUND_PENDING): không có đồng nào ở pending.
+            // Ghi 0 thay vì để số cũ nằm lại — applier cộng settlementAmount vào
+            // phần trả gym, một giá trị sót từ chu kỳ trước sẽ thành tiền khống.
+            ticket.setSettlementAmount(BigDecimal.ZERO);
         }
         ticket.setSettlementStatus(SettlementStatus.DISPUTED);
         ticketRepository.save(ticket);

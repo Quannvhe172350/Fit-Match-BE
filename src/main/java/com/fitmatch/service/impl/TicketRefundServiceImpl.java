@@ -50,6 +50,7 @@ public class TicketRefundServiceImpl implements TicketRefundService {
     private final TicketRepository ticketRepository;
     private final TrainingSessionRepository sessionRepository;
     private final PartialRefundCalculator refundCalculator;
+    private final com.fitmatch.service.support.RefundRequestWindow refundRequestWindow;
     private final WalletService walletService;
     private final SettlementService settlementService;
     private final TicketLifecycle ticketLifecycle;
@@ -79,6 +80,16 @@ public class TicketRefundServiceImpl implements TicketRefundService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Vé này không có khoản tiền nào đang được giữ (settlement: "
                             + ticket.getSettlementStatus() + ")");
+        }
+        // Bug S2-09: cửa sổ đổi ý, đếm từ ngày tập đầu tiên. Vé chưa xếp lịch/chưa
+        // tới ngày bắt đầu thì không áp hạn — khách chưa nhận gì thì chưa có gì
+        // để tính giờ. Hết hạn vẫn còn đường tranh chấp nên nói luôn ra đây, y
+        // như thông báo của vé hết hạn ở trên.
+        if (refundRequestWindow.expired(ticket)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Đã hết hạn gửi yêu cầu hoàn tiền cho vé này (hạn cuối "
+                            + refundRequestWindow.deadline(ticket)
+                            + "). Bạn có thể mở tranh chấp nếu cho rằng có sai sót.");
         }
         if (refundRequestRepository.existsByTicket_IdAndStatus(ticketId, RefundStatus.PENDING)) {
             throw new BusinessException(ErrorCode.INVALID_STATE,

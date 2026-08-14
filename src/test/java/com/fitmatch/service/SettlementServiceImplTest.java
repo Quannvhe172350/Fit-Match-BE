@@ -47,6 +47,7 @@ class SettlementServiceImplTest {
     @Mock private CommissionConfigService commissionConfigService;
     @Mock private AuditService auditService;
     @Mock private com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    @Mock private com.fitmatch.service.support.DisputeWindow disputeWindow;
     @InjectMocks private SettlementServiceImpl service;
 
     private Ticket heldTicket() {
@@ -154,6 +155,42 @@ class SettlementServiceImplTest {
         service.releaseTicket(TICKET_ID);
 
         verify(walletService, never()).releaseForTicket(any(), any(), any(), any());
+    }
+
+    /**
+     * D-18: hết hạn giữ tiền nhưng cửa sổ khiếu nại còn mở thì CHƯA giải ngân.
+     * Đây là chốt chặn cho trường hợp admin đặt settlementHoldDays nhỏ hơn
+     * dispute.open-window-days — tiền ra khỏi hệ thống trong khi khách vẫn còn
+     * quyền mở tranh chấp thì chỉ còn đường thu hồi thủ công.
+     */
+    @Test
+    void findDue_disputeWindowStillOpen_isHeldBack() {
+        Ticket ticket = pendingReleaseTicket();
+        commission("10.00", 1);
+        when(ticketRepository.findBySettlementStatusAndSettlementPendingAtBefore(
+                eq(SettlementStatus.PENDING_RELEASE), any())).thenReturn(java.util.List.of(ticket));
+        when(disputeWindow.releaseAllowed(ticket)).thenReturn(false);
+
+        assertThat(service.findTicketsDueForRelease()).isEmpty();
+    }
+
+    @Test
+    void findDue_disputeWindowClosed_isReleasable() {
+        Ticket ticket = pendingReleaseTicket();
+        commission("10.00", 7);
+        when(ticketRepository.findBySettlementStatusAndSettlementPendingAtBefore(
+                eq(SettlementStatus.PENDING_RELEASE), any())).thenReturn(java.util.List.of(ticket));
+        when(disputeWindow.releaseAllowed(ticket)).thenReturn(true);
+
+        assertThat(service.findTicketsDueForRelease()).containsExactly(TICKET_ID);
+    }
+
+    private Ticket pendingReleaseTicket() {
+        Ticket ticket = heldTicket();
+        ticket.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
+        ticket.setSettlementAmount(BigDecimal.valueOf(1_000_000));
+        ticket.setSettlementPendingAt(LocalDateTime.now().minusDays(8));
+        return ticket;
     }
 
     /** Vé đang tranh chấp bị kéo về DISPUTED — scheduler không được giải ngân. */

@@ -117,6 +117,57 @@ class DisputeFinancialApplierTest {
                 eq(BigDecimal.valueOf(100_000)));
     }
 
+    /**
+     * D-18: tranh chấp cấp buổi trên vé đang chờ giải ngân. 900k không bị tranh
+     * chấp vẫn nằm ở pending (settlementAmount đang giữ con số đó); hoàn 100k cho
+     * khách KHÔNG được biến vé thành REFUNDED — làm vậy là bỏ rơi 900k: vé rời
+     * PENDING_RELEASE nên job giải ngân không bao giờ quét tới nữa.
+     */
+    @Test
+    void sessionLevelDispute_refund_keepsUntouchedPendingReleasable() {
+        Ticket t = ticket(SettlementStatus.DISPUTED);
+        t.setSettlementAmount(BigDecimal.valueOf(900_000));
+        java.time.LocalDateTime pendingAt = java.time.LocalDateTime.now().minusDays(2);
+        t.setSettlementPendingAt(pendingAt);
+
+        applier.apply(dispute(t, BigDecimal.valueOf(100_000)), DisputeResolution.REFUND_FULL, null);
+
+        verify(walletService).refundToCustomerForTicket(eq(GYM_ID), any(), eq(TICKET_ID),
+                eq(BigDecimal.valueOf(100_000)));
+        verify(walletService, never()).moveToPendingForTicket(any(), any(), any());
+        assertThat(t.getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
+        assertThat(t.getSettlementAmount()).isEqualByComparingTo(BigDecimal.valueOf(900_000));
+        // Mốc neo giữ nguyên: hạn giữ tiền và hạn khiếu nại đếm từ lần kết toán
+        // đầu, gym không bị dời hạn thêm một chu kỳ vì tranh chấp đã xử xong.
+        assertThat(t.getSettlementPendingAt()).isEqualTo(pendingAt);
+    }
+
+    /** Xử cho gym thắng: phần đóng băng nhập lại vào phần dư, cả vé chờ giải ngân. */
+    @Test
+    void sessionLevelDispute_releaseToGym_addsBackToRemainder() {
+        Ticket t = ticket(SettlementStatus.DISPUTED);
+        t.setSettlementAmount(BigDecimal.valueOf(900_000));
+        t.setSettlementPendingAt(java.time.LocalDateTime.now().minusDays(2));
+
+        applier.apply(dispute(t, BigDecimal.valueOf(100_000)), DisputeResolution.RELEASE_TO_GYM, null);
+
+        verify(walletService).moveToPendingForTicket(GYM_ID, TICKET_ID, BigDecimal.valueOf(100_000));
+        assertThat(t.getSettlementStatus()).isEqualTo(SettlementStatus.PENDING_RELEASE);
+        assertThat(t.getSettlementAmount()).isEqualByComparingTo(BigDecimal.valueOf(1_000_000));
+    }
+
+    /** Tranh chấp cấp vé (không còn phần dư) hoàn toàn bộ -> vé REFUNDED, sạch sổ. */
+    @Test
+    void ticketLevelDispute_refundFull_leavesNothingPending() {
+        Ticket t = ticket(SettlementStatus.DISPUTED);
+        t.setSettlementAmount(BigDecimal.ZERO);
+
+        applier.apply(dispute(t, BigDecimal.valueOf(1_000_000)), DisputeResolution.REFUND_FULL, null);
+
+        assertThat(t.getSettlementStatus()).isEqualTo(SettlementStatus.REFUNDED);
+        assertThat(t.getSettlementAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
     /** P1-5: tiền đã giải ngân xong thì không tự đòi lại được — cần thu hồi thủ công. */
     @Test
     void refundAfterRelease_isRejectedInsteadOfSilentlyFailing() {
