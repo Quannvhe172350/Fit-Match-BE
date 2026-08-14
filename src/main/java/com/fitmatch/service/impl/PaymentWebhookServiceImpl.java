@@ -1,6 +1,5 @@
 package com.fitmatch.service.impl;
 
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
 import com.fitmatch.common.enums.PaymentTxnDirection;
@@ -15,7 +14,6 @@ import com.fitmatch.repository.PaymentTransactionRepository;
 import com.fitmatch.repository.WithdrawalRequestRepository;
 import com.fitmatch.service.PaymentWebhookService;
 import com.fitmatch.service.WithdrawalService;
-import com.fitmatch.service.support.BookingPaymentHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -43,7 +41,7 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentOrderRepository paymentOrderRepository;
     private final WithdrawalRequestRepository withdrawalRequestRepository;
-    private final BookingPaymentHandler bookingPaymentHandler;
+    private final com.fitmatch.service.support.TicketPaymentHandler ticketPaymentHandler;
     private final WithdrawalService withdrawalService;
     private final TransactionTemplate transactionTemplate;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
@@ -96,7 +94,7 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
     }
 
     // ------------------------------------------------------------------
-    // Chiều VÀO: khách thanh toán booking
+    // Chiều VÀO: khách thanh toán vé
     // ------------------------------------------------------------------
 
     private boolean processIncoming(CassoWebhookRequest.Item item) {
@@ -108,7 +106,7 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
         boolean confirm = anomaly == null || anomaly == PaymentTxnAnomaly.OVERPAID;
 
         // Luôn lưu lại giao dịch (kể cả không khớp) để đối soát/kiểm toán.
-        // OVERPAID vẫn phải review: booking đã xác nhận nhưng phần thừa còn nợ khách.
+        // OVERPAID vẫn phải review: vé đã kích hoạt nhưng phần thừa còn nợ khách.
         paymentTransactionRepository.save(PaymentTransaction.builder()
                 .externalId(item.getId())
                 .direction(PaymentTxnDirection.IN)
@@ -134,8 +132,8 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
         order.setPaidAt(LocalDateTime.now());
         paymentOrderRepository.save(order);
 
-        if (order.getBooking().getStatus() == BookingStatus.PENDING_PAYMENT) {
-            bookingPaymentHandler.onPaymentConfirmed(order.getBooking(), order.getAmount(), "casso");
+        if (order.getTicket().getStatus() == com.fitmatch.common.enums.TicketStatus.PENDING_PAYMENT) {
+            ticketPaymentHandler.onPaymentConfirmed(order.getTicket(), order.getAmount(), "casso");
         }
         return true;
     }
@@ -167,14 +165,16 @@ public class PaymentWebhookServiceImpl implements PaymentWebhookService {
             // Đơn quá hạn không được xác nhận nữa; tiền đã vào cần hoàn thủ công.
             order.setStatus(PaymentStatus.EXPIRED);
             paymentOrderRepository.save(order);
-            notificationDispatcher.paymentFailed(order.getBooking(),
-                    "tiền vào sau khi đơn thanh toán đã hết hạn");
+            notifyPaymentFailed(order, "tiền vào sau khi đơn thanh toán đã hết hạn");
         } else if (anomaly == PaymentTxnAnomaly.UNDERPAID) {
-            notificationDispatcher.paymentFailed(order.getBooking(),
-                    "số tiền chuyển chưa đủ so với số phải trả");
+            notifyPaymentFailed(order, "số tiền chuyển chưa đủ so với số phải trả");
         }
-        // UNMATCHED: không biết booking nào -> không thể báo ai, chỉ vào hàng đợi.
+        // UNMATCHED: không biết vé nào -> không thể báo ai, chỉ vào hàng đợi.
         // DUPLICATE: đơn đã xử lý xong -> không làm khách hoang mang, Finance đối soát.
+    }
+
+    private void notifyPaymentFailed(PaymentOrder order, String reason) {
+        notificationDispatcher.ticketPaymentFailed(order.getTicket(), reason);
     }
 
     // ------------------------------------------------------------------

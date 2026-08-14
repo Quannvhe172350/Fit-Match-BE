@@ -14,9 +14,9 @@ public interface PaymentOrderRepository extends JpaRepository<PaymentOrder, Long
 
     Optional<PaymentOrder> findByRefCode(String refCode);
 
-    Optional<PaymentOrder> findByBooking_Id(Long bookingId);
+    Optional<PaymentOrder> findByTicket_Id(Long ticketId);
 
-    Optional<PaymentOrder> findByBooking_IdAndBooking_Customer_Username(Long bookingId, String username);
+    Optional<PaymentOrder> findByTicket_IdAndTicket_Customer_Username(Long ticketId, String username);
 
     /** UC-054: đơn PENDING đã quá hạn — dùng cho job hết hạn thanh toán. */
     List<PaymentOrder> findByStatusAndExpiresAtBefore(PaymentStatus status, LocalDateTime cutoff);

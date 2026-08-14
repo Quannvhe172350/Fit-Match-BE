@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,54 +53,52 @@ class WalletServiceImplTest {
     }
 
     private WalletTransaction lastTxn() {
+        return allTxns().get(allTxns().size() - 1);
+    }
+
+    private List<WalletTransaction> allTxns() {
         ArgumentCaptor<WalletTransaction> cap = ArgumentCaptor.forClass(WalletTransaction.class);
         verify(walletTransactionRepository, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
-        return cap.getValue();
+        return cap.getAllValues();
     }
 
     @Test
-    void hold_increasesHeldAndRecordsLedger() {
-        service.hold(5L, 10L, new BigDecimal("200.00"));
+    void holdForTicket_increasesHeldAndRecordsLedger() {
+        service.holdForTicket(5L, 10L, new BigDecimal("200.00"));
 
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("200.00");
         assertThat(lastTxn().getType()).isEqualTo(WalletTxnType.HOLD);
         assertThat(lastTxn().getHeldAfter()).isEqualByComparingTo("200.00");
+        // Neo vé là thứ duy nhất truy vết được bút toán về nguồn tiền (V73);
+        // ghi thiếu thì sổ cái không đối soát ngược được.
+        assertThat(lastTxn().getTicketId()).isEqualTo(10L);
     }
 
     @Test
-    void refundFromHeld_decreasesHeld() {
-        wallet.setHeldBalance(new BigDecimal("200.00"));
-
-        service.refundFromHeld(5L, 10L, new BigDecimal("150.00"));
-
-        assertThat(wallet.getHeldBalance()).isEqualByComparingTo("50.00");
-        assertThat(lastTxn().getType()).isEqualTo(WalletTxnType.REFUND);
-    }
-
-    @Test
-    void refundFromHeld_insufficientHeld_throwsAndNoChange() {
+    void refundForTicket_insufficientHeld_throwsAndNoChange() {
         wallet.setHeldBalance(new BigDecimal("100.00"));
 
-        assertThatThrownBy(() -> service.refundFromHeld(5L, 10L, new BigDecimal("150.00")))
+        assertThatThrownBy(() -> service.refundToCustomerForTicket(
+                5L, null, 10L, new BigDecimal("150.00")))
                 .isInstanceOf(BusinessException.class);
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("100.00");
     }
 
     @Test
-    void moveToPending_shiftsHeldToPending() {
+    void moveToPendingForTicket_shiftsHeldToPending() {
         wallet.setHeldBalance(new BigDecimal("200.00"));
 
-        service.moveToPending(5L, 10L, new BigDecimal("200.00"));
+        service.moveToPendingForTicket(5L, 10L, new BigDecimal("200.00"));
 
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("0");
         assertThat(wallet.getPendingBalance()).isEqualByComparingTo("200.00");
     }
 
     @Test
-    void reverseToHeld_pullsPendingBackToHeld() {
+    void reverseToHeldForTicket_pullsPendingBackToHeld() {
         wallet.setPendingBalance(new BigDecimal("200.00"));
 
-        service.reverseToHeld(5L, 10L, new BigDecimal("200.00"));
+        service.reverseToHeldForTicket(5L, 10L, new BigDecimal("200.00"));
 
         assertThat(wallet.getPendingBalance()).isEqualByComparingTo("0");
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("200.00");
@@ -107,10 +106,10 @@ class WalletServiceImplTest {
     }
 
     @Test
-    void release_movesNetToAvailableAfterCommission() {
+    void releaseForTicket_movesNetToAvailableAfterCommission() {
         wallet.setPendingBalance(new BigDecimal("200.00"));
 
-        service.release(5L, 10L, new BigDecimal("200.00"), new BigDecimal("15.00"));
+        service.releaseForTicket(5L, 10L, new BigDecimal("200.00"), new BigDecimal("15.00"));
 
         // commission 15% = 30 -> net 170 vào available, pending về 0.
         assertThat(wallet.getPendingBalance()).isEqualByComparingTo("0");
@@ -121,8 +120,61 @@ class WalletServiceImplTest {
 
     @Test
     void negativeAmount_rejected() {
-        assertThatThrownBy(() -> service.hold(5L, 10L, new BigDecimal("-1")))
+        assertThatThrownBy(() -> service.holdForTicket(5L, 10L, new BigDecimal("-1")))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    // ----- Neo vé trong sổ cái (V73) -----
+    //
+    // Hai test dưới canh chỗ mà mắt thường KHÔNG thấy được. Trước đây record()
+    // có hai overload: (…, Long bookingId, String desc) và (…, Long bookingId,
+    // Long ticketId, String desc). Khi mô hình booking chết, hai overload gộp
+    // làm một và tham số Long thứ nhất ĐỔI NGHĨA từ bookingId sang ticketId.
+    //
+    // Một lời gọi truyền nhầm vị trí vẫn biên dịch sạch, vẫn chạy, vẫn ra số dư
+    // đúng — chỉ có neo truy vết là sai. Sổ cái ví là append-only nên sai kiểu
+    // này KHÔNG sửa lại được, chỉ lộ ra lúc đối soát.
+
+    @Test
+    void everyTicketEscrowOperation_stampsTicketAnchor() {
+        wallet.setOwnerType(WalletOwnerType.GYM);
+
+        service.holdForTicket(5L, 77L, new BigDecimal("300.00"));
+        service.moveToPendingForTicket(5L, 77L, new BigDecimal("100.00"));
+        service.reverseToHeldForTicket(5L, 77L, new BigDecimal("50.00"));
+        service.releaseForTicket(5L, 77L, new BigDecimal("50.00"), new BigDecimal("10.00"));
+        service.refundToCustomerForTicket(5L, null, 77L, new BigDecimal("100.00"));
+
+        // releaseForTicket ghi HAI bút toán (RELEASE + COMMISSION) nên tổng là 6.
+        assertThat(allTxns()).hasSize(6);
+        assertThat(allTxns())
+                .as("mọi bút toán escrow vé phải neo được về đúng vé")
+                .allSatisfy(t -> assertThat(t.getTicketId()).isEqualTo(77L));
+        assertThat(allTxns()).extracting(WalletTransaction::getType)
+                .containsExactly(WalletTxnType.HOLD, WalletTxnType.MOVE_TO_PENDING,
+                        WalletTxnType.DISPUTE_HOLD, WalletTxnType.RELEASE,
+                        WalletTxnType.COMMISSION, WalletTxnType.REFUND);
+    }
+
+    @Test
+    void nonTicketOperations_leaveTicketAnchorNull() {
+        // Đóng băng và rút tiền KHÔNG gắn với vé nào. Nếu một trong số này lỡ
+        // ghi số vào ticket_id, báo cáo đối soát sẽ quy khoản rút của gym thành
+        // dòng tiền của một vé có thật — sai lệch mà số dư vẫn khớp.
+        wallet.setOwnerType(WalletOwnerType.GYM);
+        wallet.setAvailableBalance(new BigDecimal("500.00"));
+
+        service.freezeWallet(wallet, new BigDecimal("100.00"), "điều tra");
+        service.unfreezeWallet(wallet, new BigDecimal("100.00"), "gỡ điều tra");
+        service.reserveForWithdrawal(wallet, new BigDecimal("200.00"));
+        service.payoutWithdrawal(wallet, new BigDecimal("200.00"));
+        service.reserveForWithdrawal(wallet, new BigDecimal("150.00"));
+        service.cancelWithdrawalReserve(wallet, new BigDecimal("150.00"));
+
+        assertThat(allTxns()).hasSize(6);
+        assertThat(allTxns())
+                .as("bút toán không thuộc vé nào phải để trống neo vé")
+                .allSatisfy(t -> assertThat(t.getTicketId()).isNull());
     }
 
     // ----- V61: ví đa chủ sở hữu -----
@@ -138,14 +190,14 @@ class WalletServiceImplTest {
     }
 
     @Test
-    void refundToCustomer_debitsGymHeldAndCreditsCustomerAvailable() {
+    void refundToCustomerForTicket_debitsGymHeldAndCreditsCustomerAvailable() {
         wallet.setOwnerType(WalletOwnerType.GYM);
         wallet.setHeldBalance(new BigDecimal("300.00"));
         Wallet customerWallet = secondWallet(2L, WalletOwnerType.CUSTOMER);
         User customer = User.builder().id(42L).username("khach").build();
         when(walletRepository.findByUser_Id(42L)).thenReturn(Optional.of(customerWallet));
 
-        service.refundToCustomer(5L, customer, 10L, new BigDecimal("120.00"));
+        service.refundToCustomerForTicket(5L, customer, 10L, new BigDecimal("120.00"));
 
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("180.00");
         assertThat(customerWallet.getAvailableBalance()).isEqualByComparingTo("120.00");
@@ -157,13 +209,13 @@ class WalletServiceImplTest {
     }
 
     @Test
-    void refundToCustomer_withoutCustomer_fallsBackToHeldDebitOnly() {
-        // Dữ liệu cũ không truy ra được khách: vẫn phải hoàn được, chỉ là không
-        // ghi có vào ví nào — chặn hẳn luồng refund còn tệ hơn.
+    void refundToCustomerForTicket_withoutCustomer_fallsBackToHeldDebitOnly() {
+        // Không truy ra được khách: vẫn phải hoàn được, chỉ là không ghi có vào
+        // ví nào — chặn hẳn luồng refund còn tệ hơn.
         wallet.setOwnerType(WalletOwnerType.GYM);
         wallet.setHeldBalance(new BigDecimal("300.00"));
 
-        service.refundToCustomer(5L, null, 10L, new BigDecimal("120.00"));
+        service.refundToCustomerForTicket(5L, null, 10L, new BigDecimal("120.00"));
 
         assertThat(wallet.getHeldBalance()).isEqualByComparingTo("180.00");
         verify(walletTransactionRepository, org.mockito.Mockito.times(1)).save(any(WalletTransaction.class));

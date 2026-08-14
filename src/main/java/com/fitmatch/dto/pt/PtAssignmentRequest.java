@@ -18,7 +18,5 @@ public class PtAssignmentRequest {
 
     private Long branchId;
 
-    private Long serviceId;
 
-    private Long packageId;
 }

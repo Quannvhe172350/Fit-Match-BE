@@ -12,8 +12,8 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
 
     Page<RefundRequest> findByStatus(RefundStatus status, Pageable pageable);
 
-    /** Chặn tạo trùng yêu cầu hoàn tiền đang mở cho cùng booking (UC-055). */
-    boolean existsByBooking_IdAndStatus(Long bookingId, RefundStatus status);
+    /** Chặn tạo trùng yêu cầu hoàn đang mở cho cùng một vé. */
+    boolean existsByTicket_IdAndStatus(Long ticketId, RefundStatus status);
 
-    Page<RefundRequest> findByBooking_Customer_Username(String username, Pageable pageable);
+    Page<RefundRequest> findByTicket_Customer_Username(String username, Pageable pageable);
 }

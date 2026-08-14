@@ -4,8 +4,6 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.gym.BranchResponse;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
-import com.fitmatch.dto.gym.GymServiceResponse;
-import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import org.springframework.data.domain.Pageable;
 
@@ -36,11 +34,8 @@ public interface MarketplaceService {
     /** UC-009: chi nhánh đang hoạt động của Gym hiển thị (kèm giờ mở cửa). */
     List<BranchResponse> listGymBranches(Long gymProfileId);
 
-    /** UC-009: dịch vụ PUBLISHED của Gym hiển thị (giá + booking rules). */
-    List<GymServiceResponse> listGymServices(Long gymProfileId);
-
-    /** UC-009: gói tập PUBLISHED của Gym hiển thị. */
-    List<TrainingPackageResponse> listGymPackages(Long gymProfileId);
+    // Catalog công khai giờ nằm ở GET /api/marketplace/branches/{id}/ticket-types:
+    // vé bán theo CHI NHÁNH chứ không theo gym, nên liệt kê ở cấp gym là sai đơn vị.
 
     /** UC-009: media công khai của Gym hiển thị. */
     List<GymMediaResponse> listGymMedia(Long gymProfileId);
@@ -52,9 +47,6 @@ public interface MarketplaceService {
      */
     PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Long branchId, Pageable pageable);
 
-    /**
-     * Bug S2-14: thời gian biểu tuần của PT cho trang công khai — khách biết PT
-     * nhận buổi vào khung giờ nào trước khi mở wizard đặt lịch.
-     */
-    List<com.fitmatch.dto.pt.AvailabilitySlotDto> listPtAvailability(Long ptProfileId);
+    // Lịch rảnh của PT giờ theo NGÀY cụ thể, không còn thời gian biểu tuần:
+    // xem GET /api/pt-availability/grid?branchId=&ptId=&from=&to=.
 }

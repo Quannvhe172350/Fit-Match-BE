@@ -21,11 +21,11 @@ public class SettlementReleaseJob {
     @Scheduled(fixedDelayString = "${app.settlement.release-job-delay-ms:900000}")
     public void releaseDueSettlements() {
         try {
-            for (Long bookingId : settlementService.findDueForRelease()) {
+            for (Long ticketId : settlementService.findTicketsDueForRelease()) {
                 try {
-                    settlementService.releaseOne(bookingId);
+                    settlementService.releaseTicket(ticketId);
                 } catch (Exception e) {
-                    log.error("Settlement release failed for booking {}", bookingId, e);
+                    log.error("Settlement release failed for ticket {}", ticketId, e);
                 }
             }
         } catch (Exception e) {

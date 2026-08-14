@@ -34,7 +34,7 @@ public interface PaymentReconciliationService {
      * @param allowAmountMismatch bỏ qua kiểm tra "giao dịch phải đủ số phải trả"
      *                            cho ca khách chuyển nhiều lần; bắt buộc có note
      */
-    PaymentTransactionResponse applyToBooking(Long transactionId, Long bookingId,
+    PaymentTransactionResponse applyToTicket(Long transactionId, Long ticketId,
                                               boolean allowAmountMismatch,
                                               String note, String actorUsername);
 

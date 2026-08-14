@@ -15,7 +15,11 @@ import java.util.Optional;
 @Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-    boolean existsByBooking_Id(Long bookingId);
+    /** Câu 17: mỗi vé đúng một đánh giá phòng gym. */
+    boolean existsByTicket_Id(Long ticketId);
+
+    /** Câu 36: mỗi buổi tập đúng một đánh giá PT. */
+    boolean existsBySession_Id(Long sessionId);
 
     Optional<Review> findByIdAndCustomer_Username(Long id, String username);
 
@@ -29,9 +33,22 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Page<Review> findByGymProfile_User_UsernameOrderByIdDesc(String gymUsername, Pageable pageable);
 
     /** UC-071: điểm TB + số lượng review VISIBLE của một gym (chỉ tính công khai). */
+    /**
+     * Đánh giá PT cũng lưu gymProfile để hiện đúng ngữ cảnh phòng tập, nên điểm
+     * của GYM phải loại chúng ra — nếu không, một PT được 5 sao sẽ tự đẩy điểm
+     * phòng gym lên. targetType null = dữ liệu trước V76, đều là đánh giá gym.
+     */
     @Query("select coalesce(avg(r.rating), 0), count(r) from Review r "
-            + "where r.gymProfile.id = :gymId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE")
+            + "where r.gymProfile.id = :gymId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE "
+            + "and (r.targetType is null or r.targetType = com.fitmatch.common.enums.ReviewTargetType.GYM)")
     Object[] aggregateGym(@Param("gymId") Long gymId);
+
+    /** Trang phòng gym chỉ hiện đánh giá GYM; đánh giá PT nằm ở trang PT. */
+    @Query("select r from Review r where r.gymProfile.id = :gymId and r.status = :status "
+            + "and (r.targetType is null or r.targetType = com.fitmatch.common.enums.ReviewTargetType.GYM) "
+            + "order by r.id desc")
+    Page<Review> findVisibleGymReviews(@Param("gymId") Long gymId,
+                                       @Param("status") ReviewStatus status, Pageable pageable);
 
     @Query("select coalesce(avg(r.rating), 0), count(r) from Review r "
             + "where r.ptProfile.id = :ptId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE")
@@ -43,6 +60,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      */
     @Query("select r.rating, count(r) from Review r "
             + "where r.gymProfile.id = :gymId and r.status = com.fitmatch.common.enums.ReviewStatus.VISIBLE "
+            + "and (r.targetType is null or r.targetType = com.fitmatch.common.enums.ReviewTargetType.GYM) "
             + "group by r.rating")
     List<Object[]> ratingDistributionGym(@Param("gymId") Long gymId);
 

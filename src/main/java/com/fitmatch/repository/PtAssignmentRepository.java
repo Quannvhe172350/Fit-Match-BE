@@ -16,20 +16,17 @@ public interface PtAssignmentRepository extends JpaRepository<PtAssignment, Long
 
     boolean existsByPtProfile_IdAndGymBranch_Id(Long ptId, Long branchId);
 
-    boolean existsByPtProfile_IdAndGymService_Id(Long ptId, Long serviceId);
-
-    boolean existsByPtProfile_IdAndTrainingPackage_Id(Long ptId, Long packageId);
-
     /**
-     * Số phân công CHI NHÁNH của một PT — dùng để giữ bất biến "PT luôn thuộc ít
-     * nhất một chi nhánh" khi gỡ phân công (UC-022).
+     * Số phân công của một PT — dùng để giữ bất biến "PT luôn thuộc ít nhất một
+     * chi nhánh" khi gỡ phân công (UC-022). Từ V78 chi nhánh là đích phân công
+     * duy nhất (câu 24) nên mọi bản ghi đều là phân công chi nhánh.
      */
-    long countByPtProfile_IdAndGymBranchIsNotNull(Long ptId);
+    long countByPtProfile_Id(Long ptId);
 
     /**
      * Bug S2-04: id các PT được phân công cho một chi nhánh. Khách chọn chi nhánh
      * rồi mới chọn PT — danh sách phải là PT thật sự phụ trách chi nhánh đó, không
-     * phải toàn bộ PT của gym (BookingEligibilityChecker sẽ từ chối ở checkout).
+     * phải toàn bộ PT của gym (validator sẽ từ chối ở checkout).
      */
     @org.springframework.data.jpa.repository.Query(
             "select a.ptProfile.id from PtAssignment a where a.gymBranch.id = :branchId")

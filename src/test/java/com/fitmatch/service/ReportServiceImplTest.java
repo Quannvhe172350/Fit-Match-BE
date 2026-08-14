@@ -4,7 +4,7 @@ import com.fitmatch.common.enums.WalletTxnType;
 import com.fitmatch.dto.report.OperationalReportResponse;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.Wallet;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.DisputeRepository;
 import com.fitmatch.repository.WalletRepository;
 import com.fitmatch.repository.WalletTransactionRepository;
@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReportServiceImplTest {
 
-    @Mock private BookingRepository bookingRepository;
+    @Mock private TicketRepository ticketRepository;
     @Mock private WalletTransactionRepository walletTransactionRepository;
     @Mock private DisputeRepository disputeRepository;
     @Mock private WalletRepository walletRepository;
@@ -39,10 +39,10 @@ class ReportServiceImplTest {
 
     @Test
     void platformReport_aggregatesAcrossPlatform() {
-        when(bookingRepository.countByStatusInRange(any(), any(), isNull()))
+        when(ticketRepository.countByStatusInRange(any(), any(), isNull()))
                 .thenReturn(List.of(
-                        new Object[]{com.fitmatch.common.enums.BookingStatus.COMPLETED, 5L},
-                        new Object[]{com.fitmatch.common.enums.BookingStatus.CANCELLED, 2L}));
+                        new Object[]{com.fitmatch.common.enums.TicketStatus.USED_UP, 5L},
+                        new Object[]{com.fitmatch.common.enums.TicketStatus.CANCELLED, 2L}));
         when(walletTransactionRepository.sumByTypeInRange(any(), any(), isNull()))
                 .thenReturn(List.of(
                         new Object[]{WalletTxnType.HOLD, new BigDecimal("1000.00")},
@@ -57,7 +57,7 @@ class ReportServiceImplTest {
 
         assertThat(r.getScope()).isEqualTo("PLATFORM");
         assertThat(r.getTotalBookings()).isEqualTo(7);
-        assertThat(r.getBookingsByStatus()).containsEntry("COMPLETED", 5L);
+        assertThat(r.getBookingsByStatus()).containsEntry("USED_UP", 5L);
         assertThat(r.getGrossHeld()).isEqualByComparingTo("1000.00");
         assertThat(r.getReleasedNet()).isEqualByComparingTo("680.00");
         assertThat(r.getCommission()).isEqualByComparingTo("120.00");
@@ -76,7 +76,7 @@ class ReportServiceImplTest {
                         .pendingBalance(new BigDecimal("100.00"))
                         .availableBalance(new BigDecimal("500.00"))
                         .frozenBalance(BigDecimal.ZERO).build()));
-        when(bookingRepository.countByStatusInRange(any(), any(), eq(5L))).thenReturn(List.of());
+        when(ticketRepository.countByStatusInRange(any(), any(), eq(5L))).thenReturn(List.of());
         when(walletTransactionRepository.sumByTypeInRange(any(), any(), eq(5L))).thenReturn(List.of());
         when(disputeRepository.countByStatusInRange(any(), any(), eq(5L))).thenReturn(List.of());
 

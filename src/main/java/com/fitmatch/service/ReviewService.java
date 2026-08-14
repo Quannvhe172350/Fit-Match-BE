@@ -6,7 +6,7 @@ import com.fitmatch.dto.review.ModerateReviewRequest;
 import com.fitmatch.dto.review.RatingSummaryResponse;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewReportResponse;
-import com.fitmatch.dto.review.ReviewRequest;
+import com.fitmatch.dto.review.TicketReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
 import org.springframework.data.domain.Pageable;
 
@@ -20,9 +20,10 @@ import org.springframework.data.domain.Pageable;
 public interface ReviewService {
 
     // ----- Customer (UC-069/070) -----
-    ReviewResponse create(String customerUsername, ReviewRequest request);
+    // Tạo đánh giá: POST /api/tickets/{id}/review (gym) và
+    // POST /api/sessions/{id}/review (PT) — xem TicketReviewService.
 
-    ReviewResponse update(String customerUsername, Long reviewId, ReviewRequest request);
+    ReviewResponse update(String customerUsername, Long reviewId, TicketReviewRequest request);
 
     void delete(String customerUsername, Long reviewId);
 

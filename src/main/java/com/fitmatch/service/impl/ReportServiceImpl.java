@@ -4,7 +4,7 @@ import com.fitmatch.common.enums.WalletTxnType;
 import com.fitmatch.dto.report.OperationalReportResponse;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.Wallet;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.DisputeRepository;
 import com.fitmatch.repository.WalletRepository;
 import com.fitmatch.repository.WalletTransactionRepository;
@@ -25,7 +25,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
 
-    private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final DisputeRepository disputeRepository;
     private final WalletRepository walletRepository;
@@ -52,7 +52,9 @@ public class ReportServiceImpl implements ReportService {
 
         Map<String, Long> bookingsByStatus = new LinkedHashMap<>();
         long totalBookings = 0;
-        for (Object[] row : bookingRepository.countByStatusInRange(start, end, gymId)) {
+        // Mô hình vé: "booking" trong báo cáo giờ là VÉ ĐÃ BÁN. Giữ tên trường
+        // của response để dashboard cũ không vỡ.
+        for (Object[] row : ticketRepository.countByStatusInRange(start, end, gymId)) {
             String status = String.valueOf(row[0]);
             long count = ((Number) row[1]).longValue();
             bookingsByStatus.put(status, count);

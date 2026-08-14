@@ -3,12 +3,12 @@ package com.fitmatch.service.impl;
 import com.fitmatch.common.AuditActions;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.SettlementStatus;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.CommissionConfig;
 import com.fitmatch.entity.PaymentOrder;
+import com.fitmatch.entity.Ticket;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.PaymentOrderRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.CommissionConfigService;
 import com.fitmatch.service.SettlementService;
@@ -27,7 +27,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SettlementServiceImpl implements SettlementService {
 
-    private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
     private final PaymentOrderRepository paymentOrderRepository;
     private final WalletService walletService;
     private final CommissionConfigService commissionConfigService;
@@ -35,82 +35,81 @@ public class SettlementServiceImpl implements SettlementService {
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
     @Override
-    public void markHeld(Booking booking) {
-        booking.setSettlementStatus(SettlementStatus.HELD);
+    public void markTicketHeld(Ticket ticket) {
+        ticket.setSettlementStatus(SettlementStatus.HELD);
     }
 
     @Override
     @Transactional
-    public void settleAfterFulfillment(Booking booking, String reason) {
-        if (booking.getSettlementStatus() != SettlementStatus.HELD) {
-            // Miễn phí (NONE) hoặc đã xử lý — không có gì để chuyển.
+    public void settleTicketAfterFulfillment(Ticket ticket, String reason) {
+        if (ticket.getSettlementStatus() != SettlementStatus.HELD) {
+            // NONE (vé miễn phí do điểm/voucher phủ hết) hoặc đã xử lý — không có
+            // gì để chuyển. Cũng là chốt chặn idempotent khi job chạy trùng.
             return;
         }
-        BigDecimal heldAmount = resolveHeldAmount(booking);
+        BigDecimal heldAmount = resolveHeldAmount(ticket);
         if (heldAmount == null || heldAmount.compareTo(BigDecimal.ZERO) <= 0) {
-            booking.setSettlementStatus(SettlementStatus.NONE);
+            ticket.setSettlementStatus(SettlementStatus.NONE);
             return;
         }
-        walletService.moveToPending(booking.getGymProfile().getId(), booking.getId(), heldAmount);
-        booking.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
-        booking.setSettlementAmount(heldAmount);
-        booking.setSettlementPendingAt(LocalDateTime.now());
-        // P1-7: chốt % hoa hồng hiện hành để giải ngân về sau không bị áp hồi tố.
-        booking.setCommissionPercent(commissionConfigService.currentConfig().getCommissionPercent());
-        auditService.record(AuditActions.SETTLEMENT_PENDING, "Booking", booking.getId(),
+        walletService.moveToPendingForTicket(ticket.getGymProfile().getId(), ticket.getId(), heldAmount);
+        ticket.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
+        ticket.setSettlementAmount(heldAmount);
+        ticket.setSettlementPendingAt(LocalDateTime.now());
+        // Chốt % hoa hồng hiện hành để giải ngân về sau không bị áp hồi tố.
+        ticket.setCommissionPercent(commissionConfigService.currentConfig().getCommissionPercent());
+        auditService.record(AuditActions.SETTLEMENT_PENDING, "Ticket", ticket.getId(),
                 "Moved " + heldAmount + " to pending settlement (" + reason + ")");
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Long> findDueForRelease() {
+    public List<Long> findTicketsDueForRelease() {
         int holdDays = commissionConfigService.currentConfig().getSettlementHoldDays();
         LocalDateTime cutoff = LocalDateTime.now().minusDays(holdDays);
-        return bookingRepository
+        return ticketRepository
                 .findBySettlementStatusAndSettlementPendingAtBefore(SettlementStatus.PENDING_RELEASE, cutoff)
-                .stream().map(Booking::getId).toList();
+                .stream().map(Ticket::getId).toList();
     }
 
     @Override
     @Transactional
-    public void releaseOne(Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
-        if (booking.getSettlementStatus() != SettlementStatus.PENDING_RELEASE) {
-            // Idempotent: job có thể chạy trùng — bỏ qua nếu đã release/đổi trạng thái.
-            return;
+    public void releaseTicket(Long ticketId) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
+        if (ticket.getSettlementStatus() != SettlementStatus.PENDING_RELEASE) {
+            return; // idempotent: job chạy trùng hoặc tranh chấp đã kéo tiền về held
         }
-        // P1-7: dùng % hoa hồng đã chốt lúc chuyển pending; booking cũ (null) fallback config hiện hành.
-        BigDecimal commissionPercent = booking.getCommissionPercent() != null
-                ? booking.getCommissionPercent()
+        BigDecimal commissionPercent = ticket.getCommissionPercent() != null
+                ? ticket.getCommissionPercent()
                 : commissionConfigService.currentConfig().getCommissionPercent();
-        walletService.release(booking.getGymProfile().getId(), booking.getId(),
-                booking.getSettlementAmount(), commissionPercent);
-        booking.setSettlementStatus(SettlementStatus.RELEASED);
-        bookingRepository.save(booking);
-        // UC-059: báo Gym tiền đã về ví khả dụng (số ròng sau hoa hồng).
-        BigDecimal commission = booking.getSettlementAmount()
+        walletService.releaseForTicket(ticket.getGymProfile().getId(), ticket.getId(),
+                ticket.getSettlementAmount(), commissionPercent);
+        ticket.setSettlementStatus(SettlementStatus.RELEASED);
+        ticketRepository.save(ticket);
+
+        BigDecimal commission = ticket.getSettlementAmount()
                 .multiply(commissionPercent)
-                .divide(java.math.BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-        notificationDispatcher.settlementReleased(booking, booking.getSettlementAmount().subtract(commission));
-        auditService.record(AuditActions.SETTLEMENT_RELEASE, "Booking", bookingId,
-                "Released " + booking.getSettlementAmount() + " to gym (commission "
+                .divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        notificationDispatcher.ticketSettlementReleased(ticket,
+                ticket.getSettlementAmount().subtract(commission));
+        auditService.record(AuditActions.SETTLEMENT_RELEASE, "Ticket", ticketId,
+                "Released " + ticket.getSettlementAmount() + " to gym (commission "
                         + commissionPercent + "%)");
-        log.info("Booking {} settlement released ({}), commission {}%",
-                bookingId, booking.getSettlementAmount(), commissionPercent);
+        log.info("Ticket {} settlement released ({}), commission {}%",
+                ticketId, ticket.getSettlementAmount(), commissionPercent);
     }
 
-    /** Số tiền thực đã giữ = số tiền đơn thanh toán PAID; fallback payableAmount. */
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal heldAmountOf(Booking booking) {
-        return resolveHeldAmount(booking);
+    public BigDecimal heldAmountOfTicket(Ticket ticket) {
+        return resolveHeldAmount(ticket);
     }
 
-    private BigDecimal resolveHeldAmount(Booking booking) {
-        return paymentOrderRepository.findByBooking_Id(booking.getId())
+    private BigDecimal resolveHeldAmount(Ticket ticket) {
+        return paymentOrderRepository.findByTicket_Id(ticket.getId())
                 .filter(o -> o.getStatus() == PaymentStatus.PAID)
                 .map(PaymentOrder::getAmount)
-                .orElse(booking.getPayableAmount());
+                .orElse(ticket.getPayableAmount());
     }
 }

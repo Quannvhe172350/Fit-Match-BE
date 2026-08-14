@@ -12,17 +12,26 @@ import java.util.List;
 @Repository
 public interface DisputeRepository extends JpaRepository<Dispute, Long> {
 
-    /** Còn tranh chấp chưa đóng cho booking — chống mở trùng. */
-    boolean existsByBooking_IdAndStatusIn(Long bookingId, List<DisputeStatus> statuses);
+
+
+    /** Còn tranh chấp chưa đóng cho vé — chống mở trùng (mô hình vé). */
+    boolean existsByTicket_IdAndStatusIn(Long ticketId, List<DisputeStatus> statuses);
+
+    Page<Dispute> findByTicket_Customer_UsernameOrderByIdDesc(String username, Pageable pageable);
+
+    Page<Dispute> findByTicket_GymProfile_User_UsernameOrderByIdDesc(String username, Pageable pageable);
+
+    /**
+     * PT chỉ là bên liên quan của tranh chấp CẤP BUỔI — tranh chấp cấp vé có thể
+     * trải nhiều PT nên không quy về một người được.
+     */
+    Page<Dispute> findBySession_PtProfile_User_UsernameOrderByIdDesc(String username, Pageable pageable);
 
     /** P1-18 (UC-023): đếm tranh chấp liên quan tới một PT (monitor performance). */
-    long countByBooking_PtProfile_Id(Long ptId);
+    long countBySession_PtProfile_Id(Long ptId);
 
-    Page<Dispute> findByBooking_Customer_UsernameOrderByIdDesc(String username, Pageable pageable);
 
-    Page<Dispute> findByBooking_GymProfile_User_UsernameOrderByIdDesc(String username, Pageable pageable);
 
-    Page<Dispute> findByBooking_PtProfile_User_UsernameOrderByIdDesc(String username, Pageable pageable);
 
     Page<Dispute> findByStatusOrderByIdDesc(DisputeStatus status, Pageable pageable);
 
@@ -32,7 +41,7 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     @org.springframework.data.jpa.repository.Query(
             "select d.status, count(d) from Dispute d "
             + "where d.createdAt >= :from and d.createdAt < :to "
-            + "and (:gymId is null or d.booking.gymProfile.id = :gymId) group by d.status")
+            + "and (:gymId is null or d.ticket.gymProfile.id = :gymId) group by d.status")
     java.util.List<Object[]> countByStatusInRange(
             @org.springframework.data.repository.query.Param("from") java.time.LocalDateTime from,
             @org.springframework.data.repository.query.Param("to") java.time.LocalDateTime to,

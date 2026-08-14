@@ -5,14 +5,12 @@ import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.dto.pt.GymPtResponse;
 import com.fitmatch.entity.PtProfile;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.service.AdminPtManagementService;
 import com.fitmatch.service.AuditService;
-import com.fitmatch.service.support.BookingEligibilityChecker;
 import com.fitmatch.service.support.NotificationDispatcher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +27,7 @@ public class AdminPtManagementServiceImpl implements AdminPtManagementService {
 
     private final PtProfileRepository ptProfileRepository;
     private final AuditService auditService;
-    private final BookingRepository bookingRepository;
+    private final TrainingSessionRepository trainingSessionRepository;
     private final NotificationDispatcher notificationDispatcher;
 
     @Override
@@ -47,18 +45,20 @@ public class AdminPtManagementServiceImpl implements AdminPtManagementService {
         ptProfileRepository.save(profile);
 
         // P1-16: đình chỉ là hành động an toàn -> KHÔNG chặn (khác deactivate của
-        // gym), nhưng phải báo Gym + khách của các booking tương lai để dời/hủy —
+        // gym), nhưng phải báo khách của các buổi tập tương lai để họ đổi PT —
         // tránh "PT bị đình chỉ vì an toàn vẫn phục vụ buổi đã đặt".
-        List<Booking> affected = bookingRepository.findByPtProfile_IdAndStatusInAndStartAtGreaterThan(
-                profile.getId(), BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
-        for (Booking b : affected) {
-            notificationDispatcher.ptSuspendedAffectsBooking(b, reason);
+        List<com.fitmatch.entity.TrainingSession> affected = trainingSessionRepository
+                .findByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(
+                        profile.getId(), com.fitmatch.common.enums.SessionStatus.SCHEDULED,
+                        java.time.LocalDate.now());
+        for (com.fitmatch.entity.TrainingSession s : affected) {
+            notificationDispatcher.ptSuspendedAffectsSession(s, reason);
         }
 
         auditService.record(AuditActions.PT_SUSPEND, "PtProfile", profile.getId(),
                 "Suspended by " + actorUsername + ": " + reason
-                        + " (" + affected.size() + " upcoming booking(s) flagged for reassignment)");
-        log.info("PT profile {} (user {}) suspended by {} ({} upcoming bookings notified)",
+                        + " (" + affected.size() + " buổi tập tương lai đã được báo)");
+        log.info("PT profile {} (user {}) suspended by {} ({} upcoming sessions notified)",
                 profile.getId(), userId, actorUsername, affected.size());
         return GymPtResponse.of(profile);
     }

@@ -4,7 +4,6 @@ import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.config.PaymentProperties;
 import com.fitmatch.dto.payment.PaymentOrderResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.PaymentOrder;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
@@ -27,86 +26,96 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentOrderRepository paymentOrderRepository;
     private final PaymentProperties paymentProperties;
-    private final com.fitmatch.service.support.BookingLifecycle bookingLifecycle;
-    private final com.fitmatch.service.support.BookingPromotionRefunder promotionRefunder;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
+    private final com.fitmatch.service.support.TicketLifecycle ticketLifecycle;
+    private final com.fitmatch.service.support.TicketPromotionReleaser ticketPromotionReleaser;
 
     @Override
     @Transactional
-    public PaymentOrderResponse createOrder(Booking booking) {
-        if (booking.getPayableAmount() == null
-                || booking.getPayableAmount().compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(ErrorCode.PAYMENT_ERROR, "Booking has no payable amount");
+    public PaymentOrderResponse createOrderForTicket(com.fitmatch.entity.Ticket ticket) {
+        if (ticket.getPayableAmount() == null
+                || ticket.getPayableAmount().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.PAYMENT_ERROR, "Ticket has no payable amount");
         }
-        // Idempotent: một booking chỉ có một payment order.
-        PaymentOrder existing = paymentOrderRepository.findByBooking_Id(booking.getId()).orElse(null);
+        // Idempotent: một vé chỉ có một payment order (unique ticket_id ở V73).
+        PaymentOrder existing = paymentOrderRepository.findByTicket_Id(ticket.getId()).orElse(null);
         if (existing != null) {
             return PaymentOrderResponse.of(existing);
         }
 
-        String refCode = "FM" + booking.getId() + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        // Giữ nguyên dạng FM<id><6 hex>: PaymentWebhookServiceImpl dò nội dung
+        // chuyển khoản bằng regex FM\d+[0-9A-F]{6}. refCode là UNIQUE nên vé #5
+        // và booking #5 không đụng nhau dù cùng tiền tố.
+        String refCode = "FM" + ticket.getId() + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         PaymentOrder order = paymentOrderRepository.save(PaymentOrder.builder()
-                .booking(booking)
+                .ticket(ticket)
                 .refCode(refCode)
-                .amount(booking.getPayableAmount())
+                .amount(ticket.getPayableAmount())
                 .status(PaymentStatus.PENDING)
-                .qrContent(buildVietQrUrl(booking.getPayableAmount().toBigInteger().toString(), refCode))
+                .qrContent(buildVietQrUrl(ticket.getPayableAmount().toBigInteger().toString(), refCode))
                 .expiresAt(LocalDateTime.now().plusHours(paymentProperties.getPayment().getOrderTtlHours()))
                 .build());
-        log.info("Created payment order {} (ref {}) for booking {}", order.getId(), refCode, booking.getId());
+        log.info("Created payment order {} (ref {}) for ticket {}", order.getId(), refCode, ticket.getId());
         return PaymentOrderResponse.of(order);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PaymentOrderResponse getForCustomer(Long bookingId, String customerUsername) {
+    public PaymentOrderResponse getForTicketCustomer(Long ticketId, String customerUsername) {
         PaymentOrder order = paymentOrderRepository
-                .findByBooking_IdAndBooking_Customer_Username(bookingId, customerUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Payment order for booking", bookingId));
+                .findByTicket_IdAndTicket_Customer_Username(ticketId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment order for ticket", ticketId));
         return PaymentOrderResponse.of(order);
     }
 
     @Override
     @Transactional
-    public void cancelOrderIfPending(Long bookingId) {
-        paymentOrderRepository.findByBooking_Id(bookingId)
+    public void cancelTicketOrderIfPending(Long ticketId) {
+        paymentOrderRepository.findByTicket_Id(ticketId)
                 .filter(o -> o.getStatus() == PaymentStatus.PENDING)
                 .ifPresent(o -> {
                     o.setStatus(PaymentStatus.CANCELLED);
                     paymentOrderRepository.save(o);
-                    log.info("Payment order {} cancelled (booking {} closed before payment)",
-                            o.getId(), bookingId);
+                    log.info("Payment order {} cancelled (ticket {} closed before payment)",
+                            o.getId(), ticketId);
                 });
     }
 
+
     // D-7 (chính sách chốt 2026-07-17): KHÔNG có luồng retry cho đơn EXPIRED —
-    // booking bị hủy kèm hoàn promo, khách chậm chuyển khoản đặt booking mới
+    // vé bị huỷ kèm hoàn promo, khách chậm chuyển khoản thì mua vé mới
     // (TTL 24h đủ rộng; giữ chỗ vô hạn sẽ khóa slot của khách khác).
     @Override
     @Transactional
     public int expireOverdueOrders() {
         var overdue = paymentOrderRepository
                 .findByStatusAndExpiresAtBefore(PaymentStatus.PENDING, LocalDateTime.now());
-        int cancelledBookings = 0;
+        int cancelledTickets = 0;
         for (PaymentOrder order : overdue) {
             order.setStatus(PaymentStatus.EXPIRED);
             paymentOrderRepository.save(order);
-            Booking booking = order.getBooking();
-            // Booking còn chờ thanh toán thì đóng lại để giải phóng slot (UC-054).
-            if (booking.getStatus() == com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT) {
-                bookingLifecycle.transition(booking, com.fitmatch.common.enums.BookingStatus.CANCELLED,
-                        "Payment window expired");
-                // UC-073: hoàn điểm/voucher đã tiêu ở checkout — khách chưa trả
-                // tiền mà để QR hết hạn không được phép mất điểm/lượt voucher.
-                promotionRefunder.releaseOnCancellation(booking,
-                        com.fitmatch.common.enums.BookingStatus.PENDING_PAYMENT);
-                // Bug 9: trước đây booking bị hủy âm thầm — khách không hề được báo.
-                notificationDispatcher.paymentExpired(booking);
-                cancelledBookings++;
-            }
-            log.info("Payment order {} expired (booking {})", order.getId(), booking.getId());
+            cancelledTickets += expireTicketOrder(order);
         }
-        return cancelledBookings;
+        return cancelledTickets;
+    }
+
+    /**
+     * Vé quá hạn thanh toán: huỷ vé, hoàn điểm/voucher đã tiêu lúc mua và báo
+     * khách. Không có tiền nào đã vào ví nên không đụng tới settlement.
+     */
+    private int expireTicketOrder(PaymentOrder order) {
+        com.fitmatch.entity.Ticket ticket = order.getTicket();
+        if (ticket.getStatus() != com.fitmatch.common.enums.TicketStatus.PENDING_PAYMENT) {
+            log.info("Payment order {} expired (ticket {} already {})",
+                    order.getId(), ticket.getId(), ticket.getStatus());
+            return 0;
+        }
+        ticketLifecycle.transition(ticket, com.fitmatch.common.enums.TicketStatus.CANCELLED,
+                "Payment window expired");
+        ticketPromotionReleaser.release(ticket);
+        notificationDispatcher.ticketPaymentExpired(ticket);
+        log.info("Payment order {} expired (ticket {} cancelled)", order.getId(), ticket.getId());
+        return 1;
     }
 
     /** VietQR quick-link (img.vietqr.io) — FE render ảnh QR; addInfo = refCode để Casso đối soát. */

@@ -1,14 +1,14 @@
 package com.fitmatch.service;
 
-import com.fitmatch.common.enums.BookingStatus;
+import com.fitmatch.common.enums.TicketStatus;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
 import com.fitmatch.common.enums.ReconStatus;
-import com.fitmatch.entity.Booking;
+import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.PaymentOrder;
 import com.fitmatch.entity.PaymentTransaction;
 import com.fitmatch.exception.BusinessException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.PaymentOrderRepository;
 import com.fitmatch.repository.PaymentTransactionRepository;
 import com.fitmatch.service.impl.PaymentReconciliationServiceImpl;
@@ -31,8 +31,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Đối soát thủ công tiền vào không khớp booking (UC-053/056). Trọng tâm: không
- * được hold tiền hai lần, không áp vào booking đã đóng, và mọi quyết định đều
+ * Đối soát thủ công tiền vào không khớp vé (UC-053/056). Trọng tâm: không
+ * được hold tiền hai lần, không áp vào vé đã đóng, và mọi quyết định đều
  * chuyển giao dịch ra khỏi hàng đợi NEEDS_REVIEW.
  */
 @ExtendWith(MockitoExtension.class)
@@ -40,8 +40,8 @@ class PaymentReconciliationServiceImplTest {
 
     @Mock private PaymentTransactionRepository paymentTransactionRepository;
     @Mock private PaymentOrderRepository paymentOrderRepository;
-    @Mock private BookingRepository bookingRepository;
-    @Mock private AdminBookingService adminBookingService;
+    @Mock private TicketRepository ticketRepository;
+    @Mock private com.fitmatch.service.support.TicketPaymentHandler ticketPaymentHandler;
     @Mock private AuditService auditService;
     @InjectMocks private PaymentReconciliationServiceImpl service;
 
@@ -54,8 +54,11 @@ class PaymentReconciliationServiceImplTest {
                 .build();
     }
 
-    private Booking booking(BookingStatus status) {
-        return Booking.builder().id(1L).status(status).payableAmount(PAYABLE).build();
+    private Ticket ticket(TicketStatus status) {
+        return Ticket.builder().id(1L).status(status).payableAmount(PAYABLE)
+                .customer(com.fitmatch.entity.User.builder().id(9L).username("customer1").build())
+                .gymProfile(com.fitmatch.entity.GymProfile.builder().id(1L).build())
+                .dayCount(10).build();
     }
 
     private PaymentOrder order(PaymentStatus status) {
@@ -69,14 +72,14 @@ class PaymentReconciliationServiceImplTest {
         PaymentTransaction t = txn(ReconStatus.NEEDS_REVIEW, PAYABLE);
         PaymentOrder o = order(PaymentStatus.PENDING);
         when(paymentTransactionRepository.findById(7L)).thenReturn(Optional.of(t));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.PENDING_PAYMENT)));
-        when(paymentOrderRepository.findByBooking_Id(1L)).thenReturn(Optional.of(o));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentOrderRepository.findByTicket_Id(1L)).thenReturn(Optional.of(o));
 
-        var result = service.applyToBooking(7L, 1L, false, "khách CK sai nội dung", "finance1");
+        var result = service.applyToTicket(7L, 1L, false, "khách CK sai nội dung", "finance1");
 
         // Đi qua đúng luồng hold ví/đơn PAID/notify của Admin confirm-payment,
         // không tự viết lại phép giữ tiền lần hai.
-        verify(adminBookingService).confirmPaymentHold(1L, "finance1");
+        verify(ticketPaymentHandler).onPaymentConfirmed(any(Ticket.class), any(), anyString());
         assertThat(t.getReconStatus()).isEqualTo(ReconStatus.RESOLVED_APPLIED);
         assertThat(t.getPaymentOrder()).isSameAs(o);
         assertThat(t.getResolvedBy()).isEqualTo("finance1");
@@ -86,66 +89,66 @@ class PaymentReconciliationServiceImplTest {
     }
 
     @Test
-    void apply_bookingNotAwaitingPayment_rejected() {
+    void apply_ticketNotAwaitingPayment_rejected() {
         when(paymentTransactionRepository.findById(7L))
                 .thenReturn(Optional.of(txn(ReconStatus.NEEDS_REVIEW, PAYABLE)));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.CANCELLED)));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.CANCELLED)));
 
-        assertThatThrownBy(() -> service.applyToBooking(7L, 1L, false, null, "finance1"))
+        assertThatThrownBy(() -> service.applyToTicket(7L, 1L, false, null, "finance1"))
                 .isInstanceOf(BusinessException.class);
 
-        verify(adminBookingService, never()).confirmPaymentHold(any(), anyString());
+        verify(ticketPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
     }
 
     @Test
     void apply_orderAlreadyPaid_rejected() {
         when(paymentTransactionRepository.findById(7L))
                 .thenReturn(Optional.of(txn(ReconStatus.NEEDS_REVIEW, PAYABLE)));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.PENDING_PAYMENT)));
-        when(paymentOrderRepository.findByBooking_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PAID)));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentOrderRepository.findByTicket_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PAID)));
 
-        assertThatThrownBy(() -> service.applyToBooking(7L, 1L, false, null, "finance1"))
+        assertThatThrownBy(() -> service.applyToTicket(7L, 1L, false, null, "finance1"))
                 .isInstanceOf(BusinessException.class);
 
-        verify(adminBookingService, never()).confirmPaymentHold(any(), anyString());
+        verify(ticketPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
     }
 
     @Test
     void apply_amountShortWithoutOverride_rejected() {
         when(paymentTransactionRepository.findById(7L))
                 .thenReturn(Optional.of(txn(ReconStatus.NEEDS_REVIEW, new BigDecimal("50000"))));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.PENDING_PAYMENT)));
-        when(paymentOrderRepository.findByBooking_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentOrderRepository.findByTicket_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
 
-        assertThatThrownBy(() -> service.applyToBooking(7L, 1L, false, null, "finance1"))
+        assertThatThrownBy(() -> service.applyToTicket(7L, 1L, false, null, "finance1"))
                 .isInstanceOf(BusinessException.class);
 
-        verify(adminBookingService, never()).confirmPaymentHold(any(), anyString());
+        verify(ticketPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
     }
 
     @Test
     void apply_amountShortOverrideNeedsNote() {
         when(paymentTransactionRepository.findById(7L))
                 .thenReturn(Optional.of(txn(ReconStatus.NEEDS_REVIEW, new BigDecimal("50000"))));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.PENDING_PAYMENT)));
-        when(paymentOrderRepository.findByBooking_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentOrderRepository.findByTicket_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
 
-        assertThatThrownBy(() -> service.applyToBooking(7L, 1L, true, "  ", "finance1"))
+        assertThatThrownBy(() -> service.applyToTicket(7L, 1L, true, "  ", "finance1"))
                 .isInstanceOf(BusinessException.class);
 
-        verify(adminBookingService, never()).confirmPaymentHold(any(), anyString());
+        verify(ticketPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
     }
 
     @Test
     void apply_amountShortOverrideWithNote_accepted() {
         PaymentTransaction t = txn(ReconStatus.NEEDS_REVIEW, new BigDecimal("50000"));
         when(paymentTransactionRepository.findById(7L)).thenReturn(Optional.of(t));
-        when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking(BookingStatus.PENDING_PAYMENT)));
-        when(paymentOrderRepository.findByBooking_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
+        when(ticketRepository.findById(1L)).thenReturn(Optional.of(ticket(TicketStatus.PENDING_PAYMENT)));
+        when(paymentOrderRepository.findByTicket_Id(1L)).thenReturn(Optional.of(order(PaymentStatus.PENDING)));
 
-        service.applyToBooking(7L, 1L, true, "khách CK 2 lần, sao kê đã đủ", "finance1");
+        service.applyToTicket(7L, 1L, true, "khách CK 2 lần, sao kê đã đủ", "finance1");
 
-        verify(adminBookingService).confirmPaymentHold(1L, "finance1");
+        verify(ticketPaymentHandler).onPaymentConfirmed(any(Ticket.class), any(), anyString());
         assertThat(t.getReconStatus()).isEqualTo(ReconStatus.RESOLVED_APPLIED);
     }
 
@@ -154,10 +157,10 @@ class PaymentReconciliationServiceImplTest {
         when(paymentTransactionRepository.findById(7L))
                 .thenReturn(Optional.of(txn(ReconStatus.RESOLVED_REFUNDED, PAYABLE)));
 
-        assertThatThrownBy(() -> service.applyToBooking(7L, 1L, false, null, "finance1"))
+        assertThatThrownBy(() -> service.applyToTicket(7L, 1L, false, null, "finance1"))
                 .isInstanceOf(BusinessException.class);
 
-        verify(adminBookingService, never()).confirmPaymentHold(any(), anyString());
+        verify(ticketPaymentHandler, never()).onPaymentConfirmed(any(), any(), anyString());
     }
 
     @Test
@@ -176,7 +179,7 @@ class PaymentReconciliationServiceImplTest {
 
     @Test
     void resolve_appliedStatusNotAllowedAsManualOutcome() {
-        // Gắn booking phải đi qua applyToBooking (có hold ví); không được "chốt tay"
+        // Gắn vé phải đi qua applyToTicket (có hold ví); không được "chốt tay"
         // thành RESOLVED_APPLIED mà tiền không bao giờ vào ví.
         assertThatThrownBy(() ->
                 service.resolve(7L, ReconStatus.RESOLVED_APPLIED, "note", "finance1"))

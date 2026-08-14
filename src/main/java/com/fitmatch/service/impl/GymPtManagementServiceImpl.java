@@ -36,7 +36,7 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final PasswordEncoder passwordEncoder;
     private final GymProfileResolver gymProfileResolver;
     private final AuditService auditService;
-    private final com.fitmatch.repository.BookingRepository bookingRepository;
+    private final com.fitmatch.repository.TrainingSessionRepository trainingSessionRepository;
     private final com.fitmatch.repository.GymBranchRepository gymBranchRepository;
     private final com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
@@ -158,16 +158,17 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "PT is suspended by platform admin; only an admin can lift the suspension");
         }
-        // P1-16: không cho tắt PT khi còn booking giữ chỗ tương lai — tránh bỏ rơi
-        // khách đã đặt (gym phải reassign/hủy trước).
+        // P1-16: không cho tắt PT khi còn buổi tập tương lai — khách đã chọn PT
+        // này cho ngày cụ thể, phải để họ đổi PT trước.
         if (status == PtStatus.INACTIVE) {
-            long future = bookingRepository.countByPtProfile_IdAndStatusInAndStartAtGreaterThan(
-                    ptId, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
-                    java.time.LocalDateTime.now());
+            long future = trainingSessionRepository
+                    .countByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(
+                            ptId, com.fitmatch.common.enums.SessionStatus.SCHEDULED,
+                            java.time.LocalDate.now());
             if (future > 0) {
                 throw new BusinessException(ErrorCode.INVALID_STATE,
-                        "Cannot deactivate PT: " + future + " upcoming booking(s) assigned. "
-                                + "Reassign or cancel them first.");
+                        "Không thể tắt PT: còn " + future + " buổi tập đã đặt. "
+                                + "Hãy để khách đổi PT trước.");
             }
         }
         profile.setStatus(status);
@@ -188,10 +189,12 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         return new com.fitmatch.dto.pt.PtPerformanceResponse(
                 pt.getId(), pt.getDisplayName(),
                 rating.average(), rating.count(),
-                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.COMPLETED),
-                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.CANCELLED),
-                bookingRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.BookingStatus.NO_SHOW),
-                disputeRepository.countByBooking_PtProfile_Id(ptId));
+                // Câu 9: không còn NO_SHOW — buổi tiêu theo ngày bất kể khách có mặt.
+                // Cột thứ ba giữ 0 để client cũ không vỡ khi đọc.
+                trainingSessionRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.SessionStatus.DONE),
+                trainingSessionRepository.countByPtProfile_IdAndStatus(ptId, com.fitmatch.common.enums.SessionStatus.CANCELLED),
+                0L,
+                disputeRepository.countBySession_PtProfile_Id(ptId));
     }
 
     /** PT phải thuộc Gym của operator đang đăng nhập (chống IDOR) và Gym phải còn APPROVED. */

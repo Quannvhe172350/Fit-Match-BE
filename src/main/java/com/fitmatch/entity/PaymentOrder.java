@@ -42,9 +42,10 @@ public class PaymentOrder extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Đơn thanh toán của một vé (1-1). */
     @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "booking_id", nullable = false, unique = true)
-    private Booking booking;
+    @JoinColumn(name = "ticket_id", unique = true)
+    private Ticket ticket;
 
     /** Mã đối soát duy nhất, đặt trong nội dung chuyển khoản VietQR. */
     @Column(name = "ref_code", nullable = false, unique = true, length = 40)

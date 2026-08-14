@@ -1,7 +1,6 @@
 package com.fitmatch.service.impl;
 
 import com.fitmatch.common.AuditActions;
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.PaymentStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
@@ -10,15 +9,13 @@ import com.fitmatch.common.enums.ReconStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.payment.PaymentTransactionResponse;
 import com.fitmatch.dto.payment.ReconciliationSummaryResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.PaymentOrder;
 import com.fitmatch.entity.PaymentTransaction;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.PaymentOrderRepository;
 import com.fitmatch.repository.PaymentTransactionRepository;
-import com.fitmatch.service.AdminBookingService;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.PaymentReconciliationService;
 import lombok.RequiredArgsConstructor;
@@ -39,14 +36,14 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PaymentReconciliationServiceImpl implements PaymentReconciliationService {
 
-    /** Chỉ hai kết cục này được phép chốt bằng tay (APPLIED đi qua applyToBooking). */
+    /** Chỉ hai kết cục này được phép chốt bằng tay (APPLIED đi qua applyToTicket). */
     private static final Set<ReconStatus> ALLOWED_RESOLUTIONS =
             EnumSet.of(ReconStatus.RESOLVED_REFUNDED, ReconStatus.RESOLVED_IGNORED);
 
     private final PaymentTransactionRepository paymentTransactionRepository;
     private final PaymentOrderRepository paymentOrderRepository;
-    private final BookingRepository bookingRepository;
-    private final AdminBookingService adminBookingService;
+    private final TicketRepository ticketRepository;
+    private final com.fitmatch.service.support.TicketPaymentHandler ticketPaymentHandler;
     private final AuditService auditService;
 
     @Override
@@ -90,34 +87,34 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
 
     @Override
     @Transactional
-    public PaymentTransactionResponse applyToBooking(Long transactionId, Long bookingId,
+    public PaymentTransactionResponse applyToTicket(Long transactionId, Long ticketId,
                                                      boolean allowAmountMismatch,
                                                      String note, String actorUsername) {
         PaymentTransaction txn = requireOpenTransaction(transactionId);
-        // V61: giao dịch CHI không bao giờ là tiền khách trả cho booking. Áp nó
-        // vào booking sẽ hold ví một khoản tiền chưa từng vào tài khoản nền tảng.
+        // V61: giao dịch CHI không bao giờ là tiền khách trả cho vé. Áp nó vào vé
+        // sẽ hold ví một khoản tiền chưa từng vào tài khoản nền tảng.
         if (txn.getDirection() == PaymentTxnDirection.OUT) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Giao dịch chi (OUT) không thể áp vào booking — đây là tiền nền tảng chuyển đi."
+                    "Giao dịch chi (OUT) không thể áp vào vé — đây là tiền nền tảng chuyển đi."
                             + " Hãy đối chiếu với lệnh rút tương ứng rồi chọn kết cục phù hợp.");
         }
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
+        com.fitmatch.entity.Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
 
-        // Chỉ booking còn đang chờ tiền mới áp được: booking đã hủy/đã thanh toán
-        // thì tiền này phải trả lại người gửi, không được hold thêm lần nữa.
-        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+        // Chỉ vé còn đang chờ tiền mới áp được: vé đã huỷ/đã thanh toán thì tiền
+        // này phải trả lại người gửi, không được hold thêm lần nữa.
+        if (ticket.getStatus() != com.fitmatch.common.enums.TicketStatus.PENDING_PAYMENT) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Booking #" + bookingId + " không ở trạng thái chờ thanh toán (hiện tại: "
-                            + booking.getStatus() + "). Nếu khách đã chuyển tiền, hãy chọn"
+                    "Vé #" + ticketId + " không ở trạng thái chờ thanh toán (hiện tại: "
+                            + ticket.getStatus() + "). Nếu khách đã chuyển tiền, hãy chọn"
                             + " 'đã chuyển trả người gửi'.");
         }
-        PaymentOrder order = paymentOrderRepository.findByBooking_Id(bookingId)
+        PaymentOrder order = paymentOrderRepository.findByTicket_Id(ticketId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATE,
-                        "Booking #" + bookingId + " chưa có đơn thanh toán"));
+                        "Vé #" + ticketId + " chưa có đơn thanh toán"));
         if (order.getStatus() != PaymentStatus.PENDING) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Đơn thanh toán của booking #" + bookingId + " không còn chờ thanh toán (hiện tại: "
+                    "Đơn thanh toán của vé #" + ticketId + " không còn chờ thanh toán (hiện tại: "
                             + order.getStatus() + ")");
         }
         if (!allowAmountMismatch
@@ -132,9 +129,12 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
                     "Bỏ qua kiểm tra số tiền thì phải ghi rõ lý do đối soát");
         }
 
-        // Đi đúng luồng Admin xác nhận giữ tiền: hold ví theo payableAmount, đơn ->
-        // PAID, booking -> PENDING_GYM, thông báo khách + Gym, ghi audit hold.
-        adminBookingService.confirmPaymentHold(bookingId, actorUsername);
+        // Đi đúng luồng xác nhận thanh toán của mô hình vé: hold ví theo số tiền
+        // thật đã nhận, vé -> ACTIVE, tích điểm, thông báo khách + gym.
+        order.setStatus(PaymentStatus.PAID);
+        order.setPaidAt(LocalDateTime.now());
+        paymentOrderRepository.save(order);
+        ticketPaymentHandler.onPaymentConfirmed(ticket, order.getAmount(), "reconciliation");
 
         txn.setPaymentOrder(order);
         txn.setReconStatus(ReconStatus.RESOLVED_APPLIED);
@@ -144,11 +144,11 @@ public class PaymentReconciliationServiceImpl implements PaymentReconciliationSe
         paymentTransactionRepository.save(txn);
 
         auditService.record(AuditActions.PAYMENT_TXN_APPLY, "PaymentTransaction", transactionId,
-                "Applied bank txn " + txn.getExternalId() + " (" + txn.getAmount() + ") to booking #"
-                        + bookingId + (allowAmountMismatch ? " [amount mismatch accepted]" : "")
+                "Applied bank txn " + txn.getExternalId() + " (" + txn.getAmount() + ") to ticket #"
+                        + ticketId + (allowAmountMismatch ? " [amount mismatch accepted]" : "")
                         + " by " + actorUsername);
-        log.info("Reconciliation: txn {} applied to booking {} by {}",
-                transactionId, bookingId, actorUsername);
+        log.info("Reconciliation: txn {} applied to ticket {} by {}",
+                transactionId, ticketId, actorUsername);
         return PaymentTransactionResponse.of(txn);
     }
 

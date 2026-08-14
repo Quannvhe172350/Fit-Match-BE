@@ -6,8 +6,6 @@ import com.fitmatch.dto.gym.BranchResponse;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
 import com.fitmatch.dto.gym.GymSearchCriteria;
-import com.fitmatch.dto.gym.GymServiceResponse;
-import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.service.MarketplaceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -91,21 +89,8 @@ public class MarketplaceGymController {
         return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymBranches(id)));
     }
 
-    @Operation(
-            summary = "UC-009 — Dịch vụ của Gym (công khai)",
-            description = "Actor: **Customer / Guest**. Chỉ dịch vụ PUBLISHED, kèm giá và booking rules (đặt cọc/hủy/min-notice) phục vụ quyết định đặt lịch. Lỗi: 404 gym không hiển thị.")
-    @GetMapping("/{id}/services")
-    public ResponseEntity<ApiResponse<java.util.List<GymServiceResponse>>> services(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymServices(id)));
-    }
-
-    @Operation(
-            summary = "UC-009 — Gói tập của Gym (công khai)",
-            description = "Actor: **Customer / Guest**. Chỉ gói PUBLISHED, kèm số buổi/hạn dùng/giá. Lỗi: 404 gym không hiển thị.")
-    @GetMapping("/{id}/packages")
-    public ResponseEntity<ApiResponse<java.util.List<TrainingPackageResponse>>> packages(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymPackages(id)));
-    }
+    // /{id}/services và /{id}/packages đã bỏ: vé bán theo CHI NHÁNH, xem
+    // GET /api/marketplace/branches/{branchId}/ticket-types.
 
     @Operation(
             summary = "UC-009 — Hình ảnh/media của Gym (công khai)",

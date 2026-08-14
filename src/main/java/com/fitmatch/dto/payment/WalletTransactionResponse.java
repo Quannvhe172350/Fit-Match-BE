@@ -16,7 +16,7 @@ public class WalletTransactionResponse {
     private Long id;
     private WalletTxnType type;
     private BigDecimal amount;
-    private Long bookingId;
+    private Long ticketId;
     private String description;
     private BigDecimal heldAfter;
     private BigDecimal pendingAfter;
@@ -29,7 +29,7 @@ public class WalletTransactionResponse {
                 .id(t.getId())
                 .type(t.getType())
                 .amount(t.getAmount())
-                .bookingId(t.getBookingId())
+                .ticketId(t.getTicketId())
                 .description(t.getDescription())
                 .heldAfter(t.getHeldAfter())
                 .pendingAfter(t.getPendingAfter())

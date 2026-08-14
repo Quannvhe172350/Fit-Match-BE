@@ -1,17 +1,13 @@
 package com.fitmatch.service.impl;
 
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.DiscountType;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.response.PageResponse;
-import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.voucher.VoucherRequest;
 import com.fitmatch.dto.voucher.VoucherResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.Voucher;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.VoucherRepository;
 import com.fitmatch.service.VoucherService;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +26,6 @@ import java.time.LocalDateTime;
 public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherRepository voucherRepository;
-    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -91,37 +86,6 @@ public class VoucherServiceImpl implements VoucherService {
         return PageResponse.of(voucherRepository.findAllByOrderByIdDesc(pageable), VoucherResponse::of);
     }
 
-    @Override
-    @Transactional
-    public BookingResponse applyToBooking(String customerUsername, Long bookingId, String code) {
-        Booking booking = requireDraft(customerUsername, bookingId);
-        Voucher voucher = voucherRepository.findByCodeIgnoreCase(code.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Voucher not found"));
-        assertUsable(voucher);
-        BigDecimal total = bookingTotal(booking);
-        BigDecimal discount = computeDiscount(voucher, total);
-        if (discount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Voucher does not apply to this booking (min amount not met or no discount)");
-        }
-        // UC-073: voucher và điểm thưởng loại trừ lẫn nhau — áp voucher thì gỡ điểm.
-        booking.setLoyaltyPointsUsed(null);
-        booking.setVoucher(voucher);
-        booking.setDiscountAmount(discount);
-        bookingRepository.save(booking);
-        log.info("Voucher {} applied to booking {} (discount {})", voucher.getCode(), bookingId, discount);
-        return BookingResponse.of(booking);
-    }
-
-    @Override
-    @Transactional
-    public BookingResponse removeFromBooking(String customerUsername, Long bookingId) {
-        Booking booking = requireDraft(customerUsername, bookingId);
-        booking.setVoucher(null);
-        booking.setDiscountAmount(null);
-        bookingRepository.save(booking);
-        return BookingResponse.of(booking);
-    }
 
     @Override
     public BigDecimal computeDiscount(Voucher voucher, BigDecimal total) {
@@ -141,31 +105,22 @@ public class VoucherServiceImpl implements VoucherService {
         return discount.min(total);
     }
 
+    // ---------- mô hình vé ----------
+
     @Override
-    @Transactional
-    public void recomputeDiscount(Booking booking) {
-        if (booking.getVoucher() == null) {
-            booking.setDiscountAmount(null);
-            return;
-        }
-        // Nếu voucher hết hiệu lực khi checkout -> bỏ áp dụng (không chặn booking).
-        try {
-            assertUsable(booking.getVoucher());
-        } catch (BusinessException e) {
-            log.info("Voucher {} no longer usable at checkout for booking {} - dropped",
-                    booking.getVoucher().getCode(), booking.getId());
-            booking.setVoucher(null);
-            booking.setDiscountAmount(null);
-            return;
-        }
-        booking.setDiscountAmount(computeDiscount(booking.getVoucher(), bookingTotal(booking)));
+    @Transactional(readOnly = true)
+    public Voucher requireUsable(String code) {
+        Voucher voucher = voucherRepository.findByCodeIgnoreCase(code.trim())
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Voucher not found"));
+        assertUsable(voucher);
+        return voucher;
     }
 
     @Override
     @Transactional
-    public void consumeAtCheckout(Booking booking) {
-        if (booking.getVoucher() == null) return;
-        Voucher v = voucherRepository.lockById(booking.getVoucher().getId()).orElseThrow();
+    public void consumeForTicket(com.fitmatch.entity.Ticket ticket) {
+        if (ticket.getVoucher() == null) return;
+        Voucher v = voucherRepository.lockById(ticket.getVoucher().getId()).orElseThrow();
         assertUsable(v);
         v.setUsedCount(v.getUsedCount() + 1);
         voucherRepository.save(v);
@@ -173,17 +128,17 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     @Transactional
-    public void releaseFromBooking(Booking booking) {
+    public void releaseFromTicket(com.fitmatch.entity.Ticket ticket) {
         try {
-            if (booking.getVoucher() == null) return;
-            Voucher v = voucherRepository.lockById(booking.getVoucher().getId()).orElseThrow();
+            if (ticket.getVoucher() == null) return;
+            Voucher v = voucherRepository.lockById(ticket.getVoucher().getId()).orElseThrow();
             if (v.getUsedCount() > 0) {
                 v.setUsedCount(v.getUsedCount() - 1);
                 voucherRepository.save(v);
-                log.info("Voucher {} usage released for cancelled booking {}", v.getCode(), booking.getId());
+                log.info("Voucher {} usage released for cancelled ticket {}", v.getCode(), ticket.getId());
             }
         } catch (Exception e) {
-            log.warn("Voucher release failed for booking {}: {}", booking.getId(), e.getMessage());
+            log.warn("Voucher release failed for ticket {}: {}", ticket.getId(), e.getMessage());
         }
     }
 
@@ -212,28 +167,6 @@ public class VoucherServiceImpl implements VoucherService {
                 && r.getValidTo().isBefore(r.getValidFrom())) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "validTo must be after validFrom");
         }
-    }
-
-    private BigDecimal bookingTotal(Booking b) {
-        if (b.getGymService() != null) return b.getGymService().getPrice();
-        if (b.getTrainingPackage() != null && b.getCustomerPackage() == null) {
-            return b.getTrainingPackage().getPrice();
-        }
-        return BigDecimal.ZERO; // buổi từ gói đã mua: miễn phí, voucher không áp.
-    }
-
-    private Booking requireDraft(String customerUsername, Long bookingId) {
-        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
-        if (booking.getStatus() != BookingStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Voucher can only be applied to a DRAFT booking");
-        }
-        if (booking.getCustomerPackage() != null) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Voucher does not apply to a free package session");
-        }
-        return booking;
     }
 
     private Voucher require(Long id) {

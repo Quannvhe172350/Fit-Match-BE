@@ -1,35 +1,31 @@
 package com.fitmatch.service;
 
-import com.fitmatch.entity.Booking;
+import com.fitmatch.entity.Ticket;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Điều phối dòng tiền escrow theo vòng đời booking (UC-057..059).
- * Trạng thái tiền lưu trên Booking.settlementStatus; bút toán do WalletService ghi.
+ * Điều phối dòng tiền escrow theo vòng đời VÉ (UC-057..059). Trạng thái tiền
+ * lưu ở {@code Ticket.settlementStatus}; bút toán do WalletService ghi.
+ *
+ * <p>Câu 15 + 32: mốc giải ngân là "vé USED_UP hoặc EXPIRED", không còn là
+ * "hoàn tất một buổi tập".
  */
 public interface SettlementService {
 
-    /** UC-057: tiền booking vừa được giữ vào ví — đánh dấu HELD. */
-    void markHeld(Booking booking);
+    /** Tiền vé vừa được giữ vào ví Gym — đánh dấu HELD. */
+    void markTicketHeld(Ticket ticket);
 
-    /**
-     * UC-058: buổi tập hoàn tất (hoặc no-show mất phí) — chuyển phần held của
-     * booking sang pending settlement và bắt đầu holding period. Booking miễn
-     * phí/không giữ tiền thì bỏ qua.
-     */
-    void settleAfterFulfillment(Booking booking, String reason);
+    /** Chuyển toàn bộ phần held của vé sang pending settlement. Idempotent. */
+    void settleTicketAfterFulfillment(Ticket ticket, String reason);
 
-    /** UC-059: id các booking PENDING_RELEASE đã hết holding period. */
-    List<Long> findDueForRelease();
+    /** id các vé PENDING_RELEASE đã hết holding period. */
+    List<Long> findTicketsDueForRelease();
 
-    /**
-     * UC-059: giải ngân một booking đến hạn — pending -> available (trừ hoa hồng
-     * theo CommissionConfig hiện hành). Idempotent theo settlementStatus.
-     */
-    void releaseOne(Long bookingId);
+    /** Giải ngân một vé đến hạn — pending -> available, trừ hoa hồng đã chốt. */
+    void releaseTicket(Long ticketId);
 
-    /** Số tiền thực đang giữ cho booking (đơn PAID; fallback payableAmount). */
-    BigDecimal heldAmountOf(Booking booking);
+    /** Số tiền thực đang giữ cho vé (đơn PAID; fallback payableAmount). */
+    BigDecimal heldAmountOfTicket(Ticket ticket);
 }

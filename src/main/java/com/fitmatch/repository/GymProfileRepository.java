@@ -108,7 +108,7 @@ public interface GymProfileRepository extends JpaRepository<GymProfile, Long>, J
                    OR LOWER(COALESCE(gp.district, '')) LIKE :district
                    OR LOWER(COALESCE(gp.address, '')) LIKE :district)
               AND ((:minPrice IS NULL AND :maxPrice IS NULL)
-                   OR EXISTS (SELECT 1 FROM training_packages tp
+                   OR EXISTS (SELECT 1 FROM ticket_types tp
                                WHERE tp.gym_profile_id = gp.id
                                  AND tp.status = 'PUBLISHED'
                                  AND (:minPrice IS NULL OR tp.price >= :minPrice)
@@ -150,7 +150,7 @@ public interface GymProfileRepository extends JpaRepository<GymProfile, Long>, J
                    OR LOWER(COALESCE(gp.district, '')) LIKE :district
                    OR LOWER(COALESCE(gp.address, '')) LIKE :district)
               AND ((:minPrice IS NULL AND :maxPrice IS NULL)
-                   OR EXISTS (SELECT 1 FROM training_packages tp
+                   OR EXISTS (SELECT 1 FROM ticket_types tp
                                WHERE tp.gym_profile_id = gp.id
                                  AND tp.status = 'PUBLISHED'
                                  AND (:minPrice IS NULL OR tp.price >= :minPrice)

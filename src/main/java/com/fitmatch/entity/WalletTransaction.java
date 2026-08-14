@@ -24,7 +24,7 @@ import java.math.BigDecimal;
 /**
  * Sổ cái ví — append-only (UC-061). Mỗi bút toán ghi loại, số tiền và snapshot
  * bốn bucket sau khi áp; không bao giờ UPDATE. Actor/thời điểm lấy từ BaseEntity.
- * Schema: wallet_transactions(id, wallet_id FK, type, amount, booking_id?,
+ * Schema: wallet_transactions(id, wallet_id FK, type, amount, ticket_id?,
  * held_after, pending_after, available_after, frozen_after, description, + audit).
  */
 @Entity
@@ -52,9 +52,9 @@ public class WalletTransaction extends BaseEntity {
     @Column(nullable = false, precision = 14, scale = 2)
     private BigDecimal amount;
 
-    /** Booking liên quan (nếu có) — truy vết escrow theo booking. */
-    @Column(name = "booking_id")
-    private Long bookingId;
+    /** Vé liên quan — neo mới của sổ cái escrow (V73). */
+    @Column(name = "ticket_id")
+    private Long ticketId;
 
     @Column(name = "held_after", nullable = false, precision = 14, scale = 2)
     private BigDecimal heldAfter;

@@ -1,6 +1,7 @@
 package com.fitmatch.entity;
 
 import com.fitmatch.common.enums.ReviewStatus;
+import com.fitmatch.common.enums.ReviewTargetType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -47,9 +48,21 @@ public class Review extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "booking_id", nullable = false, unique = true)
-    private Booking booking;
+    /**
+     * Câu 17 + 36: GYM neo vào vé (mở khi vé USED_UP), PT neo vào buổi (mở khi
+     * buổi DONE và có PT). Đúng một trong hai cột dưới được set theo loại này.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_type", length = 10)
+    private ReviewTargetType targetType;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id", unique = true)
+    private Ticket ticket;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id", unique = true)
+    private TrainingSession session;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false)
@@ -59,14 +72,7 @@ public class Review extends BaseEntity {
     @JoinColumn(name = "gym_profile_id", nullable = false)
     private GymProfile gymProfile;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "gym_service_id")
-    private GymService gymService;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "training_package_id")
-    private TrainingPackage trainingPackage;
-
+    /** Chỉ có ở đánh giá PT — lấy từ buổi tập được chấm điểm. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pt_profile_id")
     private PtProfile ptProfile;

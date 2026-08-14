@@ -7,11 +7,10 @@ import com.fitmatch.common.enums.ReportStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.report.IssueReportRequest;
 import com.fitmatch.dto.report.IssueReportResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.IssueReport;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.GymProfileRepository;
 import com.fitmatch.repository.IssueReportRepository;
 import com.fitmatch.repository.PtProfileRepository;
@@ -31,7 +30,7 @@ public class IssueReportServiceImpl implements IssueReportService {
     private final IssueReportRepository issueReportRepository;
     private final GymProfileRepository gymProfileRepository;
     private final PtProfileRepository ptProfileRepository;
-    private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
     private final AuditService auditService;
 
     @Override
@@ -124,23 +123,23 @@ public class IssueReportServiceImpl implements IssueReportService {
                         .getDisplayName();
             }
             case BOOKING -> {
-                Booking booking = bookingRepository.findById(targetId)
-                        .orElseThrow(() -> new ResourceNotFoundException("Booking", targetId));
-                if (!isParty(booking, reporter)) {
-                    throw new ResourceNotFoundException("Booking", targetId);
+                // Enum giữ tên cũ để dữ liệu báo cáo trước đây vẫn đọc được;
+                // đối tượng bây giờ là VÉ.
+                com.fitmatch.entity.Ticket ticket = ticketRepository.findById(targetId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Ticket", targetId));
+                if (!isParty(ticket, reporter)) {
+                    throw new ResourceNotFoundException("Ticket", targetId);
                 }
-                return "Booking #" + targetId;
+                return "Vé #" + targetId;
             }
             default -> throw new BusinessException(ErrorCode.VALIDATION_ERROR, "Unsupported target type");
         }
     }
 
-    private boolean isParty(Booking b, String username) {
-        if (b.getCustomer() != null && username.equals(b.getCustomer().getUsername())) return true;
-        if (b.getGymProfile() != null && b.getGymProfile().getUser() != null
-                && username.equals(b.getGymProfile().getUser().getUsername())) return true;
-        return b.getPtProfile() != null && b.getPtProfile().getUser() != null
-                && username.equals(b.getPtProfile().getUser().getUsername());
+    private boolean isParty(com.fitmatch.entity.Ticket t, String username) {
+        if (t.getCustomer() != null && username.equals(t.getCustomer().getUsername())) return true;
+        return t.getGymProfile() != null && t.getGymProfile().getUser() != null
+                && username.equals(t.getGymProfile().getUser().getUsername());
     }
 
     /** Tên hiển thị cho list — nuốt lỗi (đối tượng có thể đã bị xóa/ẩn sau khi report). */
@@ -151,7 +150,7 @@ public class IssueReportServiceImpl implements IssueReportService {
                         .map(g -> g.getGymName()).orElse(null);
                 case PT -> ptProfileRepository.findById(r.getTargetId())
                         .map(p -> p.getDisplayName()).orElse(null);
-                case BOOKING -> "Booking #" + r.getTargetId();
+                case BOOKING -> "Vé #" + r.getTargetId();
             };
         } catch (Exception e) {
             return null;

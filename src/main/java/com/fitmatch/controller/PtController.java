@@ -2,17 +2,11 @@ package com.fitmatch.controller;
 
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.response.ApiResponse;
-import com.fitmatch.dto.pt.AvailabilitySlotDto;
 import com.fitmatch.exception.BusinessException;
-import com.fitmatch.dto.pt.BlockedTimeRequest;
-import com.fitmatch.dto.pt.BlockedTimeResponse;
 import com.fitmatch.dto.pt.PtProfileResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.dto.pt.SubmitPtRegistrationRequest;
-import com.fitmatch.dto.pt.UpdateAvailabilityRequest;
 import com.fitmatch.dto.pt.UpdatePtProfileRequest;
-import com.fitmatch.service.BlockedTimeService;
-import com.fitmatch.service.PtAvailabilityService;
 import com.fitmatch.service.PtProfileService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -44,8 +38,6 @@ import java.util.List;
 public class PtController {
 
     private final PtProfileService ptProfileService;
-    private final PtAvailabilityService ptAvailabilityService;
-    private final BlockedTimeService blockedTimeService;
 
     /** @deprecated Mô hình mới (UC-019): PT do Gym tạo qua POST /api/gym/pts. */
     @Deprecated
@@ -101,57 +93,9 @@ public class PtController {
                 ptProfileService.updateProfile(userDetails.getUsername(), request)));
     }
 
-    @Operation(
-            summary = "UC-028 — PT tự cập nhật lịch rảnh tuần",
-            description = "Actor: **PT**. Thay toàn bộ lịch rảnh lặp hàng tuần của chính mình (trong khuôn khổ Gym; bị chặn khi SUSPENDED). Lỗi: 400 lịch không hợp lệ; 409 đang bị đình chỉ; 404 chưa có hồ sơ.")
-    @PutMapping("/availability")
-    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> updateAvailability(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody UpdateAvailabilityRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Availability updated",
-                ptAvailabilityService.updateOwn(userDetails.getUsername(), request)));
-    }
-
-    @Operation(
-            summary = "UC-028 — PT xem lịch rảnh tuần của mình",
-            description = "Actor: **PT**. Lỗi: 404 chưa có hồ sơ.")
-    @GetMapping("/availability")
-    public ResponseEntity<ApiResponse<List<AvailabilitySlotDto>>> getAvailability(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(ApiResponse.success(
-                ptAvailabilityService.getOwn(userDetails.getUsername())));
-    }
-
-    @Operation(
-            summary = "UC-029 — PT tạo thời gian bận cá nhân",
-            description = "Actor: **PT**. Bỏ trống ptId/branchId (tự áp cho chính mình). Lỗi: 400 startAt >= endAt; 409 đang bị SUSPENDED.")
-    @PostMapping("/blocked-times")
-    public ResponseEntity<ApiResponse<BlockedTimeResponse>> createBlockedTime(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody BlockedTimeRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Blocked time created",
-                blockedTimeService.createForPt(userDetails.getUsername(), request)));
-    }
-
-    @Operation(
-            summary = "UC-029 — PT xoá thời gian bận cá nhân",
-            description = "Actor: **PT**. Lỗi: 404 không thuộc về bạn.")
-    @DeleteMapping("/blocked-times/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteBlockedTime(
-            @AuthenticationPrincipal UserDetails userDetails, @PathVariable Long id) {
-        blockedTimeService.deleteForPt(userDetails.getUsername(), id);
-        return ResponseEntity.ok(ApiResponse.success("Blocked time deleted", null));
-    }
-
-    @Operation(
-            summary = "UC-029 — PT xem thời gian bận cá nhân",
-            description = "Actor: **PT**.")
-    @GetMapping("/blocked-times")
-    public ResponseEntity<ApiResponse<List<BlockedTimeResponse>>> listBlockedTimes(
-            @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(ApiResponse.success(
-                blockedTimeService.listForPt(userDetails.getUsername())));
-    }
+    // Lịch rảnh chuyển sang GET/PUT /api/pt/availability/daily (theo NGÀY cụ thể,
+    // câu 26). Blocked-times bị bỏ hoàn toàn: với lịch theo ngày thì "bận" đơn
+    // giản là không khai khung giờ cho ngày đó.
 
     @Operation(
             summary = "UC-007 — Xem trước hồ sơ PT công khai",

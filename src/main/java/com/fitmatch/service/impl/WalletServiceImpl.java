@@ -74,90 +74,6 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // ------------------------------------------------------------------
-    // Escrow booking (ví Gym)
-    // ------------------------------------------------------------------
-
-    @Override
-    @Transactional
-    public void hold(Long gymProfileId, Long bookingId, BigDecimal amount) {
-        Wallet w = lockGym(gymProfileId);
-        positive(amount);
-        w.setHeldBalance(w.getHeldBalance().add(amount));
-        record(w, WalletTxnType.HOLD, amount, bookingId, "Held booking funds");
-    }
-
-    @Override
-    @Transactional
-    public void refundFromHeld(Long gymProfileId, Long bookingId, BigDecimal amount) {
-        Wallet w = lockGym(gymProfileId);
-        positive(amount);
-        debitHeldForRefund(w, bookingId, amount);
-    }
-
-    @Override
-    @Transactional
-    public void refundToCustomer(Long gymProfileId, User customer, Long bookingId, BigDecimal amount) {
-        positive(amount);
-        if (customer == null) {
-            // Booking không truy ra được khách (dữ liệu cũ): giữ hành vi cũ, tiền
-            // rời ví gym và phải hoàn thủ công — vẫn hơn là chặn cả luồng refund.
-            debitHeldForRefund(lockGym(gymProfileId), bookingId, amount);
-            log.warn("Refund {} for booking {} has no customer wallet target - held debited only",
-                    amount, bookingId);
-            return;
-        }
-        Wallet gym = walletRepository.findByGymProfile_Id(gymProfileId)
-                .orElseThrow(() -> new ResourceNotFoundException("Wallet for gym", gymProfileId));
-        Wallet[] locked = lockPair(gym, getOrCreateForCustomer(customer));
-        Wallet gymWallet = locked[0];
-        Wallet customerWallet = locked[1];
-
-        debitHeldForRefund(gymWallet, bookingId, amount);
-        customerWallet.setAvailableBalance(customerWallet.getAvailableBalance().add(amount));
-        record(customerWallet, WalletTxnType.REFUND_CREDIT, amount, bookingId,
-                "Refund credited from booking " + bookingId);
-    }
-
-    @Override
-    @Transactional
-    public void moveToPending(Long gymProfileId, Long bookingId, BigDecimal amount) {
-        Wallet w = lockGym(gymProfileId);
-        positive(amount);
-        require(w.getHeldBalance().compareTo(amount) >= 0, "Held balance is insufficient to settle");
-        w.setHeldBalance(w.getHeldBalance().subtract(amount));
-        w.setPendingBalance(w.getPendingBalance().add(amount));
-        record(w, WalletTxnType.MOVE_TO_PENDING, amount, bookingId, "Moved to pending settlement");
-    }
-
-    @Override
-    @Transactional
-    public void reverseToHeld(Long gymProfileId, Long bookingId, BigDecimal amount) {
-        Wallet w = lockGym(gymProfileId);
-        positive(amount);
-        require(w.getPendingBalance().compareTo(amount) >= 0, "Pending balance is insufficient to reverse");
-        w.setPendingBalance(w.getPendingBalance().subtract(amount));
-        w.setHeldBalance(w.getHeldBalance().add(amount));
-        record(w, WalletTxnType.DISPUTE_HOLD, amount, bookingId, "Pulled back to held for dispute");
-    }
-
-    @Override
-    @Transactional
-    public void release(Long gymProfileId, Long bookingId, BigDecimal amount, BigDecimal commissionPercent) {
-        Wallet w = lockGym(gymProfileId);
-        positive(amount);
-        require(w.getPendingBalance().compareTo(amount) >= 0, "Pending balance is insufficient to release");
-        BigDecimal commission = amount.multiply(commissionPercent)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        BigDecimal net = amount.subtract(commission);
-        w.setPendingBalance(w.getPendingBalance().subtract(amount));
-        w.setAvailableBalance(w.getAvailableBalance().add(net));
-        record(w, WalletTxnType.RELEASE, net, bookingId,
-                "Released to gym (commission " + commissionPercent + "% = " + commission + ")");
-        // Bút toán hoa hồng nền tảng — không đổi bucket Gym, phục vụ đối soát/báo cáo.
-        record(w, WalletTxnType.COMMISSION, commission, bookingId, "Platform commission withheld");
-    }
-
-    // ------------------------------------------------------------------
     // Thao tác dùng chung cho mọi loại ví
     // ------------------------------------------------------------------
 
@@ -228,12 +144,90 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // ------------------------------------------------------------------
+    // Escrow vé (V73) — bút toán neo vào ticket_id, chỉ áp cho ví Gym
+    // ------------------------------------------------------------------
 
-    /** Trừ held cho một khoản hoàn — dùng chung, ví đã được khoá từ trước. */
-    private void debitHeldForRefund(Wallet gymWallet, Long bookingId, BigDecimal amount) {
-        require(gymWallet.getHeldBalance().compareTo(amount) >= 0, "Held balance is insufficient for refund");
+    @Override
+    @Transactional
+    public void holdForTicket(Long gymProfileId, Long ticketId, BigDecimal amount) {
+        Wallet w = lockGym(gymProfileId);
+        positive(amount);
+        w.setHeldBalance(w.getHeldBalance().add(amount));
+        record(w, WalletTxnType.HOLD, amount, ticketId, "Held ticket funds");
+    }
+
+    @Override
+    @Transactional
+    public void refundToCustomerForTicket(Long gymProfileId, User customer, Long ticketId,
+                                          BigDecimal amount) {
+        positive(amount);
+        if (customer == null) {
+            Wallet gymOnly = lockGym(gymProfileId);
+            require(gymOnly.getHeldBalance().compareTo(amount) >= 0,
+                    "Held balance is insufficient for refund");
+            gymOnly.setHeldBalance(gymOnly.getHeldBalance().subtract(amount));
+            record(gymOnly, WalletTxnType.REFUND, amount, ticketId,
+                    "Refund to customer from held funds");
+            log.warn("Refund {} for ticket {} has no customer wallet target - held debited only",
+                    amount, ticketId);
+            return;
+        }
+        Wallet gym = walletRepository.findByGymProfile_Id(gymProfileId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wallet for gym", gymProfileId));
+        // lockPair theo id tăng dần — giữ nguyên thứ tự khoá để không deadlock với
+        // các luồng khác cũng chạm hai ví.
+        Wallet[] locked = lockPair(gym, getOrCreateForCustomer(customer));
+        Wallet gymWallet = locked[0];
+        Wallet customerWallet = locked[1];
+
+        require(gymWallet.getHeldBalance().compareTo(amount) >= 0,
+                "Held balance is insufficient for refund");
         gymWallet.setHeldBalance(gymWallet.getHeldBalance().subtract(amount));
-        record(gymWallet, WalletTxnType.REFUND, amount, bookingId, "Refund to customer from held funds");
+        record(gymWallet, WalletTxnType.REFUND, amount, ticketId,
+                "Refund to customer from held funds");
+
+        customerWallet.setAvailableBalance(customerWallet.getAvailableBalance().add(amount));
+        record(customerWallet, WalletTxnType.REFUND_CREDIT, amount, ticketId,
+                "Refund credited from ticket " + ticketId);
+    }
+
+    @Override
+    @Transactional
+    public void moveToPendingForTicket(Long gymProfileId, Long ticketId, BigDecimal amount) {
+        Wallet w = lockGym(gymProfileId);
+        positive(amount);
+        require(w.getHeldBalance().compareTo(amount) >= 0, "Held balance is insufficient to settle");
+        w.setHeldBalance(w.getHeldBalance().subtract(amount));
+        w.setPendingBalance(w.getPendingBalance().add(amount));
+        record(w, WalletTxnType.MOVE_TO_PENDING, amount, ticketId, "Moved to pending settlement");
+    }
+
+    @Override
+    @Transactional
+    public void reverseToHeldForTicket(Long gymProfileId, Long ticketId, BigDecimal amount) {
+        Wallet w = lockGym(gymProfileId);
+        positive(amount);
+        require(w.getPendingBalance().compareTo(amount) >= 0, "Pending balance is insufficient to reverse");
+        w.setPendingBalance(w.getPendingBalance().subtract(amount));
+        w.setHeldBalance(w.getHeldBalance().add(amount));
+        record(w, WalletTxnType.DISPUTE_HOLD, amount, ticketId, "Pulled back to held for dispute");
+    }
+
+    @Override
+    @Transactional
+    public void releaseForTicket(Long gymProfileId, Long ticketId, BigDecimal amount,
+                                 BigDecimal commissionPercent) {
+        Wallet w = lockGym(gymProfileId);
+        positive(amount);
+        require(w.getPendingBalance().compareTo(amount) >= 0, "Pending balance is insufficient to release");
+        BigDecimal commission = amount.multiply(commissionPercent)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal net = amount.subtract(commission);
+        w.setPendingBalance(w.getPendingBalance().subtract(amount));
+        w.setAvailableBalance(w.getAvailableBalance().add(net));
+        record(w, WalletTxnType.RELEASE, net, ticketId,
+                "Released to gym (commission " + commissionPercent + "% = " + commission + ")");
+        record(w, WalletTxnType.COMMISSION, commission, ticketId, "Platform commission withheld");
     }
 
     private Wallet lockGym(Long gymProfileId) {
@@ -265,13 +259,13 @@ public class WalletServiceImpl implements WalletService {
     }
 
     private WalletTransaction record(Wallet w, WalletTxnType type, BigDecimal amount,
-                                     Long bookingId, String desc) {
+                                     Long ticketId, String desc) {
         walletRepository.save(w);
         WalletTransaction txn = walletTransactionRepository.save(WalletTransaction.builder()
                 .wallet(w)
                 .type(type)
                 .amount(amount)
-                .bookingId(bookingId)
+                .ticketId(ticketId)
                 .heldAfter(w.getHeldBalance())
                 .pendingAfter(w.getPendingBalance())
                 .availableAfter(w.getAvailableBalance())

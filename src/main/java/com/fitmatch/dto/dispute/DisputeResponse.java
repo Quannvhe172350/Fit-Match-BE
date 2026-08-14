@@ -15,7 +15,11 @@ import java.time.LocalDateTime;
 public class DisputeResponse {
 
     private Long id;
-    private Long bookingId;
+    /** Mô hình vé: luôn có ticketId; sessionId null = tranh chấp CẤP VÉ (câu 34). */
+    private Long ticketId;
+    private Long sessionId;
+    private java.time.LocalDate sessionDate;
+    private String ticketName;
     private String customerName;
     private Long gymId;
     private String gymName;
@@ -35,15 +39,23 @@ public class DisputeResponse {
     private LocalDateTime createdAt;
 
     public static DisputeResponse of(Dispute d) {
-        var b = d.getBooking();
+        var t = d.getTicket();
+        var session = d.getSession();
         return DisputeResponse.builder()
                 .id(d.getId())
-                .bookingId(b.getId())
-                .customerName(b.getCustomer().getUsername())
-                .gymId(b.getGymProfile().getId())
-                .gymName(b.getGymProfile().getGymName())
-                .ptProfileId(b.getPtProfile() != null ? b.getPtProfile().getId() : null)
-                .ptName(b.getPtProfile() != null ? b.getPtProfile().getDisplayName() : null)
+                .ticketId(t.getId())
+                .ticketName(t.getTicketType().getName())
+                .sessionId(session != null ? session.getId() : null)
+                .sessionDate(session != null ? session.getSessionDate() : null)
+                .customerName(t.getCustomer().getUsername())
+                .gymId(t.getGymProfile().getId())
+                .gymName(t.getGymProfile().getGymName())
+                // PT chỉ có nghĩa với tranh chấp cấp buổi — tranh chấp cấp vé có
+                // thể trải nhiều PT khác nhau nên không quy về một người được.
+                .ptProfileId(session != null && session.getPtProfile() != null
+                        ? session.getPtProfile().getId() : null)
+                .ptName(session != null && session.getPtProfile() != null
+                        ? session.getPtProfile().getDisplayName() : null)
                 .openedByRole(d.getOpenedByRole())
                 .openedBy(d.getCreatedBy())
                 .reason(d.getReason())

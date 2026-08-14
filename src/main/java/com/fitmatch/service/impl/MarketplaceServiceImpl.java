@@ -10,9 +10,7 @@ import com.fitmatch.dto.gym.BranchResponse;
 import com.fitmatch.dto.gym.GymMediaResponse;
 import com.fitmatch.dto.gym.GymPublicProfileResponse;
 import com.fitmatch.dto.gym.GymSearchCriteria;
-import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.dto.gym.OperatingHourDto;
-import com.fitmatch.dto.gym.TrainingPackageResponse;
 import com.fitmatch.dto.pt.CertificationResponse;
 import com.fitmatch.dto.pt.PtPublicProfileResponse;
 import com.fitmatch.entity.GymProfile;
@@ -20,11 +18,9 @@ import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.GymProfileRepository;
-import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.OperatingHourRepository;
 import com.fitmatch.repository.PtCertificationRepository;
 import com.fitmatch.repository.PtProfileRepository;
-import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.repository.projection.GymDistanceView;
 import com.fitmatch.repository.spec.GymProfileSpecifications;
 import com.fitmatch.repository.spec.PtProfileSpecifications;
@@ -53,11 +49,8 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final PtCertificationRepository ptCertificationRepository;
     private final GymProfileRepository gymProfileRepository;
     private final GymBranchRepository gymBranchRepository;
-    private final GymServiceRepository gymServiceRepository;
-    private final TrainingPackageRepository trainingPackageRepository;
     private final MediaService mediaService;
     private final OperatingHourRepository operatingHourRepository;
-    private final com.fitmatch.repository.AvailabilitySlotRepository availabilitySlotRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.config.GeocodingProperties geocodingProperties;
 
@@ -247,22 +240,6 @@ public class MarketplaceServiceImpl implements MarketplaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<GymServiceResponse> listGymServices(Long gymProfileId) {
-        requireVisibleGym(gymProfileId);
-        return gymServiceRepository.findByGymProfile_IdAndStatus(gymProfileId, CatalogStatus.PUBLISHED)
-                .stream().map(GymServiceResponse::of).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<TrainingPackageResponse> listGymPackages(Long gymProfileId) {
-        requireVisibleGym(gymProfileId);
-        return trainingPackageRepository.findByGymProfile_IdAndStatus(gymProfileId, CatalogStatus.PUBLISHED)
-                .stream().map(TrainingPackageResponse::of).toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public List<GymMediaResponse> listGymMedia(Long gymProfileId) {
         requireVisibleGym(gymProfileId);
         // Ảnh chung của Gym + ảnh riêng của từng chi nhánh đang hoạt động — khách
@@ -300,19 +277,6 @@ public class MarketplaceServiceImpl implements MarketplaceService {
             var rating = ratingAggregator.forPt(p.getId());
             return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
         });
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<com.fitmatch.dto.pt.AvailabilitySlotDto> listPtAvailability(Long ptProfileId) {
-        // Cùng điều kiện hiển thị với getPtDetail — PT ẩn thì lịch cũng không lộ.
-        ptProfileRepository
-                .findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
-                        ptProfileId, PtStatus.ACTIVE, VerificationStatus.APPROVED)
-                .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptProfileId));
-        return availabilitySlotRepository
-                .findByPtProfile_IdOrderByDayOfWeekAscStartTimeAsc(ptProfileId).stream()
-                .map(com.fitmatch.dto.pt.AvailabilitySlotDto::of).toList();
     }
 
     /** Gym chỉ public khi APPROVED + đang hiển thị (UC-018) — 404 nếu không. */

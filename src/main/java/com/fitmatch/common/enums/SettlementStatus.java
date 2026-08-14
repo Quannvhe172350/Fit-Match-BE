@@ -1,12 +1,12 @@
 package com.fitmatch.common.enums;
 
 /**
- * Trạng thái dòng tiền escrow của một booking (UC-057..059, UC-055/056).
- * Chạy song song với BookingStatus: booking mô tả dịch vụ, settlement mô tả tiền.
+ * Trạng thái dòng tiền escrow của một VÉ (UC-057..059, UC-055/056).
+ * Chạy song song với TicketStatus: vé mô tả quyền sử dụng, settlement mô tả tiền.
  */
 public enum SettlementStatus {
 
-    /** Không có tiền giữ (booking miễn phí hoặc chưa thanh toán). */
+    /** Không có tiền giữ (điểm/voucher phủ hết, hoặc chưa thanh toán). */
     NONE,
 
     /** Tiền đã vào bucket held của ví Gym (UC-057). */
@@ -15,7 +15,7 @@ public enum SettlementStatus {
     /** Đang chờ yêu cầu hoàn tiền được duyệt (UC-055) — chặn release. */
     REFUND_PENDING,
 
-    /** Buổi tập hoàn tất / no-show — tiền ở pending, chờ hết holding period (UC-058). */
+    /** Vé dùng hết / hết hạn — tiền ở pending, chờ hết holding period (UC-058). */
     PENDING_RELEASE,
 
     /** Đang tranh chấp — tiền kéo về held, chặn auto-release tới khi giải quyết (UC-063/067). */

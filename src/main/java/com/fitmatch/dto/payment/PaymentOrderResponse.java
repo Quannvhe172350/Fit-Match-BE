@@ -19,7 +19,8 @@ import java.time.LocalDateTime;
 public class PaymentOrderResponse {
 
     private Long id;
-    private Long bookingId;
+    /** Neo của đơn thanh toán — luôn là một vé. */
+    private Long ticketId;
     private String refCode;
     private BigDecimal amount;
     private PaymentStatus status;
@@ -30,7 +31,7 @@ public class PaymentOrderResponse {
     public static PaymentOrderResponse of(PaymentOrder o) {
         return PaymentOrderResponse.builder()
                 .id(o.getId())
-                .bookingId(o.getBooking() != null ? o.getBooking().getId() : null)
+                .ticketId(o.getTicket() != null ? o.getTicket().getId() : null)
                 .refCode(o.getRefCode())
                 .amount(o.getAmount())
                 .status(o.getStatus())

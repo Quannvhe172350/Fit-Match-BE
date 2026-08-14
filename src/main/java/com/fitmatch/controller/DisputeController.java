@@ -5,7 +5,6 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.dispute.DisputeEvidenceRequest;
 import com.fitmatch.dto.dispute.DisputeEvidenceResponse;
 import com.fitmatch.dto.dispute.DisputeResponse;
-import com.fitmatch.dto.dispute.OpenDisputeRequest;
 import com.fitmatch.service.DisputeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -36,16 +35,8 @@ public class DisputeController {
 
     private final DisputeService disputeService;
 
-    @Operation(
-            summary = "UC-063 — Mở tranh chấp cho một booking",
-            description = "Actor: **Customer/Gym/PT** liên quan booking. Booking phải ở CONFIRMED/COMPLETED/NO_SHOW/REJECTED/CANCELLED; tiền (nếu có) được kéo về held và khoá auto-release trong lúc xử lý. Lỗi: 409 sai trạng thái/đã có tranh chấp mở; 404 không liên quan.")
-    @PostMapping
-    public ResponseEntity<ApiResponse<DisputeResponse>> open(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody OpenDisputeRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
-                "Dispute opened", disputeService.open(userDetails.getUsername(), request)));
-    }
+    // Mở tranh chấp: POST /api/tickets/{id}/disputes?sessionId= — cần biết vé và
+    // (tuỳ chọn) buổi tập vì mức đóng băng khác nhau theo cấp (câu 34).
 
     @Operation(
             summary = "UC-045 — Danh sách tranh chấp của tôi",

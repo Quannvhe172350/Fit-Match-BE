@@ -14,10 +14,16 @@ import java.time.LocalDateTime;
 public class RefundResponse {
 
     private Long id;
-    private Long bookingId;
+    /** Neo của yêu cầu hoàn — luôn là một vé. */
+    private Long ticketId;
+    private String ticketTypeName;
     private BigDecimal amount;
     private String reason;
     private RefundStatus status;
+    /** Câu 11: FULL hay PARTIAL_ELAPSED. Null khi chưa duyệt. */
+    private com.fitmatch.common.enums.RefundMode refundMode;
+    private Integer elapsedDays;
+    private BigDecimal retainedAmount;
     private String decisionNote;
     private String requestedBy;
     private LocalDateTime createdAt;
@@ -26,10 +32,14 @@ public class RefundResponse {
     public static RefundResponse of(RefundRequest r) {
         return RefundResponse.builder()
                 .id(r.getId())
-                .bookingId(r.getBooking().getId())
+                .ticketId(r.getTicket() != null ? r.getTicket().getId() : null)
+                .ticketTypeName(r.getTicket() != null ? r.getTicket().getTicketType().getName() : null)
                 .amount(r.getAmount())
                 .reason(r.getReason())
                 .status(r.getStatus())
+                .refundMode(r.getRefundMode())
+                .elapsedDays(r.getElapsedDays())
+                .retainedAmount(r.getRetainedAmount())
                 .decisionNote(r.getDecisionNote())
                 .requestedBy(r.getCreatedBy())
                 .createdAt(r.getCreatedAt())

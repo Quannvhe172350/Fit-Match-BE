@@ -1,19 +1,15 @@
 package com.fitmatch.service.impl;
 
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.LoyaltyTxnType;
 import com.fitmatch.common.response.PageResponse;
-import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.loyalty.LoyaltyBalanceResponse;
 import com.fitmatch.dto.loyalty.LoyaltyTransactionResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.LoyaltyAccount;
 import com.fitmatch.entity.LoyaltyTransaction;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.LoyaltyAccountRepository;
 import com.fitmatch.repository.LoyaltyTransactionRepository;
 import com.fitmatch.repository.UserRepository;
@@ -38,7 +34,6 @@ public class LoyaltyServiceImpl implements LoyaltyService {
 
     private final LoyaltyAccountRepository accountRepository;
     private final LoyaltyTransactionRepository transactionRepository;
-    private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -56,99 +51,65 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 .build();
     }
 
+    // ---------- mô hình vé ----------
+
     @Override
     @Transactional
-    public void earnFromBooking(Booking booking) {
-        try {
-            BigDecimal paid = booking.getPayableAmount();
-            if (paid == null || paid.compareTo(BigDecimal.ZERO) <= 0) return;
-            int points = paid.divideToIntegralValue(VND_PER_POINT).intValue();
-            if (points <= 0) return;
-            LoyaltyAccount account = lock(getOrCreate(booking.getCustomer().getUsername()).getId());
-            adjust(account, LoyaltyTxnType.EARN, points, booking.getId(),
-                    "Earned from booking #" + booking.getId());
-        } catch (Exception e) {
-            log.warn("Loyalty earn failed for booking {}: {}", booking.getId(), e.getMessage());
-        }
+    public int availablePoints(String username) {
+        return getOrCreate(username).getPointsBalance();
     }
 
     @Override
     @Transactional
-    public BookingResponse applyToBooking(String customerUsername, Long bookingId, int points) {
-        Booking booking = requireDraft(customerUsername, bookingId);
-        LoyaltyAccount account = getOrCreate(customerUsername);
-        if (points > account.getPointsBalance()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Not enough points (balance " + account.getPointsBalance() + ")");
-        }
-        BigDecimal total = bookingTotal(booking);
-        BigDecimal discount = pointsToDiscount(points, total);
-        if (discount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "Points do not yield any discount");
-        }
-        // Loại trừ lẫn nhau với voucher.
-        booking.setVoucher(null);
-        booking.setLoyaltyPointsUsed(points);
-        booking.setDiscountAmount(discount);
-        bookingRepository.save(booking);
-        return BookingResponse.of(booking);
-    }
-
-    @Override
-    @Transactional
-    public BookingResponse removeFromBooking(String customerUsername, Long bookingId) {
-        Booking booking = requireDraft(customerUsername, bookingId);
-        booking.setLoyaltyPointsUsed(null);
-        booking.setDiscountAmount(null);
-        bookingRepository.save(booking);
-        return BookingResponse.of(booking);
-    }
-
-    @Override
-    @Transactional
-    public void recomputeDiscount(Booking booking) {
-        if (booking.getLoyaltyPointsUsed() == null) {
-            booking.setDiscountAmount(null);
-            return;
-        }
-        booking.setDiscountAmount(pointsToDiscount(booking.getLoyaltyPointsUsed(), bookingTotal(booking)));
-    }
-
-    @Override
-    @Transactional
-    public void consumeAtCheckout(Booking booking) {
-        if (booking.getLoyaltyPointsUsed() == null) return;
-        LoyaltyAccount account = lock(getOrCreate(booking.getCustomer().getUsername()).getId());
-        int points = booking.getLoyaltyPointsUsed();
+    public void consumeForTicket(com.fitmatch.entity.Ticket ticket) {
+        Integer points = ticket.getLoyaltyPointsUsed();
+        if (points == null || points <= 0) return;
+        LoyaltyAccount account = lock(getOrCreate(ticket.getCustomer().getUsername()).getId());
         if (points > account.getPointsBalance()) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Not enough points to redeem (balance " + account.getPointsBalance() + ")");
         }
-        adjust(account, LoyaltyTxnType.REDEEM, -points, booking.getId(),
-                "Redeemed for booking #" + booking.getId());
+        adjustForTicket(account, LoyaltyTxnType.REDEEM, -points, ticket.getId(),
+                "Redeemed for ticket #" + ticket.getId());
+    }
+
+    /**
+     * Câu 35: mốc tích điểm chuyển từ "hoàn tất buổi tập" sang "thanh toán vé
+     * thành công". Vé bị huỷ do quá hạn thanh toán không bao giờ đi qua đây nên
+     * không phát sinh điểm từ hư không.
+     */
+    @Override
+    @Transactional
+    public void earnFromTicket(com.fitmatch.entity.Ticket ticket) {
+        try {
+            BigDecimal paid = ticket.getPayableAmount();
+            if (paid == null || paid.compareTo(BigDecimal.ZERO) <= 0) return;
+            int points = paid.divideToIntegralValue(VND_PER_POINT).intValue();
+            if (points <= 0) return;
+            LoyaltyAccount account = lock(getOrCreate(ticket.getCustomer().getUsername()).getId());
+            adjustForTicket(account, LoyaltyTxnType.EARN, points, ticket.getId(),
+                    "Earned from ticket #" + ticket.getId());
+        } catch (Exception e) {
+            log.warn("Loyalty earn failed for ticket {}: {}", ticket.getId(), e.getMessage());
+        }
     }
 
     @Override
     @Transactional
-    public void refundToBooking(Booking booking) {
+    public void refundToTicket(com.fitmatch.entity.Ticket ticket) {
         try {
-            Integer points = booking.getLoyaltyPointsUsed();
+            Integer points = ticket.getLoyaltyPointsUsed();
             if (points == null || points <= 0) return;
-            LoyaltyAccount account = lock(getOrCreate(booking.getCustomer().getUsername()).getId());
-            adjust(account, LoyaltyTxnType.REFUND, points, booking.getId(),
-                    "Refunded from cancelled booking #" + booking.getId());
-            log.info("Loyalty refunded {} points for cancelled booking {}", points, booking.getId());
+            LoyaltyAccount account = lock(getOrCreate(ticket.getCustomer().getUsername()).getId());
+            adjustForTicket(account, LoyaltyTxnType.REFUND, points, ticket.getId(),
+                    "Refunded from cancelled ticket #" + ticket.getId());
+            log.info("Loyalty refunded {} points for cancelled ticket {}", points, ticket.getId());
         } catch (Exception e) {
-            log.warn("Loyalty refund failed for booking {}: {}", booking.getId(), e.getMessage());
+            log.warn("Loyalty refund failed for ticket {}: {}", ticket.getId(), e.getMessage());
         }
     }
 
     // ---------- helpers ----------
-
-    private BigDecimal pointsToDiscount(int points, BigDecimal total) {
-        if (total == null || total.compareTo(BigDecimal.ZERO) <= 0) return BigDecimal.ZERO;
-        return POINT_VALUE_VND.multiply(BigDecimal.valueOf(points)).min(total);
-    }
 
     private LoyaltyAccount getOrCreate(String username) {
         return accountRepository.findByUser_Username(username).orElseGet(() -> {
@@ -163,7 +124,8 @@ public class LoyaltyServiceImpl implements LoyaltyService {
     }
 
     /** points dương = tăng, âm = giảm; ghi bút toán snapshot số dư. */
-    private void adjust(LoyaltyAccount account, LoyaltyTxnType type, int points, Long bookingId, String desc) {
+    private void adjustForTicket(LoyaltyAccount account, LoyaltyTxnType type, int points,
+                                 Long ticketId, String desc) {
         int newBalance = account.getPointsBalance() + points;
         if (newBalance < 0) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "Insufficient loyalty balance");
@@ -174,31 +136,10 @@ public class LoyaltyServiceImpl implements LoyaltyService {
                 .account(account)
                 .type(type)
                 .points(points)
-                .bookingId(bookingId)
+                .ticketId(ticketId)
                 .balanceAfter(newBalance)
                 .description(desc)
                 .build());
     }
 
-    private BigDecimal bookingTotal(Booking b) {
-        if (b.getGymService() != null) return b.getGymService().getPrice();
-        if (b.getTrainingPackage() != null && b.getCustomerPackage() == null) {
-            return b.getTrainingPackage().getPrice();
-        }
-        return BigDecimal.ZERO;
-    }
-
-    private Booking requireDraft(String customerUsername, Long bookingId) {
-        Booking booking = bookingRepository.findByIdAndCustomer_Username(bookingId, customerUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
-        if (booking.getStatus() != BookingStatus.DRAFT) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Points can only be applied to a DRAFT booking");
-        }
-        if (booking.getCustomerPackage() != null) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Points do not apply to a free package session");
-        }
-        return booking;
-    }
 }

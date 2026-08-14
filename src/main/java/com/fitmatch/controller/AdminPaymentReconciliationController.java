@@ -67,15 +67,15 @@ public class AdminPaymentReconciliationController {
     }
 
     @Operation(
-            summary = "UC-053/056 — Gắn giao dịch vào booking chờ thanh toán",
-            description = "Actor: **Admin/Finance**. Dùng cho ca khách chuyển khoản sai nội dung: xác nhận giữ tiền cho booking như webhook thật (hold ví, đơn -> PAID, chuyển Gym, thông báo khách). Lỗi: 409 booking/đơn không còn chờ thanh toán hoặc giao dịch đã đối soát; 400 giao dịch không đủ tiền (bật allowAmountMismatch kèm ghi chú nếu khách chuyển nhiều lần).")
+            summary = "UC-053/056 — Gắn giao dịch vào vé chờ thanh toán",
+            description = "Actor: **Admin/Finance**. Dùng cho ca khách chuyển khoản sai nội dung: xác nhận giữ tiền cho vé như webhook thật (hold ví, đơn -> PAID, chuyển Gym, thông báo khách). Lỗi: 409 vé/đơn không còn chờ thanh toán hoặc giao dịch đã đối soát; 400 giao dịch không đủ tiền (bật allowAmountMismatch kèm ghi chú nếu khách chuyển nhiều lần).")
     @PostMapping("/{id}/apply")
     public ResponseEntity<ApiResponse<PaymentTransactionResponse>> apply(
             @PathVariable Long id,
             @Valid @RequestBody ReconciliationApplyRequest request,
             @AuthenticationPrincipal UserDetails actor) {
-        return ResponseEntity.ok(ApiResponse.success("Transaction applied to booking",
-                reconciliationService.applyToBooking(id, request.getBookingId(),
+        return ResponseEntity.ok(ApiResponse.success("Transaction applied to ticket",
+                reconciliationService.applyToTicket(id, request.getTicketId(),
                         request.isAllowAmountMismatch(), request.getNote(), actor.getUsername())));
     }
 

@@ -3,27 +3,21 @@ package com.fitmatch.service.impl;
 import com.fitmatch.common.AuditActions;
 import com.fitmatch.common.enums.DisputeStatus;
 import com.fitmatch.common.enums.ErrorCode;
-import com.fitmatch.common.enums.SettlementStatus;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.dispute.DisputeEvidenceRequest;
 import com.fitmatch.dto.dispute.DisputeEvidenceResponse;
 import com.fitmatch.dto.dispute.DisputeResponse;
-import com.fitmatch.dto.dispute.OpenDisputeRequest;
 import com.fitmatch.dto.dispute.ResolveDisputeRequest;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.Dispute;
 import com.fitmatch.entity.DisputeEvidence;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.DisputeEvidenceRepository;
 import com.fitmatch.repository.DisputeRepository;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.DisputeService;
-import com.fitmatch.service.SettlementService;
-import com.fitmatch.service.WalletService;
 import com.fitmatch.service.support.DisputeFinancialApplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +25,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -41,131 +34,17 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DisputeServiceImpl implements DisputeService {
 
-    /** Booking có thể mở tranh chấp — đã phát sinh dịch vụ/tiền. */
-    private static final Set<com.fitmatch.common.enums.BookingStatus> DISPUTABLE = Set.of(
-            com.fitmatch.common.enums.BookingStatus.CONFIRMED,
-            com.fitmatch.common.enums.BookingStatus.COMPLETED,
-            com.fitmatch.common.enums.BookingStatus.NO_SHOW,
-            com.fitmatch.common.enums.BookingStatus.REJECTED,
-            com.fitmatch.common.enums.BookingStatus.CANCELLED);
-
-    /** Tranh chấp chưa đóng — dùng cho chống mở trùng. */
-    private static final List<DisputeStatus> OPEN_STATES =
-            List.of(DisputeStatus.OPEN, DisputeStatus.UNDER_REVIEW, DisputeStatus.ESCALATED);
-
-    /**
-     * D-18 (quyết định nghiệp vụ 2026-07-17, phương án A): chỉ được MỞ tranh chấp
-     * trong N ngày kể từ mốc neo — endAt (buổi tập kết thúc) với booking đã/đang
-     * diễn ra, hoặc updatedAt (thời điểm bị hủy/từ chối) với REJECTED/CANCELLED.
-     * Quá hạn: liên hệ hỗ trợ (tiền đã RELEASED vẫn được guard chống đòi tự động).
-     */
-    @org.springframework.beans.factory.annotation.Value("${app.dispute.open-window-days:14}")
-    private long openWindowDays;
-
-    /** UC-078: key system_configs cho phép admin đổi cửa sổ khiếu nại lúc runtime. */
-    static final String CONFIG_KEY_OPEN_WINDOW_DAYS = "dispute.open-window-days";
 
     private final DisputeRepository disputeRepository;
-    private final com.fitmatch.service.SystemConfigService systemConfigService;
     private final DisputeEvidenceRepository evidenceRepository;
-    private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
-    private final WalletService walletService;
-    private final SettlementService settlementService;
     private final DisputeFinancialApplier financialApplier;
     private final AuditService auditService;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
 
-    @Override
-    @Transactional
-    public DisputeResponse open(String username, OpenDisputeRequest request) {
-        Booking booking = requireParty(username, request.getBookingId());
-        if (!DISPUTABLE.contains(booking.getStatus())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Dispute can only be opened for a confirmed/completed/no-show/rejected/cancelled booking");
-        }
-        // P0-0.5: khóa booking trước khi kiểm tra trùng — chống hai luồng cùng mở dispute
-        // (đều qua existsBy trước khi luồng kia insert) dẫn tới double-freeze quỹ.
-        bookingRepository.lockById(booking.getId());
-        if (disputeRepository.existsByBooking_IdAndStatusIn(booking.getId(), OPEN_STATES)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "An unresolved dispute already exists for this booking");
-        }
-        assertWithinDisputeWindow(booking);
-
-        // UC-063: bảo vệ tiền — kéo pending về held nếu cần, đánh dấu DISPUTED để
-        // scheduler không auto-release trong lúc tranh chấp.
-        BigDecimal frozen = protectFunds(booking);
-
-        User opener = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("User", username));
-        Dispute dispute = disputeRepository.save(Dispute.builder()
-                .booking(booking)
-                .openedByRole(opener.getRole().name())
-                .reason(request.getReason())
-                .status(DisputeStatus.OPEN)
-                .frozenAmount(frozen)
-                .build());
-        notificationDispatcher.disputeOpened(dispute, username);
-        auditService.record(AuditActions.DISPUTE_OPEN, "Dispute", dispute.getId(),
-                "Opened by " + username + " (" + opener.getRole() + ") for booking " + booking.getId());
-        log.info("Dispute {} opened for booking {} (frozen {})", dispute.getId(), booking.getId(), frozen);
-        return DisputeResponse.of(dispute);
-    }
-
-    /**
-     * D-18: mốc neo của cửa sổ khiếu nại.
-     * - REJECTED/CANCELLED: buổi có thể chưa từng diễn ra -> tính từ lúc bị hủy/từ chối (updatedAt).
-     * - Còn lại (CONFIRMED/COMPLETED/NO_SHOW): tính từ endAt; booking CONFIRMED trong
-     *   tương lai (endAt > now) luôn trong cửa sổ.
-     */
-    private void assertWithinDisputeWindow(Booking booking) {
-        java.time.LocalDateTime anchor;
-        if (booking.getStatus() == com.fitmatch.common.enums.BookingStatus.REJECTED
-                || booking.getStatus() == com.fitmatch.common.enums.BookingStatus.CANCELLED) {
-            anchor = booking.getUpdatedAt();
-        } else {
-            anchor = booking.getEndAt() != null ? booking.getEndAt() : booking.getUpdatedAt();
-        }
-        if (anchor == null) {
-            return; // dữ liệu cũ thiếu mốc — không chặn oan
-        }
-        long windowDays = effectiveOpenWindowDays();
-        java.time.LocalDateTime deadline = anchor.plusDays(windowDays);
-        if (java.time.LocalDateTime.now().isAfter(deadline)) {
-            throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Dispute window has closed (" + windowDays
-                            + " days). Please contact support for assistance.");
-        }
-    }
-
-    /** UC-078: system_configs (admin chỉnh runtime) override env/@Value; fallback khi chưa cấu hình. */
-    private long effectiveOpenWindowDays() {
-        Long fromDb = systemConfigService.findLong(CONFIG_KEY_OPEN_WINDOW_DAYS);
-        return fromDb != null && fromDb > 0 ? fromDb : openWindowDays;
-    }
-
-    /** Kéo tiền của booking về held và đặt settlement DISPUTED; trả về số tiền được bảo vệ. */
-    private BigDecimal protectFunds(Booking booking) {
-        SettlementStatus s = booking.getSettlementStatus();
-        BigDecimal amount = switch (s) {
-            case PENDING_RELEASE -> {
-                BigDecimal amt = booking.getSettlementAmount() != null
-                        ? booking.getSettlementAmount() : BigDecimal.ZERO;
-                if (amt.compareTo(BigDecimal.ZERO) > 0) {
-                    walletService.reverseToHeld(booking.getGymProfile().getId(), booking.getId(), amt);
-                }
-                yield amt;
-            }
-            case HELD, REFUND_PENDING -> settlementService.heldAmountOf(booking);
-            default -> BigDecimal.ZERO; // NONE/RELEASED/REFUNDED: không còn tiền để bảo vệ.
-        };
-        if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
-            booking.setSettlementStatus(SettlementStatus.DISPUTED);
-            bookingRepository.save(booking);
-        }
-        return amount != null ? amount : BigDecimal.ZERO;
-    }
+    // Mở tranh chấp nằm ở TicketDisputeServiceImpl: nó cần biết vé/buổi và công
+    // thức đóng băng theo cấp (câu 34). Lớp này chỉ còn luồng xử lý của
+    // moderator — bằng chứng, phân công, kết luận, đóng.
 
     @Override
     @Transactional
@@ -202,11 +81,11 @@ public class DisputeServiceImpl implements DisputeService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
         var page = switch (u.getRole()) {
             case ROLE_GYM_OPERATOR ->
-                    disputeRepository.findByBooking_GymProfile_User_UsernameOrderByIdDesc(username, pageable);
+                    disputeRepository.findByTicket_GymProfile_User_UsernameOrderByIdDesc(username, pageable);
             case ROLE_PT ->
-                    disputeRepository.findByBooking_PtProfile_User_UsernameOrderByIdDesc(username, pageable);
+                    disputeRepository.findBySession_PtProfile_User_UsernameOrderByIdDesc(username, pageable);
             default ->
-                    disputeRepository.findByBooking_Customer_UsernameOrderByIdDesc(username, pageable);
+                    disputeRepository.findByTicket_Customer_UsernameOrderByIdDesc(username, pageable);
         };
         return PageResponse.of(page, DisputeResponse::of);
     }
@@ -335,30 +214,27 @@ public class DisputeServiceImpl implements DisputeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Dispute", disputeId));
     }
 
-    /** Booking mà user là customer/gym-operator/pt liên quan — 404 nếu không. */
-    private Booking requireParty(String username, Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", bookingId));
-        if (!isParty(booking, username)) {
-            throw new ResourceNotFoundException("Booking", bookingId);
-        }
-        return booking;
-    }
-
     private Dispute requirePartyDispute(String username, Long disputeId) {
         Dispute dispute = requireDispute(disputeId);
-        if (!isParty(dispute.getBooking(), username)) {
+        if (!isParty(dispute, username)) {
             throw new ResourceNotFoundException("Dispute", disputeId);
         }
         return dispute;
     }
 
-    private boolean isParty(Booking booking, String username) {
-        boolean isCustomer = booking.getCustomer().getUsername().equals(username);
-        boolean isGym = booking.getGymProfile().getUser() != null
-                && booking.getGymProfile().getUser().getUsername().equals(username);
-        boolean isPt = booking.getPtProfile() != null && booking.getPtProfile().getUser() != null
-                && booking.getPtProfile().getUser().getUsername().equals(username);
+    /**
+     * Khách của vé, chủ gym, và PT của buổi bị tranh chấp. Tranh chấp CẤP VÉ
+     * không quy về một PT nào — vé có thể trải nhiều PT khác nhau.
+     */
+    private boolean isParty(Dispute dispute, String username) {
+        var ticket = dispute.getTicket();
+        boolean isCustomer = ticket.getCustomer().getUsername().equals(username);
+        boolean isGym = ticket.getGymProfile().getUser() != null
+                && ticket.getGymProfile().getUser().getUsername().equals(username);
+        var session = dispute.getSession();
+        boolean isPt = session != null && session.getPtProfile() != null
+                && session.getPtProfile().getUser() != null
+                && session.getPtProfile().getUser().getUsername().equals(username);
         return isCustomer || isGym || isPt;
     }
 }

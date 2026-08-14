@@ -3,10 +3,10 @@ package com.fitmatch.service.support;
 import com.fitmatch.common.enums.DisputeResolution;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.SettlementStatus;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.Dispute;
+import com.fitmatch.entity.Ticket;
 import com.fitmatch.exception.BusinessException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,34 +27,30 @@ import java.time.LocalDateTime;
 public class DisputeFinancialApplier {
 
     private final WalletService walletService;
-    private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
     private final NotificationDispatcher notificationDispatcher;
 
     public void apply(Dispute dispute, DisputeResolution resolution, BigDecimal refundAmount) {
-        Booking booking = dispute.getBooking();
+        Ticket ticket = dispute.getTicket();
         BigDecimal held = dispute.getFrozenAmount() != null ? dispute.getFrozenAmount() : BigDecimal.ZERO;
-        Long gymId = booking.getGymProfile().getId();
+        Long gymId = ticket.getGymProfile().getId();
 
-        // P1-5: không còn tiền giữ để áp dụng.
         if (held.compareTo(BigDecimal.ZERO) <= 0) {
             boolean refundLike = resolution == DisputeResolution.REFUND_FULL
                     || resolution == DisputeResolution.REFUND_PARTIAL
                     || resolution == DisputeResolution.SPLIT
                     || resolution == DisputeResolution.PENALTY;
-            // Tiền đã kết toán trước khi mở tranh chấp: KHÔNG được đè trạng thái
-            // RELEASED/REFUNDED (mất dấu vết) và KHÔNG "thành công" âm thầm việc hoàn.
-            if (booking.getSettlementStatus() == SettlementStatus.RELEASED
-                    || booking.getSettlementStatus() == SettlementStatus.REFUNDED) {
+            if (ticket.getSettlementStatus() == SettlementStatus.RELEASED
+                    || ticket.getSettlementStatus() == SettlementStatus.REFUNDED) {
                 if (refundLike) {
                     throw new BusinessException(ErrorCode.INVALID_STATE,
-                            "Funds already settled (" + booking.getSettlementStatus()
-                                    + "); this resolution needs a manual clawback — cannot auto-refund");
+                            "Tiền đã kết toán (" + ticket.getSettlementStatus()
+                                    + "); quyết định này cần thu hồi thủ công — không tự hoàn được");
                 }
-                return; // NO_ACTION/RELEASE_TO_GYM: giữ nguyên trạng thái đã kết toán.
+                return;
             }
-            // Booking miễn phí/gói/chưa thanh toán: chỉ ghi nhận quyết định.
-            booking.setSettlementStatus(SettlementStatus.NONE);
-            bookingRepository.save(booking);
+            ticket.setSettlementStatus(SettlementStatus.NONE);
+            ticketRepository.save(ticket);
             return;
         }
 
@@ -65,7 +61,7 @@ public class DisputeFinancialApplier {
                 if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0
                         || refundAmount.compareTo(held) > 0) {
                     throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                            "refundAmount must be > 0 and <= held amount " + held);
+                            "refundAmount phải > 0 và <= số tiền đang giữ " + held);
                 }
                 yield refundAmount;
             }
@@ -73,24 +69,23 @@ public class DisputeFinancialApplier {
         BigDecimal toGym = held.subtract(refund);
 
         if (refund.compareTo(BigDecimal.ZERO) > 0) {
-            // V61: cùng lý do như RefundServiceImpl — phần hoàn cho khách phải ghi
-            // có vào ví khách, không được chỉ trừ held rồi mất dấu.
-            walletService.refundToCustomer(gymId, booking.getCustomer(), booking.getId(), refund);
-            if (booking.getCustomer() != null) {
-                notificationDispatcher.refundCreditedToWallet(booking.getCustomer(), refund, booking.getId());
+            walletService.refundToCustomerForTicket(gymId, ticket.getCustomer(), ticket.getId(), refund);
+            if (ticket.getCustomer() != null) {
+                notificationDispatcher.refundCreditedToWallet(ticket.getCustomer(), refund, ticket.getId());
             }
         }
         if (toGym.compareTo(BigDecimal.ZERO) > 0) {
-            walletService.moveToPending(gymId, booking.getId(), toGym);
-            booking.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
-            booking.setSettlementAmount(toGym);
-            booking.setSettlementPendingAt(LocalDateTime.now());
+            walletService.moveToPendingForTicket(gymId, ticket.getId(), toGym);
+            ticket.setSettlementStatus(SettlementStatus.PENDING_RELEASE);
+            ticket.setSettlementAmount(toGym);
+            ticket.setSettlementPendingAt(LocalDateTime.now());
         } else {
-            booking.setSettlementStatus(SettlementStatus.REFUNDED);
-            booking.setSettlementAmount(BigDecimal.ZERO);
+            ticket.setSettlementStatus(SettlementStatus.REFUNDED);
+            ticket.setSettlementAmount(BigDecimal.ZERO);
         }
-        bookingRepository.save(booking);
-        log.info("Dispute {} applied: resolution={}, refund={}, toGym={}, booking={}",
-                dispute.getId(), resolution, refund, toGym, booking.getId());
+        ticketRepository.save(ticket);
+        log.info("Dispute {} applied: resolution={}, refund={}, toGym={}, ticket={}, session={}",
+                dispute.getId(), resolution, refund, toGym, ticket.getId(),
+                dispute.getSession() != null ? dispute.getSession().getId() : null);
     }
 }

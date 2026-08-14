@@ -19,12 +19,13 @@ import java.util.List;
 public class ReviewResponse {
 
     private Long id;
-    private Long bookingId;
+    /** Mô hình vé: GYM neo vào ticketId, PT neo vào sessionId. */
+    private Long ticketId;
+    private Long sessionId;
+    private com.fitmatch.common.enums.ReviewTargetType targetType;
     private String customerName;
     private Long gymId;
     private String gymName;
-    private Long serviceId;
-    private String serviceName;
     private Long ptProfileId;
     private String ptName;
     private int rating;
@@ -40,12 +41,12 @@ public class ReviewResponse {
     public static ReviewResponse of(Review r, List<MediaResponse> images) {
         return ReviewResponse.builder()
                 .id(r.getId())
-                .bookingId(r.getBooking().getId())
+                .ticketId(r.getTicket() != null ? r.getTicket().getId() : null)
+                .sessionId(r.getSession() != null ? r.getSession().getId() : null)
+                .targetType(r.getTargetType())
                 .customerName(r.getCustomer().getUsername())
                 .gymId(r.getGymProfile().getId())
                 .gymName(r.getGymProfile().getGymName())
-                .serviceId(r.getGymService() != null ? r.getGymService().getId() : null)
-                .serviceName(r.getGymService() != null ? r.getGymService().getName() : null)
                 .ptProfileId(r.getPtProfile() != null ? r.getPtProfile().getId() : null)
                 .ptName(r.getPtProfile() != null ? r.getPtProfile().getDisplayName() : null)
                 .rating(r.getRating())

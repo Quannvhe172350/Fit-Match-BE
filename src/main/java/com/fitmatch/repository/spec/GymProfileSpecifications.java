@@ -50,8 +50,9 @@ public final class GymProfileSpecifications {
     }
 
     /**
-     * Lọc theo khoảng giá (bug 11): gym khớp khi có ít nhất một gói tập PUBLISHED
-     * có giá trong [min, max].
+     * Lọc theo khoảng giá (bug 11): gym khớp khi có ít nhất một LOẠI VÉ đang bán
+     * có giá trong [min, max]. So trên {@code price} — giá chưa kèm PT, đúng thứ
+     * khách nhìn thấy trên card marketplace.
      */
     public static Specification<GymProfile> packagePriceRange(java.math.BigDecimal minPrice,
                                                               java.math.BigDecimal maxPrice) {
@@ -60,7 +61,7 @@ public final class GymProfileSpecifications {
         }
         return (root, q, cb) -> {
             var sq = q.subquery(Long.class);
-            var pkg = sq.from(com.fitmatch.entity.TrainingPackage.class);
+            var pkg = sq.from(com.fitmatch.entity.TicketType.class);
             var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.equal(pkg.get("gymProfile").get("id"), root.get("id")));
             predicates.add(cb.equal(pkg.get("status"), com.fitmatch.common.enums.CatalogStatus.PUBLISHED));

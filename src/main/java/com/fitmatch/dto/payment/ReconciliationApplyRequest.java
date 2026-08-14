@@ -9,8 +9,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * UC-053/056: gắn tay một giao dịch đã vào tài khoản vào booking đang chờ trả
- * tiền (ca phổ biến: khách chuyển khoản sai nội dung nên không khớp refCode).
+ * UC-053/056: gắn tay một giao dịch đã vào tài khoản vào vé đang chờ trả tiền
+ * (ca phổ biến: khách chuyển khoản sai nội dung nên không khớp refCode).
  */
 @Getter
 @Setter
@@ -19,8 +19,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ReconciliationApplyRequest {
 
-    @NotNull(message = "Booking id is required")
-    private Long bookingId;
+    @NotNull(message = "Ticket id is required")
+    private Long ticketId;
 
     /**
      * Cho phép áp dù số tiền giao dịch nhỏ hơn số phải trả — dùng cho ca khách

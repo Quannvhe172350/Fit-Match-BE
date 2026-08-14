@@ -1,7 +1,7 @@
 package com.fitmatch.dto.payment;
 
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.PaymentStatus;
+import com.fitmatch.common.enums.TicketStatus;
 import com.fitmatch.common.enums.PaymentTxnAnomaly;
 import com.fitmatch.common.enums.PaymentTxnDirection;
 import com.fitmatch.common.enums.ReconStatus;
@@ -45,8 +45,8 @@ public class PaymentTransactionResponse {
     private BigDecimal orderAmount;
     private PaymentStatus orderStatus;
 
-    private Long bookingId;
-    private BookingStatus bookingStatus;
+    private Long ticketId;
+    private TicketStatus ticketStatus;
     private String customerUsername;
 
     /** Phần lệch so với đơn (dương = chuyển thừa, âm = chuyển thiếu); null khi không khớp đơn. */
@@ -92,12 +92,12 @@ public class PaymentTransactionResponse {
             if (t.getAmount() != null && order.getAmount() != null) {
                 b.amountDifference(t.getAmount().subtract(order.getAmount()));
             }
-            var booking = order.getBooking();
-            if (booking != null) {
-                b.bookingId(booking.getId())
-                        .bookingStatus(booking.getStatus());
-                if (booking.getCustomer() != null) {
-                    b.customerUsername(booking.getCustomer().getUsername());
+            var ticket = order.getTicket();
+            if (ticket != null) {
+                b.ticketId(ticket.getId())
+                        .ticketStatus(ticket.getStatus());
+                if (ticket.getCustomer() != null) {
+                    b.customerUsername(ticket.getCustomer().getUsername());
                 }
             }
         }

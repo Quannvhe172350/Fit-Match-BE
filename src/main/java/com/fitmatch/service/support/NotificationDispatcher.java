@@ -1,10 +1,11 @@
 package com.fitmatch.service.support;
 
 import com.fitmatch.common.enums.NotificationCategory;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.Dispute;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.Review;
+import com.fitmatch.entity.Ticket;
+import com.fitmatch.entity.TrainingSession;
 import com.fitmatch.entity.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,7 +16,7 @@ import java.util.Map;
 
 /**
  * Sinh thông báo chuẩn hoá theo sự kiện (UC-075) và giải quyết người nhận từ
- * booking/dispute/review. Publish {@link NotificationEvent} để gửi SAU KHI giao
+  * vé/buổi tập/tranh chấp/đánh giá. Publish {@link NotificationEvent} để gửi SAU KHI giao
  * dịch nghiệp vụ commit (tránh "thông báo ma" khi rollback) — xem
  * {@link NotificationEventListener}. Mọi lỗi gửi được nuốt ở tầng NotificationService.
  *
@@ -44,30 +45,8 @@ public class NotificationDispatcher {
                 user.getUsername(), category, rendered.title(), rendered.body(), link));
     }
 
-    private User gymUser(Booking b) {
-        GymProfile g = b.getGymProfile();
-        return g != null ? g.getUser() : null;
-    }
-
-    private User ptUser(Booking b) {
-        return b.getPtProfile() != null ? b.getPtProfile().getUser() : null;
-    }
-
     private static String s(Object v) {
         return v == null ? "" : String.valueOf(v);
-    }
-
-    // ----- E-15/BE-14 (audit 2026-07-17): các flow trước đây thiếu thông báo -----
-
-    /** UC-042: khách tự hủy — gym (và PT nếu đã gán) phải biết lịch trống ra. */
-    public void bookingCancelledByCustomer(Booking b, String reason) {
-        String body = "Khách đã hủy booking #" + b.getId()
-                + (reason != null && !reason.isBlank() ? ": " + reason : ".");
-        Map<String, String> vars = Map.of("bookingId", s(b.getId()), "reason", s(reason));
-        dispatch("BOOKING_CANCELLED_BY_CUSTOMER_GYM", gymUser(b), NotificationCategory.BOOKING,
-                "Khách hủy lịch đặt", body, "/gym/bookings", vars);
-        dispatch("BOOKING_CANCELLED_BY_CUSTOMER_PT", ptUser(b), NotificationCategory.BOOKING,
-                "Buổi tập bị khách hủy", body, "/trainer/bookings", vars);
     }
 
     /**
@@ -85,115 +64,13 @@ public class NotificationDispatcher {
     }
 
     /** V61: khách hàng nhận tiền hoàn vào ví thay vì chờ chuyển khoản tay. */
-    public void refundCreditedToWallet(User customer, java.math.BigDecimal amount, Long bookingId) {
+    public void refundCreditedToWallet(User customer, java.math.BigDecimal amount, Long ticketId) {
         dispatch("REFUND_CREDITED_TO_WALLET", customer, NotificationCategory.PAYMENT,
                 "Đã hoàn " + amount + " đ vào ví",
-                "Tiền hoàn của booking #" + bookingId + " đã vào ví của bạn — "
+                "Tiền hoàn của vé #" + ticketId + " đã vào ví của bạn — "
                         + "có thể tạo lệnh rút về tài khoản ngân hàng bất cứ lúc nào.",
                 "/profile/wallet",
-                Map.of("amount", s(amount), "bookingId", s(bookingId)));
-    }
-
-    /** UC-044: slot trống ra (booking hủy/từ chối) — báo khách đang chờ cùng dịch vụ/gói. */
-    public void waitlistSlotOpened(User customer, String itemName) {
-        dispatch("WAITLIST_SLOT_OPENED", customer, NotificationCategory.BOOKING,
-                "Đã có chỗ trống",
-                "Khung giờ cho \"" + itemName + "\" vừa trống ra — đặt ngay trước khi hết chỗ.",
-                "/profile/bookings",
-                Map.of("itemName", s(itemName)));
-    }
-
-    // ----- Booking (UC-037/038/040/049) -----
-
-    /** UC-037: booking được chuyển tới Gym xử lý. */
-    public void bookingRoutedToGym(Booking b) {
-        dispatch("BOOKING_ROUTED_TO_GYM", gymUser(b), NotificationCategory.BOOKING,
-                "Yêu cầu đặt lịch mới",
-                "Booking #" + b.getId() + " đang chờ bạn xác nhận.",
-                "/gym/bookings",
-                Map.of("bookingId", s(b.getId())));
-    }
-
-    /** UC-038: Gym nhận booking. */
-    public void bookingAccepted(Booking b) {
-        Map<String, String> vars = Map.of("bookingId", s(b.getId()));
-        dispatch("BOOKING_ACCEPTED_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Lịch đặt đã được xác nhận",
-                "Booking #" + b.getId() + " đã được phòng gym xác nhận.",
-                "/profile/bookings", vars);
-        dispatch("BOOKING_ASSIGNED_PT", ptUser(b), NotificationCategory.BOOKING,
-                "Bạn được phân công buổi tập",
-                "Booking #" + b.getId() + " đã được gán cho bạn.",
-                "/trainer/bookings", vars);
-    }
-
-    /** UC-039: Gym gán/đổi PT cho booking (reassign) — báo khách và PT mới được phân công. */
-    public void bookingPtAssigned(Booking b) {
-        Map<String, String> vars = Map.of("bookingId", s(b.getId()));
-        dispatch("BOOKING_PT_UPDATED_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Huấn luyện viên được cập nhật",
-                "Booking #" + b.getId() + " đã được cập nhật huấn luyện viên phụ trách.",
-                "/profile/bookings", vars);
-        dispatch("BOOKING_ASSIGNED_PT", ptUser(b), NotificationCategory.BOOKING,
-                "Bạn được phân công buổi tập",
-                "Booking #" + b.getId() + " đã được gán cho bạn.",
-                "/trainer/bookings", vars);
-    }
-
-    /** UC-038: Gym từ chối booking. */
-    public void bookingRejected(Booking b, String reason) {
-        dispatch("BOOKING_REJECTED_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Lịch đặt bị từ chối",
-                "Booking #" + b.getId() + " bị từ chối: " + reason
-                        + ". Tiền (nếu có) sẽ được hoàn.",
-                "/profile/bookings",
-                Map.of("bookingId", s(b.getId()), "reason", s(reason)));
-    }
-
-    /** UC-042: Gym hủy booking. */
-    public void bookingCancelledByGym(Booking b, String reason) {
-        dispatch("BOOKING_CANCELLED_BY_GYM_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Lịch đặt bị hủy",
-                "Booking #" + b.getId() + " bị phòng gym hủy: " + reason + ".",
-                "/profile/bookings",
-                Map.of("bookingId", s(b.getId()), "reason", s(reason)));
-    }
-
-    /** UC-049: buổi tập hoàn tất. */
-    public void bookingCompleted(Booking b) {
-        dispatch("BOOKING_COMPLETED_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Buổi tập hoàn tất",
-                "Booking #" + b.getId() + " đã hoàn tất. Bạn có thể đánh giá buổi tập.",
-                "/profile/reviews",
-                Map.of("bookingId", s(b.getId())));
-    }
-
-    /** UC-043: đánh dấu vắng mặt. */
-    public void bookingNoShow(Booking b) {
-        dispatch("BOOKING_NO_SHOW_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Ghi nhận vắng mặt",
-                "Booking #" + b.getId() + " được ghi nhận là vắng mặt.",
-                "/profile/bookings",
-                Map.of("bookingId", s(b.getId())));
-    }
-
-    /**
-     * P1-16 (UC-021): PT bị đình chỉ nhưng còn booking tương lai — báo cho Gym
-     * Operator (chịu trách nhiệm reassign/hủy) và khách hàng của buổi bị ảnh hưởng.
-     */
-    public void ptSuspendedAffectsBooking(Booking b, String reason) {
-        Map<String, String> vars = Map.of("bookingId", s(b.getId()), "reason", s(reason));
-        dispatch("PT_SUSPENDED_GYM", gymUser(b), NotificationCategory.BOOKING,
-                "PT bị đình chỉ — cần xử lý booking",
-                "PT của booking #" + b.getId() + " đã bị đình chỉ"
-                        + (reason != null && !reason.isBlank() ? ": " + reason : "")
-                        + ". Vui lòng phân công PT khác hoặc hủy buổi này.",
-                "/gym/bookings", vars);
-        dispatch("PT_SUSPENDED_CUSTOMER", b.getCustomer(), NotificationCategory.BOOKING,
-                "Buổi tập cần được sắp xếp lại",
-                "PT của booking #" + b.getId() + " tạm thời không thể phục vụ. "
-                        + "Phòng gym sẽ liên hệ để sắp xếp lại.",
-                "/profile/bookings", vars);
+                Map.of("amount", s(amount), "ticketId", s(ticketId)));
     }
 
     // ----- Gym verification (UC-013/014) -----
@@ -225,112 +102,6 @@ public class NotificationDispatcher {
                 Map.of("address", s(profile.getAddress()), "note", s(note)));
     }
 
-    // ----- Payment / Settlement (UC-053/056/059) -----
-
-    /** UC-036/053: tiền đã được giữ cho booking. */
-    public void paymentHeld(Booking b) {
-        dispatch("PAYMENT_HELD_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
-                "Thanh toán thành công",
-                "Đã nhận thanh toán cho booking #" + b.getId() + ".",
-                "/profile/payments",
-                Map.of("bookingId", s(b.getId())));
-    }
-
-    /** Bug 9 (UC-054): đơn VietQR hết hạn — booking bị hủy, báo khách rõ ràng. */
-    public void paymentExpired(Booking b) {
-        dispatch("PAYMENT_EXPIRED_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
-                "Hết hạn thanh toán",
-                "Booking #" + b.getId() + " đã bị hủy vì quá hạn thanh toán. "
-                        + "Điểm/voucher đã dùng (nếu có) được hoàn lại — bạn có thể đặt lịch mới.",
-                "/profile/bookings",
-                Map.of("bookingId", s(b.getId())));
-    }
-
-    /** Bug 9 (UC-053): thanh toán thất bại/không khớp (thiếu tiền, chuyển sau khi hết hạn...). */
-    public void paymentFailed(Booking b, String reason) {
-        dispatch("PAYMENT_FAILED_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
-                "Thanh toán thất bại",
-                "Thanh toán cho booking #" + b.getId() + " chưa được ghi nhận: " + reason
-                        + ". Vui lòng liên hệ hỗ trợ nếu bạn đã chuyển khoản.",
-                "/profile/payments",
-                Map.of("bookingId", s(b.getId()), "reason", s(reason)));
-    }
-
-    /** UC-056/067: đã hoàn tiền cho khách. */
-    public void refundExecuted(Booking b, BigDecimal amount) {
-        dispatch("REFUND_EXECUTED_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
-                "Hoàn tiền đã thực hiện",
-                "Đã hoàn " + amount + " cho booking #" + b.getId() + ".",
-                "/profile/payments",
-                Map.of("bookingId", s(b.getId()), "amount", s(amount)));
-    }
-
-    /**
-     * Bug S2-08 (UC-056): Admin TỪ CHỐI hoàn tiền. Trước đây chỉ ghi audit log nên
-     * khách chờ mãi không biết kết quả — yêu cầu vẫn biến mất khỏi danh sách chờ.
-     */
-    public void refundRejected(Booking b, BigDecimal amount, String note) {
-        dispatch("REFUND_REJECTED_CUSTOMER", b.getCustomer(), NotificationCategory.PAYMENT,
-                "Yêu cầu hoàn tiền bị từ chối",
-                "Yêu cầu hoàn " + amount + " cho booking #" + b.getId() + " đã bị từ chối"
-                        + (note != null && !note.isBlank() ? ": " + note : "")
-                        + ". Nếu chưa đồng ý, bạn có thể mở tranh chấp cho booking này.",
-                "/profile/bookings",
-                Map.of("bookingId", s(b.getId()), "amount", s(amount), "note", s(note)));
-    }
-
-    /** UC-059: tiền đã giải ngân về ví Gym. */
-    public void settlementReleased(Booking b, BigDecimal net) {
-        dispatch("SETTLEMENT_RELEASED_GYM", gymUser(b), NotificationCategory.SETTLEMENT,
-                "Tiền đã về ví khả dụng",
-                "Booking #" + b.getId() + ": " + net + " đã sẵn sàng để rút.",
-                "/gym/withdrawals",
-                Map.of("bookingId", s(b.getId()), "amount", s(net)));
-    }
-
-    // ----- Dispute (UC-063/066) -----
-
-    /**
-     * Bug S2-11: khu vực tranh chấp khác nhau theo vai trò. Trước đây mọi thông báo
-     * tranh chấp đều trỏ về "/notifications" nên bấm vào chỉ quay lại chính hộp thư.
-     */
-    private String disputeLinkFor(Booking b, User recipient) {
-        if (recipient == null) return "/notifications";
-        User gym = gymUser(b);
-        if (gym != null && recipient.getUsername().equals(gym.getUsername())) return "/gym/disputes";
-        User pt = ptUser(b);
-        if (pt != null && recipient.getUsername().equals(pt.getUsername())) return "/trainer/disputes";
-        return "/profile/disputes";
-    }
-
-    /** UC-063: tranh chấp được mở — báo cho các bên còn lại. */
-    public void disputeOpened(Dispute d, String openerUsername) {
-        Booking b = d.getBooking();
-        Map<String, String> vars = Map.of("disputeId", s(d.getId()), "bookingId", s(b.getId()));
-        for (User u : new User[]{b.getCustomer(), gymUser(b), ptUser(b)}) {
-            if (u != null && !u.getUsername().equals(openerUsername)) {
-                dispatch("DISPUTE_OPENED_PARTY", u, NotificationCategory.DISPUTE,
-                        "Tranh chấp mới",
-                        "Tranh chấp #" + d.getId() + " liên quan booking #" + b.getId()
-                                + " vừa được mở.",
-                        disputeLinkFor(b, u), vars);
-            }
-        }
-    }
-
-    /** UC-066: tranh chấp đã giải quyết — báo mọi bên. */
-    public void disputeResolved(Dispute d) {
-        Booking b = d.getBooking();
-        Map<String, String> vars = Map.of(
-                "disputeId", s(d.getId()), "resolution", s(d.getResolution()));
-        for (User u : new User[]{b.getCustomer(), gymUser(b), ptUser(b)}) {
-            dispatch("DISPUTE_RESOLVED_PARTY", u, NotificationCategory.DISPUTE,
-                    "Tranh chấp đã được giải quyết",
-                    "Tranh chấp #" + d.getId() + " kết luận: " + d.getResolution() + ".",
-                    disputeLinkFor(b, u), vars);
-        }
-    }
-
     // ----- Review (UC-069/071) -----
 
     /** UC-071: đánh giá bị kiểm duyệt (ẩn/gỡ). */
@@ -340,5 +111,248 @@ public class NotificationDispatcher {
                 "Đánh giá của bạn đã chuyển trạng thái " + r.getStatus() + ".",
                 "/profile/reviews",
                 Map.of("status", s(r.getStatus())));
+    }
+
+    // ==================================================================
+    // Mô hình vé
+    //
+    // Gym KHÔNG còn nhận thông báo "có booking chờ duyệt" — gym không duyệt
+    // lịch nữa (quyết định #7). Thứ gym cần biết chỉ là "có người đặt ngày nào".
+    // ==================================================================
+
+    private User gymUser(Ticket t) {
+        GymProfile g = t.getGymProfile();
+        return g != null ? g.getUser() : null;
+    }
+
+    /** Thanh toán vé thành công — khách yên tâm, gym biết có doanh thu mới. */
+    public void ticketPaid(Ticket t) {
+        Map<String, String> vars = Map.of(
+                "ticketId", s(t.getId()), "ticketName", s(t.getTicketType().getName()),
+                "amount", s(t.getPayableAmount()));
+        dispatch("TICKET_PAID_CUSTOMER", t.getCustomer(), NotificationCategory.PAYMENT,
+                "Vé đã kích hoạt",
+                "Vé \"" + t.getTicketType().getName() + "\" đã sẵn sàng. Chọn ngày tập để bắt đầu.",
+                "/tickets/" + t.getId(), vars);
+        dispatch("TICKET_PAID_GYM", gymUser(t), NotificationCategory.PAYMENT,
+                "Có vé mới được bán",
+                "Khách vừa mua vé \"" + t.getTicketType().getName() + "\" tại "
+                        + t.getGymBranch().getName() + ".",
+                "/gym/tickets", vars);
+    }
+
+    /** Hết hạn cửa sổ thanh toán — vé bị huỷ, khách phải biết vì sao. */
+    public void ticketPaymentExpired(Ticket t) {
+        dispatch("TICKET_PAYMENT_EXPIRED", t.getCustomer(), NotificationCategory.PAYMENT,
+                "Vé đã huỷ do quá hạn thanh toán",
+                "Vé \"" + t.getTicketType().getName() + "\" bị huỷ vì chưa nhận được thanh toán. "
+                        + "Điểm thưởng và lượt voucher (nếu có) đã được hoàn lại.",
+                "/tickets", Map.of("ticketId", s(t.getId())));
+    }
+
+    /** Chuyển khoản không khớp (thiếu tiền / vào sau khi hết hạn) — khách phải biết. */
+    public void ticketPaymentFailed(Ticket t, String reason) {
+        dispatch("TICKET_PAYMENT_FAILED", t.getCustomer(), NotificationCategory.PAYMENT,
+                "Thanh toán vé chưa thành công",
+                "Vé \"" + t.getTicketType().getName() + "\" chưa được kích hoạt: " + reason + ".",
+                "/tickets/" + t.getId(),
+                Map.of("ticketId", s(t.getId()), "reason", s(reason)));
+    }
+
+    /** Khách đặt ngày tập — gym cần biết ai đến ngày nào; PT chỉ nhận khi được chọn. */
+    public void sessionBooked(TrainingSession session) {
+        Ticket t = session.getTicket();
+        Map<String, String> vars = Map.of(
+                "sessionId", s(session.getId()), "date", s(session.getSessionDate()),
+                "customerName", s(t.getCustomer().getFullName()));
+        dispatch("SESSION_BOOKED_GYM", gymUser(t), NotificationCategory.BOOKING,
+                "Có lịch tập mới",
+                t.getCustomer().getFullName() + " sẽ tập ngày " + session.getSessionDate()
+                        + " tại " + t.getGymBranch().getName() + ".",
+                "/gym/calendar", vars);
+        if (session.getPtProfile() != null) {
+            dispatch("SESSION_BOOKED_PT", session.getPtProfile().getUser(), NotificationCategory.BOOKING,
+                    "Bạn có buổi dạy mới",
+                    "Buổi " + session.getSessionDate() + " lúc " + session.getPtSlotStart()
+                            + " với " + t.getCustomer().getFullName() + ".",
+                    "/trainer/sessions", vars);
+        }
+    }
+
+    /** Dời ngày (vé DAY) — gym và PT đang giữ chỗ ngày cũ phải được báo. */
+    public void sessionRescheduled(TrainingSession session, java.time.LocalDate oldDate) {
+        Ticket t = session.getTicket();
+        String body = t.getCustomer().getFullName() + " dời buổi tập từ " + oldDate
+                + " sang " + session.getSessionDate() + ".";
+        Map<String, String> vars = Map.of(
+                "sessionId", s(session.getId()), "oldDate", s(oldDate),
+                "newDate", s(session.getSessionDate()));
+        dispatch("SESSION_RESCHEDULED_GYM", gymUser(t), NotificationCategory.BOOKING,
+                "Lịch tập được dời", body, "/gym/calendar", vars);
+        if (session.getPtProfile() != null) {
+            dispatch("SESSION_RESCHEDULED_PT", session.getPtProfile().getUser(),
+                    NotificationCategory.BOOKING, "Buổi dạy được dời", body, "/trainer/sessions", vars);
+        }
+    }
+
+    /** Câu 34: bổ sung/đổi PT cho một ngày — PT mới cần biết mình vừa có lịch. */
+    public void sessionPtAssigned(TrainingSession session) {
+        if (session.getPtProfile() == null) return;
+        Ticket t = session.getTicket();
+        dispatch("SESSION_PT_ASSIGNED", session.getPtProfile().getUser(), NotificationCategory.BOOKING,
+                "Bạn được chọn cho một buổi tập",
+                "Buổi " + session.getSessionDate() + " lúc " + session.getPtSlotStart()
+                        + " với " + t.getCustomer().getFullName() + ".",
+                "/trainer/sessions",
+                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
+    }
+
+    /** Câu 31/33: gym xác nhận PT có đến kèm ảnh — khách thấy bằng chứng. */
+    public void ptSessionConfirmed(TrainingSession session) {
+        dispatch("SESSION_PT_CONFIRMED", session.getTicket().getCustomer(),
+                NotificationCategory.BOOKING,
+                "Phòng gym đã xác nhận buổi tập có PT",
+                "Buổi " + session.getSessionDate() + " đã được phòng gym xác nhận kèm ảnh.",
+                "/sessions/" + session.getId(),
+                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
+    }
+
+    /** Tiền vé đã về ví khả dụng của gym (số ròng sau hoa hồng). */
+    public void ticketSettlementReleased(Ticket t, java.math.BigDecimal netAmount) {
+        dispatch("TICKET_SETTLEMENT_RELEASED", gymUser(t), NotificationCategory.PAYMENT,
+                "Tiền đã về ví",
+                "Vé #" + t.getId() + " đã giải ngân " + netAmount + " đ vào số dư khả dụng.",
+                "/gym/wallet",
+                Map.of("ticketId", s(t.getId()), "amount", s(netAmount)));
+    }
+
+    /** Vé sắp hết hạn mà khách chưa dùng hết — nhắc trước khi mất tiền (câu 32). */
+    public void ticketExpiringSoon(Ticket t, long daysLeft) {
+        dispatch("TICKET_EXPIRING_SOON", t.getCustomer(), NotificationCategory.BOOKING,
+                "Vé sắp hết hạn",
+                "Vé \"" + t.getTicketType().getName() + "\" còn " + daysLeft
+                        + " ngày là hết hạn. Đặt lịch ngay để không mất quyền dùng.",
+                "/tickets/" + t.getId(),
+                Map.of("ticketId", s(t.getId()), "daysLeft", s(daysLeft)));
+    }
+
+    /** Vé đã hết hạn — tiền về gym, khách không hoàn được nữa (câu 32). */
+    public void ticketExpired(Ticket t) {
+        dispatch("TICKET_EXPIRED", t.getCustomer(), NotificationCategory.BOOKING,
+                "Vé đã hết hạn",
+                "Vé \"" + t.getTicketType().getName() + "\" đã quá hạn sử dụng ngày "
+                        + t.getExpiresAt().toLocalDate() + " và không còn hoàn tiền được.",
+                "/tickets/" + t.getId(), Map.of("ticketId", s(t.getId())));
+    }
+
+    /** Vé đã dùng hết — mở đánh giá phòng gym (câu 17). */
+    public void ticketUsedUp(Ticket t) {
+        dispatch("TICKET_USED_UP", t.getCustomer(), NotificationCategory.BOOKING,
+                "Bạn đã dùng hết vé",
+                "Vé \"" + t.getTicketType().getName() + "\" đã hoàn tất. "
+                        + "Bạn có thể đánh giá phòng gym ngay bây giờ.",
+                "/tickets/" + t.getId(), Map.of("ticketId", s(t.getId())));
+    }
+
+    /** Hoàn tiền đã thực thi — nói rõ luôn số buổi bị huỷ kèm (câu 12). */
+    public void ticketRefundExecuted(Ticket t, java.math.BigDecimal amount, int cancelledSessions) {
+        String body = "Đã hoàn " + amount + " đ vào ví của bạn cho vé \""
+                + t.getTicketType().getName() + "\"."
+                + (cancelledSessions > 0
+                        ? " " + cancelledSessions + " buổi tập đã đặt bị huỷ theo." : "");
+        dispatch("TICKET_REFUND_EXECUTED", t.getCustomer(), NotificationCategory.PAYMENT,
+                "Yêu cầu hoàn tiền đã được duyệt", body, "/tickets/" + t.getId(),
+                Map.of("ticketId", s(t.getId()), "amount", s(amount),
+                        "cancelledSessions", s(cancelledSessions)));
+    }
+
+    /** Từ chối hoàn — khách phải biết và biết luôn đường đi tiếp. */
+    public void ticketRefundRejected(Ticket t, java.math.BigDecimal amount, String note) {
+        dispatch("TICKET_REFUND_REJECTED", t.getCustomer(), NotificationCategory.PAYMENT,
+                "Yêu cầu hoàn tiền bị từ chối",
+                "Yêu cầu hoàn " + amount + " đ cho vé \"" + t.getTicketType().getName()
+                        + "\" đã bị từ chối: " + note
+                        + ". Nếu chưa đồng ý, bạn có thể mở tranh chấp cho vé này.",
+                "/tickets/" + t.getId(),
+                Map.of("ticketId", s(t.getId()), "amount", s(amount), "note", s(note)));
+    }
+
+    /** Bên liên quan của một tranh chấp vé: khách, gym, và PT của buổi (nếu có). */
+    private User[] ticketDisputeParties(Dispute d) {
+        Ticket t = d.getTicket();
+        User pt = d.getSession() != null && d.getSession().getPtProfile() != null
+                ? d.getSession().getPtProfile().getUser() : null;
+        return new User[]{t.getCustomer(), gymUser(t), pt};
+    }
+
+    private String ticketDisputeLinkFor(Dispute d, User recipient) {
+        if (recipient == null) return "/notifications";
+        User gym = gymUser(d.getTicket());
+        if (gym != null && recipient.getUsername().equals(gym.getUsername())) return "/gym/disputes";
+        User pt = d.getSession() != null && d.getSession().getPtProfile() != null
+                ? d.getSession().getPtProfile().getUser() : null;
+        if (pt != null && recipient.getUsername().equals(pt.getUsername())) return "/trainer/disputes";
+        return "/profile/disputes";
+    }
+
+    public void disputeOpened(Dispute d, String openerUsername) {
+        // Câu 34: nói rõ tranh chấp thuộc cấp vé hay cấp buổi — hai thứ này khác
+        // nhau cả về số tiền lẫn về việc ai cần trả lời.
+        String scope = d.getSession() != null
+                ? "buổi tập ngày " + d.getSession().getSessionDate()
+                : "vé #" + d.getTicket().getId();
+        Map<String, String> vars = Map.of("disputeId", s(d.getId()),
+                "ticketId", s(d.getTicket().getId()), "scope", scope);
+        for (User u : ticketDisputeParties(d)) {
+            if (u != null && !u.getUsername().equals(openerUsername)) {
+                dispatch("DISPUTE_OPENED_PARTY", u, NotificationCategory.DISPUTE,
+                        "Tranh chấp mới",
+                        "Tranh chấp #" + d.getId() + " liên quan " + scope + " vừa được mở.",
+                        ticketDisputeLinkFor(d, u), vars);
+            }
+        }
+    }
+
+    public void disputeResolved(Dispute d) {
+        Map<String, String> vars = Map.of(
+                "disputeId", s(d.getId()), "resolution", s(d.getResolution()));
+        for (User u : ticketDisputeParties(d)) {
+            dispatch("DISPUTE_RESOLVED_PARTY", u, NotificationCategory.DISPUTE,
+                    "Tranh chấp đã được giải quyết",
+                    "Tranh chấp #" + d.getId() + " kết luận: " + d.getResolution() + ".",
+                    ticketDisputeLinkFor(d, u), vars);
+        }
+    }
+
+    /**
+     * PT bị Admin đình chỉ nhưng đã có khách chọn cho ngày cụ thể. Đình chỉ KHÔNG
+     * bị chặn (đó là hành động an toàn), nên khách phải được báo để tự đổi PT —
+     * nếu không thì một PT đang bị đình chỉ vẫn xuất hiện trong lịch của họ.
+     */
+    public void ptSuspendedAffectsSession(TrainingSession session, String reason) {
+        Ticket t = session.getTicket();
+        dispatch("PT_SUSPENDED_AFFECTS_SESSION", t.getCustomer(), NotificationCategory.BOOKING,
+                "Buổi tập cần chọn lại PT",
+                "PT của buổi ngày " + session.getSessionDate() + " tạm thời không thể phục vụ"
+                        + (reason != null && !reason.isBlank() ? " (" + reason + ")" : "")
+                        + ". Vui lòng chọn PT khác cho buổi này.",
+                "/sessions/" + session.getId(),
+                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate()),
+                        "reason", s(reason)));
+    }
+
+    /** Quyết định #8: PT khai dưới ngưỡng ngày — cảnh báo PT và gym quản lý. */
+    public void ptAvailabilityBelowThreshold(User ptUser, User gymOwner, long daysDeclared, int threshold) {
+        Map<String, String> vars = Map.of(
+                "days", s(daysDeclared), "threshold", s(threshold));
+        dispatch("PT_AVAILABILITY_LOW_PT", ptUser, NotificationCategory.SYSTEM,
+                "Lịch rảnh của bạn còn ít",
+                "Bạn mới khai " + daysDeclared + "/" + threshold
+                        + " ngày. Khách vẫn đặt được, nhưng khai thêm sẽ có nhiều lịch hơn.",
+                "/trainer/availability", vars);
+        dispatch("PT_AVAILABILITY_LOW_GYM", gymOwner, NotificationCategory.SYSTEM,
+                "PT khai lịch rảnh dưới ngưỡng",
+                "Một PT của bạn mới khai " + daysDeclared + "/" + threshold + " ngày.",
+                "/gym/pts", vars);
     }
 }

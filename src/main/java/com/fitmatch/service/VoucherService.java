@@ -1,17 +1,17 @@
 package com.fitmatch.service;
 
 import com.fitmatch.common.response.PageResponse;
-import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.voucher.VoucherRequest;
 import com.fitmatch.dto.voucher.VoucherResponse;
-import com.fitmatch.entity.Booking;
+import com.fitmatch.entity.Ticket;
+import com.fitmatch.entity.Voucher;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 
 /**
- * Voucher/khuyến mãi (UC-073). Admin cấu hình; khách áp vào booking nháp; hệ
- * thống chốt số giảm và tiêu thụ lượt khi checkout.
+ * Voucher/khuyến mãi (UC-073). Admin cấu hình; khách gõ mã ở bước MUA VÉ; hệ
+ * thống chốt số giảm và tiêu thụ lượt ngay khi mua.
  */
 public interface VoucherService {
 
@@ -24,27 +24,23 @@ public interface VoucherService {
 
     PageResponse<VoucherResponse> list(Pageable pageable);
 
-    // ----- Customer -----
-    /** UC-073: áp mã vào booking DRAFT — validate + lưu voucher & discountAmount. */
-    BookingResponse applyToBooking(String customerUsername, Long bookingId, String code);
-
-    /** Gỡ voucher khỏi booking DRAFT. */
-    BookingResponse removeFromBooking(String customerUsername, Long bookingId);
-
-    // ----- Dùng nội bộ khi checkout -----
-    /** Số tiền giảm cho voucher trên một tổng giá trị booking (0 nếu không đủ điều kiện). */
-    BigDecimal computeDiscount(com.fitmatch.entity.Voucher voucher, BigDecimal total);
-
-    /** Chốt lại discount trên booking theo voucher đã áp (đề phòng đổi lựa chọn). */
-    void recomputeDiscount(Booking booking);
-
-    /** Tiêu thụ một lượt voucher khi checkout (khoá + tăng usedCount, kiểm tra giới hạn). */
-    void consumeAtCheckout(Booking booking);
+    // ----- Dùng nội bộ khi mua vé -----
 
     /**
-     * Trả lại một lượt voucher (giảm usedCount) khi booking bị hủy/từ chối sau
-     * checkout (UC-073). Không ném lỗi vào luồng chính. Idempotency do caller
-     * đảm bảo qua cờ {@code promoReleased}.
+     * Tra mã và kiểm tra còn hiệu lực (active, trong hạn, chưa vượt usageLimit).
+     * Ném BusinessException nếu không dùng được.
      */
-    void releaseFromBooking(Booking booking);
+    Voucher requireUsable(String code);
+
+    /** Số tiền giảm cho voucher trên một tổng giá trị (0 nếu không đủ điều kiện). */
+    BigDecimal computeDiscount(Voucher voucher, BigDecimal total);
+
+    /** Tiêu thụ một lượt voucher khi mua vé (khoá + tăng usedCount). */
+    void consumeForTicket(Ticket ticket);
+
+    /**
+     * Trả lại một lượt voucher khi vé bị huỷ hoặc hoàn toàn bộ. Không ném lỗi
+     * vào luồng chính; idempotency do caller giữ bằng cờ {@code promoReleased}.
+     */
+    void releaseFromTicket(Ticket ticket);
 }

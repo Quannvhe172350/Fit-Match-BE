@@ -36,6 +36,9 @@ public interface PtProfileRepository extends JpaRepository<PtProfile, Long>, Jpa
     /** UC-019: danh sách PT thuộc một Gym. */
     Page<PtProfile> findByGymProfile_Id(Long gymProfileId, Pageable pageable);
 
+    /** Job cảnh báo lịch rảnh mỏng: quét toàn bộ PT đang hoạt động. */
+    java.util.List<PtProfile> findByStatus(PtStatus status);
+
     /** UC-009: PT khả dụng của gym cho trang public / chọn khi booking. */
     Page<PtProfile> findByGymProfile_IdAndStatus(Long gymProfileId, PtStatus status, Pageable pageable);
 

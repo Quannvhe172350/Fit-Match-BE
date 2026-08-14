@@ -16,7 +16,7 @@ public class LoyaltyTransactionResponse {
     private LoyaltyTxnType type;
     private int points;
     private int balanceAfter;
-    private Long bookingId;
+    private Long ticketId;
     private String description;
     private LocalDateTime createdAt;
 
@@ -26,7 +26,7 @@ public class LoyaltyTransactionResponse {
                 .type(t.getType())
                 .points(t.getPoints())
                 .balanceAfter(t.getBalanceAfter())
-                .bookingId(t.getBookingId())
+                .ticketId(t.getTicketId())
                 .description(t.getDescription())
                 .createdAt(t.getCreatedAt())
                 .build();

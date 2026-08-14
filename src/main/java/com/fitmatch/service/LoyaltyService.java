@@ -1,36 +1,31 @@
 package com.fitmatch.service;
 
-import com.fitmatch.dto.booking.BookingResponse;
 import com.fitmatch.dto.loyalty.LoyaltyBalanceResponse;
-import com.fitmatch.entity.Booking;
+import com.fitmatch.entity.Ticket;
 import org.springframework.data.domain.Pageable;
 
 /**
- * Điểm thưởng (UC-073). Tích điểm khi hoàn tất buổi tập; tiêu điểm để giảm giá
- * booking (loại trừ lẫn nhau với voucher). Tỷ lệ cố định ở LoyaltyServiceImpl.
+ * Điểm thưởng (UC-073). Câu 35: TÍCH điểm khi thanh toán vé thành công (mô hình
+ * cũ tích khi hoàn tất buổi tập). Câu 14: TIÊU điểm là dùng toàn bộ số khả
+ * dụng, cap ở số tiền phải trả — không còn ô nhập số điểm.
+ * Tỷ lệ quy đổi cố định ở LoyaltyServiceImpl.
  */
 public interface LoyaltyService {
 
     LoyaltyBalanceResponse balance(String username, Pageable pageable);
 
-    /** Tích điểm khi booking hoàn tất theo số tiền đã trả (không ném lỗi vào luồng chính). */
-    void earnFromBooking(Booking booking);
+    /** Số điểm khả dụng của khách — dùng cho toggle "dùng toàn bộ điểm". */
+    int availablePoints(String username);
 
-    /** UC-073: dùng điểm cho booking DRAFT — validate + lưu discount (gỡ voucher nếu có). */
-    BookingResponse applyToBooking(String customerUsername, Long bookingId, int points);
+    /** Trừ điểm thật khi mua vé (khoá tài khoản + kiểm tra số dư). */
+    void consumeForTicket(Ticket ticket);
 
-    BookingResponse removeFromBooking(String customerUsername, Long bookingId);
-
-    /** Chốt lại discount điểm trên booking theo total hiện tại. */
-    void recomputeDiscount(Booking booking);
-
-    /** Trừ điểm thật khi checkout (khoá tài khoản + kiểm tra số dư). */
-    void consumeAtCheckout(Booking booking);
+    /** Câu 35: tích điểm khi thanh toán vé thành công. Không ném lỗi vào luồng chính. */
+    void earnFromTicket(Ticket ticket);
 
     /**
-     * Hoàn lại số điểm đã REDEEM khi booking bị hủy/từ chối sau checkout mà không
-     * hoàn tất dịch vụ (UC-073). Không ném lỗi vào luồng chính. Idempotency do
-     * caller đảm bảo qua cờ {@code promoReleased}.
+     * Hoàn lại điểm đã REDEEM khi vé bị huỷ hoặc hoàn toàn bộ. Không ném lỗi vào
+     * luồng chính; idempotency do caller giữ bằng cờ {@code promoReleased}.
      */
-    void refundToBooking(Booking booking);
+    void refundToTicket(Ticket ticket);
 }

@@ -4,7 +4,7 @@ import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.review.RatingSummaryResponse;
 import com.fitmatch.dto.review.ReportRequest;
-import com.fitmatch.dto.review.ReviewRequest;
+import com.fitmatch.dto.review.TicketReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
 import com.fitmatch.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -50,18 +50,8 @@ public class ReviewController {
                 reviewService.myReviews(userDetails.getUsername(), pageable)));
     }
 
-    @Operation(
-            summary = "UC-069 — Gửi đánh giá cho booking đã hoàn tất",
-            description = "Actor: **Customer**. Chỉ booking COMPLETED của bạn, một lần/booking; ngữ cảnh gym/dịch vụ/PT lấy từ booking. Lỗi: 409 chưa COMPLETED/đã đánh giá; 404 không thuộc về bạn.")
-    @SecurityRequirement(name = "bearerAuth")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @PostMapping
-    public ResponseEntity<ApiResponse<ReviewResponse>> create(
-            @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody ReviewRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
-                "Review submitted", reviewService.create(userDetails.getUsername(), request)));
-    }
+    // Gửi đánh giá: POST /api/tickets/{id}/review (phòng gym, mở khi dùng hết vé)
+    // và POST /api/sessions/{id}/review (PT, mở khi buổi xong) — câu 17 + 36.
 
     @Operation(
             summary = "UC-069 — Sửa đánh giá của mình",
@@ -72,7 +62,7 @@ public class ReviewController {
     public ResponseEntity<ApiResponse<ReviewResponse>> update(
             @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long id,
-            @Valid @RequestBody ReviewRequest request) {
+            @Valid @RequestBody TicketReviewRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Review updated",
                 reviewService.update(userDetails.getUsername(), id, request)));
     }

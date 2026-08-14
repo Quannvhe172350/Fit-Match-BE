@@ -31,8 +31,6 @@ class MarketplaceServiceImplTest {
     @Mock private PtCertificationRepository ptCertificationRepository;
     @Mock private com.fitmatch.repository.GymProfileRepository gymProfileRepository;
     @Mock private com.fitmatch.repository.GymBranchRepository gymBranchRepository;
-    @Mock private com.fitmatch.repository.GymServiceRepository gymServiceRepository;
-    @Mock private com.fitmatch.repository.TrainingPackageRepository trainingPackageRepository;
     // V64: ảnh gym/chi nhánh chuyển sang Media system dùng chung (media_assets).
     @Mock private MediaService mediaService;
     @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
@@ -71,28 +69,15 @@ class MarketplaceServiceImplTest {
         assertThatThrownBy(() -> service.getPtDetail(2L)).isInstanceOf(ResourceNotFoundException.class);
     }
 
-    @Test
-    void listGymServices_onlyPublishedOfVisibleGym() {
-        when(gymProfileRepository.findByIdAndVerificationStatusAndActiveTrue(7L, VerificationStatus.APPROVED))
-                .thenReturn(Optional.of(com.fitmatch.entity.GymProfile.builder().id(7L).build()));
-        when(gymServiceRepository.findByGymProfile_IdAndStatus(7L, com.fitmatch.common.enums.CatalogStatus.PUBLISHED))
-                .thenReturn(List.of(com.fitmatch.entity.GymService.builder()
-                        .id(1L).name("Yoga").price(new java.math.BigDecimal("100.00")).build()));
-
-        var result = service.listGymServices(7L);
-
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getName()).isEqualTo("Yoga");
-    }
+    // Catalog công khai chuyển sang GET /api/marketplace/branches/{id}/ticket-types
+    // (vé bán theo chi nhánh) — xem TicketTypeServiceImpl.
 
     @Test
-    void listGymCatalog_hiddenGym_throws404() {
+    void listGymBranches_hiddenGym_throws404() {
         when(gymProfileRepository.findByIdAndVerificationStatusAndActiveTrue(9L, VerificationStatus.APPROVED))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.listGymServices(9L)).isInstanceOf(ResourceNotFoundException.class);
         assertThatThrownBy(() -> service.listGymBranches(9L)).isInstanceOf(ResourceNotFoundException.class);
-        assertThatThrownBy(() -> service.listGymPackages(9L)).isInstanceOf(ResourceNotFoundException.class);
     }
 
     // ----- UC-18 (V55): tìm theo bán kính -----

@@ -7,7 +7,7 @@ import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.service.GymBranchService;
 import com.fitmatch.service.support.GymProfileResolver;
@@ -25,7 +25,7 @@ public class GymBranchServiceImpl implements GymBranchService {
 
     private final GymBranchRepository branchRepository;
     private final GymProfileResolver gymProfileResolver;
-    private final BookingRepository bookingRepository;
+    private final TrainingSessionRepository trainingSessionRepository;
     private final com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
     private final com.fitmatch.service.support.AddressGeocoder addressGeocoder;
 
@@ -134,15 +134,15 @@ public class GymBranchServiceImpl implements GymBranchService {
     @Transactional
     public void deactivate(String username, Long id) {
         GymBranch branch = requireOwned(username, id);
-        // P1-17: không cho tắt chi nhánh khi còn booking giữ chỗ trong tương lai —
-        // tránh bỏ rơi khách đã đặt (dời/hủy trước).
-        long future = bookingRepository.countByGymBranch_IdAndStatusInAndStartAtGreaterThan(
-                id, com.fitmatch.service.support.BookingEligibilityChecker.HOLDING_STATUSES,
-                java.time.LocalDateTime.now());
+        // P1-17: không cho tắt chi nhánh khi còn buổi tập đã đặt trong tương lai —
+        // tránh bỏ rơi khách đã mua vé (khách phải được dời lịch trước).
+        long future = trainingSessionRepository
+                .countByGymBranch_IdAndStatusAndSessionDateGreaterThanEqual(
+                        id, com.fitmatch.common.enums.SessionStatus.SCHEDULED, java.time.LocalDate.now());
         if (future > 0) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Cannot deactivate branch: it has " + future
-                            + " upcoming booking(s). Reschedule or cancel them first.");
+                    "Không thể tắt chi nhánh: còn " + future
+                            + " buổi tập đã đặt. Hãy để khách dời lịch trước.");
         }
         branch.setActive(false);
         branchRepository.save(branch);

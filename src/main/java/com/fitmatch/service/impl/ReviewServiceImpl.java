@@ -1,7 +1,6 @@
 package com.fitmatch.service.impl;
 
 import com.fitmatch.common.AuditActions;
-import com.fitmatch.common.enums.BookingStatus;
 import com.fitmatch.common.enums.ErrorCode;
 import com.fitmatch.common.enums.MediaEntityType;
 import com.fitmatch.common.enums.MediaImageType;
@@ -13,15 +12,12 @@ import com.fitmatch.dto.review.ModerateReviewRequest;
 import com.fitmatch.dto.review.RatingSummaryResponse;
 import com.fitmatch.dto.review.ReportRequest;
 import com.fitmatch.dto.review.ReviewReportResponse;
-import com.fitmatch.dto.review.ReviewRequest;
 import com.fitmatch.dto.review.ReviewResponse;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.MediaAsset;
 import com.fitmatch.entity.Review;
 import com.fitmatch.entity.ReviewReport;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.MediaAssetRepository;
 import com.fitmatch.repository.ReviewReportRepository;
 import com.fitmatch.repository.ReviewRepository;
@@ -41,11 +37,12 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ReviewServiceImpl implements ReviewService {
+public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.TicketReviewService {
 
     private final ReviewRepository reviewRepository;
     private final ReviewReportRepository reviewReportRepository;
-    private final BookingRepository bookingRepository;
+    private final com.fitmatch.repository.TicketRepository ticketRepository;
+    private final com.fitmatch.repository.TrainingSessionRepository trainingSessionRepository;
     private final AuditService auditService;
     private final com.fitmatch.service.support.NotificationDispatcher notificationDispatcher;
     // UC-008 (V51): đồng bộ cột denorm avg_rating/rating_count sau mỗi thay đổi review
@@ -104,50 +101,88 @@ public class ReviewServiceImpl implements ReviewService {
                 MediaImageType.REVIEW_IMAGE, mediaIds);
     }
 
+    // ------------------------------------------------------------------
+    // Mô hình vé (câu 17 + 36): hai loại đánh giá, hai mốc mở khác nhau
+    // ------------------------------------------------------------------
+
     /**
-     * UC-069: điều kiện đánh giá — khách phải thực sự đã mua & dùng dịch vụ.
-     * Booking phải thuộc chính khách (findByIdAndCustomer_Username) và đã
-     * COMPLETED; gym/dịch vụ/gói/PT được chép từ booking chứ không nhận từ
-     * client, nên không thể đánh giá một gym/PT chưa từng đặt. PT chỉ bị chấm
-     * điểm khi buổi tập đó có PT (booking.ptProfile != null).
+     * Câu 17: đánh giá phòng gym mở khi khách đã DÙNG HẾT vé — chấm điểm cả trải
+     * nghiệm chứ không phải từng buổi lẻ. Vé còn ngày chưa dùng thì chưa đủ cơ sở.
      */
     @Override
     @Transactional
-    public ReviewResponse create(String customerUsername, ReviewRequest request) {
-        Booking booking = bookingRepository
-                .findByIdAndCustomer_Username(request.getBookingId(), customerUsername)
-                .orElseThrow(() -> new ResourceNotFoundException("Booking", request.getBookingId()));
-        if (booking.getStatus() != BookingStatus.COMPLETED) {
+    public ReviewResponse reviewGym(String customerUsername, Long ticketId,
+                                    com.fitmatch.dto.review.TicketReviewRequest request) {
+        com.fitmatch.entity.Ticket ticket = ticketRepository
+                .findByIdAndCustomer_Username(ticketId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket", ticketId));
+        if (ticket.getStatus() != com.fitmatch.common.enums.TicketStatus.USED_UP) {
             throw new BusinessException(ErrorCode.INVALID_STATE,
-                    "Only a COMPLETED booking can be reviewed (current: " + booking.getStatus() + ")");
+                    "Chỉ đánh giá phòng gym khi đã dùng hết vé (hiện: " + ticket.getStatus() + ")");
         }
-        if (reviewRepository.existsByBooking_Id(booking.getId())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "This booking has already been reviewed");
+        if (reviewRepository.existsByTicket_Id(ticketId)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "Vé này đã được đánh giá");
         }
         Review review = reviewRepository.save(Review.builder()
-                .booking(booking)
-                .customer(booking.getCustomer())
-                .gymProfile(booking.getGymProfile())
-                .gymService(booking.getGymService())
-                .trainingPackage(booking.getTrainingPackage())
-                .ptProfile(booking.getPtProfile())
+                .targetType(com.fitmatch.common.enums.ReviewTargetType.GYM)
+                .ticket(ticket)
+                .customer(ticket.getCustomer())
+                .gymProfile(ticket.getGymProfile())
                 .rating(request.getRating())
                 .comment(request.getComment())
                 .status(ReviewStatus.VISIBLE)
                 .build());
-        // Ảnh được gắn SAU khi review có id: nếu bước này ném lỗi thì cả review lẫn
-        // việc gắn ảnh cùng rollback, không bao giờ có review trỏ tới ảnh không tồn tại.
         syncImages(customerUsername, review, request.getMediaIds());
         refreshDenormRating(review);
-        log.info("Review {} created for booking {} (rating {}, {} images)",
-                review.getId(), booking.getId(), request.getRating(),
-                request.getMediaIds() == null ? 0 : request.getMediaIds().size());
+        log.info("Gym review {} created for ticket {} (rating {})",
+                review.getId(), ticketId, request.getRating());
+        return ReviewResponse.of(review, imagesOf(review.getId()));
+    }
+
+    /**
+     * Câu 36: đánh giá PT mở ngay khi BUỔI đó xong — người tập còn nhớ rõ. Buổi
+     * không có PT thì không có gì để chấm.
+     */
+    @Override
+    @Transactional
+    public ReviewResponse reviewPt(String customerUsername, Long sessionId,
+                                   com.fitmatch.dto.review.TicketReviewRequest request) {
+        com.fitmatch.entity.TrainingSession session = trainingSessionRepository
+                .findByIdAndTicket_Customer_Username(sessionId, customerUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Training session", sessionId));
+        if (session.getPtProfile() == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "Buổi tập này không có PT để đánh giá");
+        }
+        if (session.getStatus() != com.fitmatch.common.enums.SessionStatus.DONE) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Chỉ đánh giá PT sau khi buổi tập kết thúc (hiện: " + session.getStatus() + ")");
+        }
+        if (reviewRepository.existsBySession_Id(sessionId)) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, "Buổi tập này đã được đánh giá");
+        }
+        com.fitmatch.entity.Ticket ticket = session.getTicket();
+        Review review = reviewRepository.save(Review.builder()
+                .targetType(com.fitmatch.common.enums.ReviewTargetType.PT)
+                .session(session)
+                .customer(ticket.getCustomer())
+                // gymProfile vẫn được set để review PT hiện đúng ngữ cảnh phòng tập;
+                // điểm trung bình của gym chỉ tính review GYM nên không bị nhiễu.
+                .gymProfile(ticket.getGymProfile())
+                .ptProfile(session.getPtProfile())
+                .rating(request.getRating())
+                .comment(request.getComment())
+                .status(ReviewStatus.VISIBLE)
+                .build());
+        syncImages(customerUsername, review, request.getMediaIds());
+        refreshDenormRating(review);
+        log.info("PT review {} created for session {} (rating {})",
+                review.getId(), sessionId, request.getRating());
         return ReviewResponse.of(review, imagesOf(review.getId()));
     }
 
     @Override
     @Transactional
-    public ReviewResponse update(String customerUsername, Long reviewId, ReviewRequest request) {
+    public ReviewResponse update(String customerUsername, Long reviewId, com.fitmatch.dto.review.TicketReviewRequest request) {
         Review review = reviewRepository.findByIdAndCustomer_Username(reviewId, customerUsername)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId));
         if (review.getStatus() == ReviewStatus.REMOVED) {
@@ -210,7 +245,8 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, Pageable pageable) {
-        return toPage(reviewRepository.findByGymProfile_IdAndStatusOrderByIdDesc(
+        // Chỉ đánh giá GYM: đánh giá PT có gymProfile nhưng thuộc về trang PT.
+        return toPage(reviewRepository.findVisibleGymReviews(
                 gymProfileId, ReviewStatus.VISIBLE, pageable));
     }
 

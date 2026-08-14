@@ -5,7 +5,6 @@ import com.fitmatch.common.response.PageResponse;
 import com.fitmatch.dto.dispute.DisputeEvidenceRequest;
 import com.fitmatch.dto.dispute.DisputeEvidenceResponse;
 import com.fitmatch.dto.dispute.DisputeResponse;
-import com.fitmatch.dto.dispute.OpenDisputeRequest;
 import com.fitmatch.dto.dispute.ResolveDisputeRequest;
 import org.springframework.data.domain.Pageable;
 
@@ -18,7 +17,9 @@ import java.util.List;
 public interface DisputeService {
 
     // ----- Các bên liên quan (UC-063/064) -----
-    DisputeResponse open(String username, OpenDisputeRequest request);
+    // Mở tranh chấp: POST /api/tickets/{id}/disputes (TicketDisputeService) —
+    // cần biết vé/buổi và mức đóng băng theo cấp (câu 34).
+
 
     DisputeEvidenceResponse addEvidence(String username, Long disputeId, DisputeEvidenceRequest request);
 

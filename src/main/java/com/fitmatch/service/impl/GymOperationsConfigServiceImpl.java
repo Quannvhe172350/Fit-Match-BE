@@ -5,19 +5,16 @@ import com.fitmatch.dto.gym.GymPolicyRequest;
 import com.fitmatch.dto.gym.GymPolicyResponse;
 import com.fitmatch.dto.gym.OperatingHourDto;
 import com.fitmatch.dto.gym.UpdateOperatingHoursRequest;
-import com.fitmatch.entity.Booking;
 import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymPolicy;
 import com.fitmatch.entity.GymProfile;
 import com.fitmatch.entity.OperatingHour;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.GymPolicyRepository;
 import com.fitmatch.repository.OperatingHourRepository;
 import com.fitmatch.service.GymOperationsConfigService;
-import com.fitmatch.service.support.BookingEligibilityChecker;
 import com.fitmatch.service.support.GymProfileResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +39,6 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
     private final GymPolicyRepository gymPolicyRepository;
     private final GymBranchRepository gymBranchRepository;
     private final GymProfileResolver gymProfileResolver;
-    private final BookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -72,7 +68,8 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
 
         // P1-15 (C-1): không cho thu hẹp/đóng giờ mở cửa bỏ rơi booking đang giữ
         // chỗ tương lai — nếu không khách đến nơi đóng cửa, không ai được báo.
-        assertUpcomingBookingsCoveredByHours(branchId, request.getHours());
+        // Câu 26/27: giờ mở cửa KHÔNG còn tham gia validate lịch tập — vé có giá
+        // trị cả ngày. Đây chỉ là thông tin marketplace, đổi lúc nào cũng được.
 
         // Thay toàn bộ lịch tuần (replace-all) để tránh trạng thái nửa vời.
         // P1-22: flush ngay sau delete để Hibernate không sắp xếp INSERT trước
@@ -90,31 +87,6 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
                 .toList());
         log.info("Gym {} updated operating hours of branch {} ({} days)", username, branchId, saved.size());
         return saved.stream().map(OperatingHourDto::of).toList();
-    }
-
-    /** Mỗi booking giữ chỗ tương lai của chi nhánh phải nằm trong giờ mở cửa MỚI. */
-    private void assertUpcomingBookingsCoveredByHours(Long branchId, List<OperatingHourDto> newHours) {
-        Map<Integer, OperatingHourDto> byDay = newHours.stream()
-                .collect(Collectors.toMap(OperatingHourDto::getDayOfWeek, Function.identity(), (a, b) -> a));
-        List<Booking> upcoming = bookingRepository.findByGymBranch_IdAndStatusInAndStartAtGreaterThan(
-                branchId, BookingEligibilityChecker.HOLDING_STATUSES, LocalDateTime.now());
-        for (Booking b : upcoming) {
-            if (b.getStartAt() == null || b.getEndAt() == null) {
-                continue;
-            }
-            int day = b.getStartAt().getDayOfWeek().getValue();
-            OperatingHourDto h = byDay.get(day);
-            LocalTime bStart = b.getStartAt().toLocalTime();
-            LocalTime bEnd = b.getEndAt().toLocalTime();
-            boolean covered = h != null && !Boolean.TRUE.equals(h.getClosed())
-                    && h.getOpenTime() != null && h.getCloseTime() != null
-                    && !bStart.isBefore(h.getOpenTime()) && !bEnd.isAfter(h.getCloseTime());
-            if (!covered) {
-                throw new BusinessException(ErrorCode.INVALID_STATE,
-                        "Cannot change operating hours: booking #" + b.getId() + " at " + b.getStartAt()
-                                + " would fall outside the new hours. Reschedule or cancel it first.");
-            }
-        }
     }
 
     @Override

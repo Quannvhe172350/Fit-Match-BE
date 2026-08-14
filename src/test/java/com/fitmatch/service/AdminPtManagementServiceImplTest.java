@@ -5,7 +5,7 @@ import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.service.impl.AdminPtManagementServiceImpl;
 import com.fitmatch.service.support.NotificationDispatcher;
@@ -38,7 +38,7 @@ class AdminPtManagementServiceImplTest {
 
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private AuditService auditService;
-    @Mock private BookingRepository bookingRepository;
+    @Mock private TrainingSessionRepository trainingSessionRepository;
     @Mock private NotificationDispatcher notificationDispatcher;
     @InjectMocks private AdminPtManagementServiceImpl service;
 
@@ -56,8 +56,8 @@ class AdminPtManagementServiceImplTest {
         // profileId (7) khác userId (42) — nếu code tra findById(42) sẽ đánh nhầm người
         PtProfile profile = ptProfile(7L, 42L, PtStatus.ACTIVE);
         when(ptProfileRepository.findByUser_Id(42L)).thenReturn(Optional.of(profile));
-        when(bookingRepository.findByPtProfile_IdAndStatusInAndStartAtGreaterThan(
-                eq(7L), any(), any(LocalDateTime.class))).thenReturn(List.of());
+        when(trainingSessionRepository.findByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(
+                eq(7L), any(), any(java.time.LocalDate.class))).thenReturn(List.of());
 
         var response = service.suspend(42L, "safety incident", "admin");
 
@@ -65,9 +65,9 @@ class AdminPtManagementServiceImplTest {
         assertThat(profile.getSuspensionReason()).isEqualTo("safety incident");
         assertThat(profile.isActive()).isFalse();
         verify(ptProfileRepository, never()).findById(anyLong());
-        // booking + audit phải dùng PtProfile.id thật (7), không phải userId (42)
-        verify(bookingRepository).findByPtProfile_IdAndStatusInAndStartAtGreaterThan(
-                eq(7L), any(), any(LocalDateTime.class));
+        // buổi tập + audit phải dùng PtProfile.id thật (7), không phải userId (42)
+        verify(trainingSessionRepository).findByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(
+                eq(7L), any(), any(java.time.LocalDate.class));
         verify(auditService).record(any(), eq("PtProfile"), eq(7L), any());
     }
 

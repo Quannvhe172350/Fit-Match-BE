@@ -7,14 +7,11 @@ import com.fitmatch.common.enums.Role;
 import com.fitmatch.entity.User;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
-import com.fitmatch.repository.BookingRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.GymFacilityRepository;
 import com.fitmatch.repository.GymProfileRepository;
-import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.ReviewRepository;
-import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -44,10 +41,8 @@ public class MediaAccessGuard {
     private final GymProfileRepository gymProfileRepository;
     private final GymBranchRepository gymBranchRepository;
     private final GymFacilityRepository gymFacilityRepository;
-    private final GymServiceRepository gymServiceRepository;
-    private final TrainingPackageRepository trainingPackageRepository;
     private final PtProfileRepository ptProfileRepository;
-    private final BookingRepository bookingRepository;
+    private final com.fitmatch.repository.TrainingSessionRepository trainingSessionRepository;
     private final ReviewRepository reviewRepository;
 
     public User requireUser(String username) {
@@ -78,16 +73,16 @@ public class MediaAccessGuard {
             // Cơ sở vật chất thuộc gym nào thì chỉ chủ gym đó sửa được ảnh (UC-47).
             case FACILITY -> gymFacilityRepository
                     .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
-            case SERVICE -> gymServiceRepository
-                    .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
-            case PACKAGE -> trainingPackageRepository
-                    .findByIdAndGymProfile_User_Username(entityId, username).isPresent();
+            // Catalog cũ đã bị gỡ cùng mô hình booking — không còn chủ sở hữu để
+            // đối chiếu, nên mọi thao tác ảnh trên hai loại này đều bị từ chối.
+            case SERVICE, PACKAGE -> false;
             // PT tự sửa ảnh hồ sơ mình; Gym chủ quản cũng sửa được vì PT do Gym tạo (UC-019).
             case TRAINER -> ptProfileRepository.findByUser_Username(username)
                     .map(p -> p.getId().equals(entityId)).orElse(false)
                     || ptProfileRepository.findByIdAndGymProfile_User_Username(entityId, username).isPresent();
-            // Ảnh check-in là bằng chứng buổi tập của chính khách (UC-046).
-            case CHECK_IN -> bookingRepository.findByIdAndCustomer_Username(entityId, username).isPresent();
+            // Ảnh buổi tập là bằng chứng của chính khách sở hữu vé.
+            case CHECK_IN -> trainingSessionRepository
+                    .findByIdAndTicket_Customer_Username(entityId, username).isPresent();
             case REVIEW -> reviewRepository.findByIdAndCustomer_Username(entityId, username).isPresent();
         };
 
@@ -99,7 +94,7 @@ public class MediaAccessGuard {
 
     /**
      * Ai được XEM danh sách ảnh. Ảnh hồ sơ công khai thì mở cho cả khách vãng lai;
-     * ảnh check-in chỉ chủ booking (hoặc gym/admin) mới xem được.
+     * ảnh buổi tập chỉ chủ vé (hoặc gym/admin) mới xem được.
      */
     public void requireCanRead(String username, MediaEntityType entityType, Long entityId) {
         if (PUBLICLY_READABLE.contains(entityType)) return;
@@ -109,10 +104,10 @@ public class MediaAccessGuard {
         User user = requireUser(username);
         if (isPrivileged(user)) return;
         if (entityType == MediaEntityType.CHECK_IN && entityId != null) {
-            boolean isCustomer = bookingRepository.findByIdAndCustomer_Username(entityId, username).isPresent();
-            boolean isGym = bookingRepository.findById(entityId)
-                    .map(b -> b.getGymProfile().getUser().getUsername().equals(username))
-                    .orElse(false);
+            boolean isCustomer = trainingSessionRepository
+                    .findByIdAndTicket_Customer_Username(entityId, username).isPresent();
+            boolean isGym = trainingSessionRepository
+                    .findByIdAndTicket_GymProfile_User_Username(entityId, username).isPresent();
             if (isCustomer || isGym) return;
         }
         throw new BusinessException(ErrorCode.FORBIDDEN, "You are not allowed to view these images");

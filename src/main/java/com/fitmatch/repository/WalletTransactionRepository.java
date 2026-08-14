@@ -13,7 +13,7 @@ public interface WalletTransactionRepository extends JpaRepository<WalletTransac
 
     Page<WalletTransaction> findByWallet_IdOrderByIdDesc(Long walletId, Pageable pageable);
 
-    List<WalletTransaction> findByBookingIdOrderByIdAsc(Long bookingId);
+    List<WalletTransaction> findByTicketIdOrderByIdAsc(Long ticketId);
 
     /**
      * UC-076: tổng số tiền theo loại bút toán trong khoảng; gymId null = toàn nền tảng.

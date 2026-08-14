@@ -5,12 +5,10 @@ import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.PtAssignment;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.exception.BusinessException;
-import com.fitmatch.repository.BookingRepository;
+import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.GymBranchRepository;
-import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.PtAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
-import com.fitmatch.repository.TrainingPackageRepository;
 import com.fitmatch.service.impl.PtAssignmentServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,9 +36,7 @@ class PtBranchAssignmentRulesTest {
     @Mock private PtAssignmentRepository ptAssignmentRepository;
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private GymBranchRepository gymBranchRepository;
-    @Mock private GymServiceRepository gymServiceRepository;
-    @Mock private TrainingPackageRepository trainingPackageRepository;
-    @Mock private BookingRepository bookingRepository;
+    @Mock private TrainingSessionRepository trainingSessionRepository;
     @InjectMocks private PtAssignmentServiceImpl service;
 
     private void ownedPt() {
@@ -87,7 +83,7 @@ class PtBranchAssignmentRulesTest {
         when(ptAssignmentRepository.findByIdAndPtProfile_GymProfile_User_Username(7L, "gym"))
                 .thenReturn(Optional.of(PtAssignment.builder().id(7L)
                         .gymBranch(GymBranch.builder().id(5L).build()).build()));
-        when(ptAssignmentRepository.countByPtProfile_IdAndGymBranchIsNotNull(2L)).thenReturn(1L);
+        when(ptAssignmentRepository.countByPtProfile_Id(2L)).thenReturn(1L);
 
         assertThatThrownBy(() -> service.remove("gym", 2L, 7L))
                 .isInstanceOf(BusinessException.class)
@@ -103,8 +99,8 @@ class PtBranchAssignmentRulesTest {
                 .gymBranch(GymBranch.builder().id(5L).build()).build();
         when(ptAssignmentRepository.findByIdAndPtProfile_GymProfile_User_Username(7L, "gym"))
                 .thenReturn(Optional.of(a));
-        when(ptAssignmentRepository.countByPtProfile_IdAndGymBranchIsNotNull(2L)).thenReturn(2L);
-        when(bookingRepository.countByPtProfile_IdAndStatusInAndStartAtGreaterThan(eq(2L), any(), any()))
+        when(ptAssignmentRepository.countByPtProfile_Id(2L)).thenReturn(2L);
+        when(trainingSessionRepository.countByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(eq(2L), any(), any()))
                 .thenReturn(0L);
 
         service.remove("gym", 2L, 7L);
@@ -119,7 +115,7 @@ class PtBranchAssignmentRulesTest {
         PtAssignment a = PtAssignment.builder().id(8L).build();
         when(ptAssignmentRepository.findByIdAndPtProfile_GymProfile_User_Username(8L, "gym"))
                 .thenReturn(Optional.of(a));
-        when(bookingRepository.countByPtProfile_IdAndStatusInAndStartAtGreaterThan(eq(2L), any(), any()))
+        when(trainingSessionRepository.countByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(eq(2L), any(), any()))
                 .thenReturn(0L);
 
         service.remove("gym", 2L, 8L);

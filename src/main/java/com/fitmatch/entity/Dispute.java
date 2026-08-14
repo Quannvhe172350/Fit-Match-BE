@@ -25,14 +25,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * Tranh chấp/khiếu nại gắn với một booking (UC-063). Truy vết được tới
- * booking/payment/session. Người mở lấy từ BaseEntity.createdBy + openedByRole.
- * Schema: disputes(id, booking_id FK, opened_by_role, reason, status, resolution,
- * refund_amount, frozen_amount, moderator_note, resolved_at, + audit).
+ * Tranh chấp/khiếu nại gắn với một vé hoặc một buổi tập (UC-063). Người mở lấy
+ * từ BaseEntity.createdBy + openedByRole.
+ * Schema: disputes(id, ticket_id FK, session_id FK?, opened_by_role, reason,
+ * status, resolution, refund_amount, frozen_amount, moderator_note, resolved_at,
+ * + audit).
  */
 @Entity
 @Table(name = "disputes", indexes = {
-        @Index(name = "idx_disputes_booking", columnList = "booking_id"),
+        @Index(name = "idx_disputes_ticket", columnList = "ticket_id"),
+        @Index(name = "idx_disputes_session", columnList = "session_id"),
         @Index(name = "idx_disputes_status", columnList = "status")
 })
 @Getter
@@ -46,9 +48,18 @@ public class Dispute extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Tranh chấp luôn thuộc về một vé. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "booking_id", nullable = false)
-    private Booking booking;
+    @JoinColumn(name = "ticket_id")
+    private Ticket ticket;
+
+    /**
+     * Câu 34: null = tranh chấp CẤP VÉ (toàn bộ phần đang giữ); khác null =
+     * tranh chấp CẤP BUỔI, số tiền chỉ bằng giá trị một ngày tập.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "session_id")
+    private TrainingSession session;
 
     /** Vai trò của người mở (CUSTOMER/GYM_OPERATOR/PT) — để hiển thị góc nhìn. */
     @Column(name = "opened_by_role", length = 30)

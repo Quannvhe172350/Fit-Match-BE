@@ -22,7 +22,7 @@ import lombok.Setter;
 /**
  * Sổ cái điểm thưởng — append-only (UC-073). points dương với EARN/REFUND, âm
  * với REDEEM; balanceAfter là snapshot số dư sau bút toán.
- * Schema: loyalty_transactions(id, account_id FK, type, points, booking_id?,
+ * Schema: loyalty_transactions(id, account_id FK, type, points, ticket_id?,
  * balance_after, description, + audit).
  */
 @Entity
@@ -50,8 +50,9 @@ public class LoyaltyTransaction extends BaseEntity {
     @Column(nullable = false)
     private int points;
 
-    @Column(name = "booking_id")
-    private Long bookingId;
+    /** Vé phát sinh bút toán điểm (V73). */
+    @Column(name = "ticket_id")
+    private Long ticketId;
 
     @Column(name = "balance_after", nullable = false)
     private int balanceAfter;
