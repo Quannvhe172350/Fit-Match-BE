@@ -94,11 +94,13 @@ public class NominatimGeocodingService implements GeocodingService {
     }
 
     @Override
-    public Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
+    public Optional<GeoSuggestion> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
         if (!isEnabled() || latitude == null || longitude == null) {
             return Optional.empty();
         }
-        return single(UriComponentsBuilder.fromUriString(baseUrl() + "/reverse")
+        // toSuggestion chứ không phải toPoint: chiều ngược cần cả quận/huyện và
+        // tỉnh/thành tách rời để form địa chỉ điền thẳng vào hai ô riêng.
+        return singleSuggestion(UriComponentsBuilder.fromUriString(baseUrl() + "/reverse")
                 .queryParam("lat", latitude.toPlainString())
                 .queryParam("lon", longitude.toPlainString())
                 .queryParam("accept-language", properties.getLanguage())
@@ -150,7 +152,8 @@ public class NominatimGeocodingService implements GeocodingService {
                     display,
                     point.latitude(), point.longitude(),
                     point.placeId(), GeocodingProvider.NOMINATIM,
-                    firstNonEmpty(address, "county", "city_district", "district", "suburb"),
+                    // V66: phường/xã, KHÔNG phải quận/huyện — xem javadoc GeoSuggestion#ward.
+                    firstNonEmpty(address, "suburb", "quarter", "city_district"),
                     firstNonEmpty(address, "state", "city"));
         });
     }
@@ -171,8 +174,8 @@ public class NominatimGeocodingService implements GeocodingService {
     }
 
     /** /reverse trả về MỘT object, không bọc trong mảng. */
-    private Optional<GeoPoint> single(String uri, String what) {
-        return request(uri, what).flatMap(this::toPoint);
+    private Optional<GeoSuggestion> singleSuggestion(String uri, String what) {
+        return request(uri, what).flatMap(this::toSuggestion);
     }
 
     private Optional<JsonNode> request(String uri, String what) {

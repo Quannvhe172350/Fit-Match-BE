@@ -83,7 +83,8 @@ public class CachingGeocodingService implements GeocodingService {
     }
 
     @Override
-    public Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
+    public Optional<com.fitmatch.service.support.GeoSuggestion> reverseGeocode(BigDecimal latitude,
+                                                                               BigDecimal longitude) {
         return delegate.reverseGeocode(latitude, longitude);
     }
 

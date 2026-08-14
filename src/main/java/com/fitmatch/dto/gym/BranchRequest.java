@@ -31,7 +31,18 @@ public class BranchRequest {
     @Size(max = 100)
     private String district;
 
+    /**
+     * UC-016: BẮT BUỘC. Chi nhánh là điểm khách tới tập và là nơi phát sinh mọi
+     * việc cần gọi trực tiếp — đổi giờ, tới nơi không vào được, tranh chấp buổi
+     * tập. Trước đây để trống được, nên tổng đài/CSKH gặp chi nhánh không có số
+     * nào để gọi và phải lần ngược lên số của gym.
+     *
+     * <p>Ràng buộc này áp cho cả sửa: chi nhánh cũ chưa có số thì lần sửa tiếp
+     * theo phải bổ sung. Cố ý — đó là cách duy nhất để dữ liệu cũ được lấp đầy.
+     */
+    @NotBlank(message = "Branch phone is required")
     @Size(max = 30)
+    @com.fitmatch.common.validation.VietnamPhone
     private String phone;
 
     /**

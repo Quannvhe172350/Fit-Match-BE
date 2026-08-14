@@ -3,8 +3,8 @@ package com.fitmatch.dto.user;
 import com.fitmatch.common.enums.Gender;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,7 +23,8 @@ public class UpdateProfileRequest {
     @Email(message = "Email must be valid")
     private String email;
 
-    @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
+    @Size(max = 30)
+    @com.fitmatch.common.validation.VietnamPhone
     private String phone;
 
     private Gender gender;

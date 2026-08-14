@@ -38,7 +38,9 @@ public class RegisterRequest {
     @com.fitmatch.common.validation.StrongPassword
     private String password;
 
-    @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
+    /** UC-001: không bắt buộc, nhưng đã điền thì phải là số Việt Nam dùng được. */
+    @Size(max = 30)
+    @com.fitmatch.common.validation.VietnamPhone
     private String phone;
 
     // UC-001: client chỉ được chọn AccountType (CUSTOMER | GYM_OPERATOR), không gửi Role trực tiếp

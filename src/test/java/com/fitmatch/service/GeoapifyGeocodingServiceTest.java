@@ -133,7 +133,8 @@ class GeoapifyGeocodingServiceTest {
                           "formatted": "123 Nguyễn Trãi, Thanh Xuân, Hà Nội, Việt Nam",
                           "address_line1": "123 Nguyễn Trãi",
                           "place_id": "51f2abc",
-                          "county": "Thanh Xuân",
+                          "suburb": "Phường Thanh Xuân",
+                          "county": "Hoàn Kiếm",
                           "state": "Hà Nội",
                           "city": "Hà Nội"
                         }]}
@@ -145,7 +146,10 @@ class GeoapifyGeocodingServiceTest {
         GeoSuggestion first = suggestions.get(0);
         assertThat(first.label()).isEqualTo("123 Nguyễn Trãi");
         assertThat(first.formattedAddress()).isEqualTo("123 Nguyễn Trãi, Thanh Xuân, Hà Nội, Việt Nam");
-        assertThat(first.district()).isEqualTo("Thanh Xuân");
+        // V66: lấy PHƯỜNG từ `suburb`, và BỎ QUA `county`. Fixture cố ý cho hai
+        // field lệch nhau vì ngoài đời chúng lệch thật — `county` là cấp huyện đã
+        // bỏ và dữ liệu còn sót lại thì trỏ nhầm quận.
+        assertThat(first.ward()).isEqualTo("Phường Thanh Xuân");
         assertThat(first.city()).isEqualTo("Hà Nội");
         assertThat(first.provider()).isEqualTo(GeocodingProvider.GEOAPIFY);
         assertThat(first.latitude()).isEqualByComparingTo(new BigDecimal("21.0002"));

@@ -32,8 +32,16 @@ public interface GeocodingService {
      */
     Optional<GeoPoint> geocodeByPlaceId(String placeId);
 
-    /** Toạ độ -> địa chỉ đã chuẩn hoá (dùng cho nút "Vị trí của tôi"). */
-    Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude);
+    /**
+     * Toạ độ -> địa chỉ đã chuẩn hoá (nút "Vị trí của tôi", và ghim tay ở form
+     * địa chỉ gym).
+     *
+     * <p>Trả {@link GeoSuggestion} chứ không phải {@link GeoPoint} vì đây là chiều
+     * DUY NHẤT mà caller cần các mảnh hành chính tách rời: form địa chỉ điền ngược
+     * quận/huyện + tỉnh/thành vào hai ô riêng ngay khi operator thả ghim. Chiều
+     * xuôi không cần — nó nhận sẵn hai giá trị đó từ chính form.
+     */
+    Optional<GeoSuggestion> reverseGeocode(BigDecimal latitude, BigDecimal longitude);
 
     /**
      * Gợi ý địa điểm khi người dùng đang gõ dở (V65) — thay cho Places Autocomplete

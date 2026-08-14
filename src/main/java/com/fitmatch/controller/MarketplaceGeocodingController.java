@@ -66,8 +66,10 @@ public class MarketplaceGeocodingController {
     }
 
     @Operation(summary = "UC-18 — Toạ độ -> địa chỉ",
-            description = "Actor: **Customer / Guest**. Đổi toạ độ GPS của nút \"Vị trí của tôi\" thành "
-                    + "địa chỉ đọc được. Lỗi: 404 không có địa chỉ khớp, 409 khi tính năng chưa được bật.")
+            description = "Actor: **Customer / Guest / Gym owner**. Đổi toạ độ thành địa chỉ đọc được — "
+                    + "nút \"Vị trí của tôi\" ở marketplace, và ghim tay trên bản đồ ở form địa chỉ gym "
+                    + "(trả kèm quận/huyện + tỉnh/thành để form điền thẳng vào hai ô riêng). "
+                    + "Lỗi: 404 không có địa chỉ khớp, 409 khi tính năng chưa được bật.")
     @GetMapping("/reverse")
     public ResponseEntity<ApiResponse<GeocodeResponse>> reverse(
             @RequestParam @DecimalMin("-90.0") @DecimalMax("90.0") BigDecimal lat,

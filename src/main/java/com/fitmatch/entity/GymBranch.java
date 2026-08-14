@@ -47,7 +47,17 @@ public class GymBranch extends BaseEntity {
     @Column(length = 100)
     private String city;
 
-    /** Quận/huyện — đồng bộ với bộ lọc vị trí marketplace (UC-18). */
+    /**
+     * Cấp hành chính dưới tỉnh/thành — đồng bộ với bộ lọc vị trí marketplace (UC-18).
+     *
+     * <p>V66: nay chứa PHƯỜNG/XÃ. Việt Nam bỏ cấp huyện từ đợt sắp xếp đơn vị hành
+     * chính 2025, nên form địa chỉ điền phường vào đây. Tên cột giữ nguyên
+     * {@code district} để không phải đổi cùng lúc cả bộ lọc marketplace, tìm kiếm
+     * vé và màn so sánh gym — đổi tên là việc riêng, làm sau.
+     *
+     * <p>Bản ghi cũ vẫn đang giữ tên quận/huyện. Không backfill: cấp đó không còn
+     * tồn tại nên không có bảng ánh xạ đáng tin nào để suy ra phường.
+     */
     @Column(length = 100)
     private String district;
 

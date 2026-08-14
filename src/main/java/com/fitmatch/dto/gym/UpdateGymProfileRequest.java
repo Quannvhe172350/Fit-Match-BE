@@ -34,7 +34,9 @@ public class UpdateGymProfileRequest {
     @Size(max = 100)
     private String district;
 
+    /** Số tổng đài của gym — không bắt buộc, nhưng đã điền thì phải gọi được. */
     @Size(max = 30)
+    @com.fitmatch.common.validation.VietnamPhone
     private String phone;
 
     /** UC-18 (V55): toạ độ do operator ghim trên bản đồ; bỏ trống thì BE tự geocode. */

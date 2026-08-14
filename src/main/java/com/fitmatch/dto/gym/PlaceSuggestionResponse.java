@@ -16,9 +16,10 @@ import java.math.BigDecimal;
  * <p>Thay cho Places Autocomplete chạy phía trình duyệt: khoá API nằm lại ở
  * server, và FE không còn phụ thuộc SDK của bất kỳ nhà cung cấp nào.
  *
- * <p>{@code district}/{@code city} là chuỗi THÔ từ nhà cung cấp — FE tự chuẩn hoá
- * về danh mục VN_CITIES trước khi điền vào form, vì bộ lọc marketplace so khớp
- * theo đúng chuỗi của danh mục đó.
+ * <p>{@code ward}/{@code city} là chuỗi THÔ từ nhà cung cấp. FE chuẩn hoá tên
+ * tỉnh/thành về danh mục VN_CITIES trước khi điền vào form (bộ lọc marketplace so
+ * khớp theo đúng chuỗi của danh mục đó); phường/xã thì giữ nguyên — cả nước có
+ * hàng nghìn phường nên không có danh mục rút gọn nào để đối chiếu.
  */
 @Getter
 @Setter
@@ -37,7 +38,8 @@ public class PlaceSuggestionResponse {
     private BigDecimal longitude;
     private String placeId;
     private GeocodingProvider placeProvider;
-    private String district;
+    /** V66: PHƯỜNG/XÃ — cấp huyện đã bỏ, xem javadoc {@code GeoSuggestion#ward}. */
+    private String ward;
     private String city;
 
     public static PlaceSuggestionResponse of(GeoSuggestion suggestion) {
@@ -48,7 +50,7 @@ public class PlaceSuggestionResponse {
                 .longitude(suggestion.longitude())
                 .placeId(suggestion.placeId())
                 .placeProvider(suggestion.provider())
-                .district(suggestion.district())
+                .ward(suggestion.ward())
                 .city(suggestion.city())
                 .build();
     }

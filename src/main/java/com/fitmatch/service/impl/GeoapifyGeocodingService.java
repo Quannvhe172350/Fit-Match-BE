@@ -99,11 +99,13 @@ public class GeoapifyGeocodingService implements GeocodingService {
     }
 
     @Override
-    public Optional<GeoPoint> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
+    public Optional<GeoSuggestion> reverseGeocode(BigDecimal latitude, BigDecimal longitude) {
         if (!isEnabled() || latitude == null || longitude == null) {
             return Optional.empty();
         }
-        return call(UriComponentsBuilder.fromUriString(REVERSE_URL)
+        // callSuggestion chứ không phải call: chiều ngược cần cả quận/huyện và
+        // tỉnh/thành tách rời để form địa chỉ điền thẳng vào hai ô riêng.
+        return callSuggestion(UriComponentsBuilder.fromUriString(REVERSE_URL)
                 .queryParam("lat", latitude.toPlainString())
                 .queryParam("lon", longitude.toPlainString())
                 .queryParam("lang", properties.getLanguage())
@@ -153,18 +155,27 @@ public class GeoapifyGeocodingService implements GeocodingService {
                 BigDecimal.valueOf(result.get("lon").asDouble()),
                 emptyToNull(result.path("place_id").asText(null)),
                 GeocodingProvider.GEOAPIFY,
-                districtOf(result),
+                wardOf(result),
                 cityOf(result)));
     }
 
     /**
-     * Quận/huyện theo cách hiểu của Việt Nam.
+     * Phường/xã theo cách chia hiện hành của Việt Nam (V66).
      *
-     * <p>OSM xếp quận/huyện ở admin_level 6, mà Geoapify ánh xạ ra nhiều tên field
-     * khác nhau tuỳ địa phương — thử lần lượt thay vì tin vào một field duy nhất.
+     * <p>{@code suburb} là field mang phường — kiểm chứng trên dữ liệu thật:
+     * "Phường Hoàn Kiếm", "Phường Cầu Giấy", "Phường Gia Định", "Phường Hải Châu".
+     *
+     * <p>KHÔNG dùng {@code county}: đó là cấp huyện đã bị bỏ từ đợt sắp xếp đơn vị
+     * hành chính 2025, và dữ liệu còn sót lại thì sai — cùng bộ điểm trên,
+     * {@code county} trả "Hoàn Kiếm" cho một điểm ở Cầu Giấy và "Thanh Khê" cho
+     * một điểm ở Hải Châu. Trước V66 nó được thử ĐẦU TIÊN nên form luôn nhận đúng
+     * giá trị sai này.
+     *
+     * <p>{@code district} tụt xuống cuối vì ở VN nó thường mang tên khu phố ("Khu
+     * phố 43", "Dịch Vọng Hậu") chứ không phải một cấp hành chính.
      */
-    private static String districtOf(JsonNode result) {
-        return firstNonEmpty(result, "county", "city_district", "district", "suburb");
+    private static String wardOf(JsonNode result) {
+        return firstNonEmpty(result, "suburb", "quarter", "district");
     }
 
     /**
@@ -188,6 +199,11 @@ public class GeoapifyGeocodingService implements GeocodingService {
     /** Nhánh {@code format=json}: kết quả nằm phẳng trong mảng {@code results}. */
     private Optional<GeoPoint> call(String uri, String what) {
         return request(uri, what).map(body -> body.path("results").path(0)).flatMap(this::toPoint);
+    }
+
+    /** Như {@link #call} nhưng giữ lại quận/huyện + tỉnh/thành (chiều ngược). */
+    private Optional<GeoSuggestion> callSuggestion(String uri, String what) {
+        return request(uri, what).map(body -> body.path("results").path(0)).flatMap(this::toSuggestion);
     }
 
     /** Nhánh GeoJSON: toạ độ và thuộc tính tách làm hai nhánh của {@code features[0]}. */

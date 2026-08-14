@@ -38,7 +38,8 @@ public class CreateGymPtRequest {
     @StrongPassword
     private String password;
 
-    @Pattern(regexp = "^[0-9+\\-() ]{7,20}$", message = "Phone number is invalid")
+    @Size(max = 30)
+    @com.fitmatch.common.validation.VietnamPhone
     private String phone;
 
     @NotBlank(message = "Display name is required")
