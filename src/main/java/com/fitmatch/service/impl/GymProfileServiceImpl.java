@@ -113,7 +113,17 @@ public class GymProfileServiceImpl implements GymProfileService {
                     "A suspended gym cannot edit its business profile; contact platform admin.");
         }
         String addressKey = addressKeyOf(profile);
-        if (request.getGymName() != null) {
+        // Tên gym đã qua xác minh là thứ khách nhìn thấy trên vé đã mua, trong
+        // thông báo và trên hoá đơn; đổi tên sau khi duyệt là đổi danh tính của
+        // một pháp nhân Admin đã đối chiếu giấy tờ. So sánh với tên hiện tại chứ
+        // không chặn thẳng: form của gym gửi lại nguyên vẹn mọi trường, chặn
+        // theo "có gửi tên" sẽ làm hỏng cả những lần chỉ sửa số điện thoại.
+        if (request.getGymName() != null && !request.getGymName().equals(profile.getGymName())) {
+            if (profile.getVerificationStatus() == VerificationStatus.APPROVED) {
+                throw new BusinessException(ErrorCode.INVALID_STATE,
+                        "Tên phòng gym đã được xác minh nên không đổi được. "
+                                + "Liên hệ quản trị viên nếu cần đổi tên.");
+            }
             profile.setGymName(request.getGymName());
         }
         if (request.getDescription() != null) {

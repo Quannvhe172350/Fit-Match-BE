@@ -125,4 +125,61 @@ class GymProfileServiceImplTest {
         assertThatThrownBy(() -> service.resubmitRegistration("ops", request()))
                 .isInstanceOf(BusinessException.class);
     }
+
+    // ---------- tên gym sau khi được xác minh ----------
+
+    private GymProfile approvedGym(String name) {
+        GymProfile profile = GymProfile.builder().id(20L)
+                .user(User.builder().username("ops").build())
+                .gymName(name)
+                .verificationStatus(VerificationStatus.APPROVED)
+                .build();
+        when(gymProfileRepository.findByUser_Username("ops")).thenReturn(Optional.of(profile));
+        return profile;
+    }
+
+    /**
+     * Tên đã duyệt là danh tính pháp nhân Admin đã đối chiếu giấy tờ, và là cái
+     * tên đang nằm trên vé khách đã mua.
+     */
+    @Test
+    void updateProfile_approvedGym_cannotRenameItself() {
+        approvedGym("Gym A");
+
+        assertThatThrownBy(() -> service.updateProfile("ops",
+                com.fitmatch.dto.gym.UpdateGymProfileRequest.builder().gymName("Gym B").build()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã được xác minh");
+    }
+
+    /**
+     * Form của gym gửi lại nguyên vẹn mọi trường. Gửi đúng tên cũ KHÔNG phải là
+     * đổi tên — chặn theo "có gửi tên" sẽ làm hỏng cả lần chỉ sửa số điện thoại.
+     */
+    @Test
+    void updateProfile_approvedGym_sameNameIsNotARename() {
+        GymProfile profile = approvedGym("Gym A");
+
+        service.updateProfile("ops", com.fitmatch.dto.gym.UpdateGymProfileRequest.builder()
+                .gymName("Gym A").phone("0912345678").build());
+
+        assertThat(profile.getGymName()).isEqualTo("Gym A");
+        assertThat(profile.getPhone()).isEqualTo("0912345678");
+    }
+
+    /** Chưa duyệt thì vẫn sửa tên bình thường — luật chỉ khoá sau khi xác minh. */
+    @Test
+    void updateProfile_pendingGym_canStillRename() {
+        GymProfile profile = GymProfile.builder().id(20L)
+                .user(User.builder().username("ops").build())
+                .gymName("Gym A")
+                .verificationStatus(VerificationStatus.PENDING)
+                .build();
+        when(gymProfileRepository.findByUser_Username("ops")).thenReturn(Optional.of(profile));
+
+        service.updateProfile("ops",
+                com.fitmatch.dto.gym.UpdateGymProfileRequest.builder().gymName("Gym B").build());
+
+        assertThat(profile.getGymName()).isEqualTo("Gym B");
+    }
 }
