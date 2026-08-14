@@ -52,6 +52,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final MediaService mediaService;
     private final OperatingHourRepository operatingHourRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
+    private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
     private final com.fitmatch.config.GeocodingProperties geocodingProperties;
 
     @Override
@@ -64,10 +65,15 @@ public class MarketplaceServiceImpl implements MarketplaceService {
                 .and(PtProfileSpecifications.serviceArea(serviceArea));
         // Danh sách: không kèm chứng chỉ để tránh N+1; chứng chỉ chỉ trả ở detail.
         // UC-071: kèm điểm đánh giá để card hiển thị sao ngay trên danh sách.
-        return PageResponse.of(ptProfileRepository.findAll(spec, pageable),
+        var page = ptProfileRepository.findAll(spec, pageable);
+        // Ảnh của cả trang trong một truy vấn — card marketplace là chỗ N+1 đắt nhất.
+        var avatars = ptAvatarResolver.urlsOf(page.getContent().stream().map(PtProfile::getId).toList());
+        return PageResponse.of(page,
                 p -> {
                     var rating = ratingAggregator.forPt(p.getId());
-                    return PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
+                    var response = PtPublicProfileResponse.of(p, List.of(), rating.average(), rating.count());
+                    response.setAvatarUrl(avatars.get(p.getId()));
+                    return response;
                 });
     }
 
@@ -82,7 +88,9 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         List<CertificationResponse> certs = ptCertificationRepository.findByPtProfile_Id(ptProfileId).stream()
                 .map(CertificationResponse::of).toList();
         var rating = ratingAggregator.forPt(ptProfileId);
-        return PtPublicProfileResponse.of(profile, certs, rating.average(), rating.count());
+        var response = PtPublicProfileResponse.of(profile, certs, rating.average(), rating.count());
+        response.setAvatarUrl(ptAvatarResolver.urlOf(ptProfileId));
+        return response;
     }
 
     @Override

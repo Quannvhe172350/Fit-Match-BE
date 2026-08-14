@@ -28,6 +28,8 @@ public class GymPtResponse {
     private String specialization;
     private String serviceArea;
     private Integer experienceYears;
+    /** Ảnh đại diện hồ sơ PT (media TRAINER/AVATAR) — xem PtPublicProfileResponse. */
+    private String avatarUrl;
     private PtStatus status;
     private String suspensionReason;
     private Long gymProfileId;

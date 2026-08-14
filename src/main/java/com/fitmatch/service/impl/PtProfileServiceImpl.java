@@ -34,6 +34,7 @@ public class PtProfileServiceImpl implements PtProfileService {
     private final PtDocumentRepository ptDocumentRepository;
     private final PtCertificationRepository ptCertificationRepository;
     private final UserRepository userRepository;
+    private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
 
     @Override
     @Transactional
@@ -136,7 +137,9 @@ public class PtProfileServiceImpl implements PtProfileService {
     @Transactional(readOnly = true)
     public PtPublicProfileResponse getOwnPublicPreview(String username) {
         PtProfile profile = requireOwnProfile(username);
-        return PtPublicProfileResponse.of(profile, certificationsOf(profile.getId()));
+        var response = PtPublicProfileResponse.of(profile, certificationsOf(profile.getId()));
+        response.setAvatarUrl(ptAvatarResolver.urlOf(profile.getId()));
+        return response;
     }
 
     private List<CertificationResponse> certificationsOf(Long profileId) {
@@ -153,6 +156,8 @@ public class PtProfileServiceImpl implements PtProfileService {
     private PtProfileResponse toResponse(PtProfile profile) {
         List<PtDocumentDto> docs = ptDocumentRepository.findByPtProfile_Id(profile.getId()).stream()
                 .map(PtDocumentDto::of).toList();
-        return PtProfileResponse.of(profile, docs);
+        PtProfileResponse response = PtProfileResponse.of(profile, docs);
+        response.setAvatarUrl(ptAvatarResolver.urlOf(profile.getId()));
+        return response;
     }
 }

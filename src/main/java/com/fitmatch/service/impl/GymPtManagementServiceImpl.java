@@ -41,6 +41,14 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.repository.DisputeRepository disputeRepository;
+    private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
+
+    /** Mọi phản hồi PT đều đi qua đây để bảng PT của gym không có ô ảnh trống. */
+    private GymPtResponse withAvatar(PtProfile profile) {
+        GymPtResponse response = GymPtResponse.of(profile);
+        response.setAvatarUrl(ptAvatarResolver.urlOf(profile.getId()));
+        return response;
+    }
 
     @Override
     @Transactional
@@ -99,20 +107,27 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         auditService.record(AuditActions.PT_CREATED_BY_GYM, "PtProfile", profile.getId(),
                 "PT " + ptUser.getUsername() + " created by gym " + gymUsername);
         log.info("PT {} created under gym {} (profile {})", ptUser.getUsername(), gymUsername, profile.getId());
-        return GymPtResponse.of(profile);
+        return withAvatar(profile);
     }
 
     @Override
     @Transactional(readOnly = true)
     public PageResponse<GymPtResponse> list(String gymUsername, Pageable pageable) {
         GymProfile gym = gymProfileResolver.requireApprovedGym(gymUsername);
-        return PageResponse.of(ptProfileRepository.findByGymProfile_Id(gym.getId(), pageable), GymPtResponse::of);
+        var page = ptProfileRepository.findByGymProfile_Id(gym.getId(), pageable);
+        var avatars = ptAvatarResolver.urlsOf(
+                page.getContent().stream().map(PtProfile::getId).toList());
+        return PageResponse.of(page, p -> {
+            GymPtResponse response = GymPtResponse.of(p);
+            response.setAvatarUrl(avatars.get(p.getId()));
+            return response;
+        });
     }
 
     @Override
     @Transactional(readOnly = true)
     public GymPtResponse detail(String gymUsername, Long ptId) {
-        return GymPtResponse.of(requireOwnedPt(gymUsername, ptId));
+        return withAvatar(requireOwnedPt(gymUsername, ptId));
     }
 
     @Override
@@ -143,7 +158,7 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         }
         ptProfileRepository.save(profile);
         log.info("PT profile {} updated by gym {}", ptId, gymUsername);
-        return GymPtResponse.of(profile);
+        return withAvatar(profile);
     }
 
     @Override
@@ -178,7 +193,7 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         auditService.record(AuditActions.PT_STATUS_CHANGE, "PtProfile", ptId,
                 "Status set to " + status + " by gym " + gymUsername);
         log.info("PT {} status set to {} by gym {}", ptId, status, gymUsername);
-        return GymPtResponse.of(profile);
+        return withAvatar(profile);
     }
 
     @Override

@@ -24,6 +24,8 @@ public class PtProfileResponse {
     private String serviceArea;
     private String specialization;
     private Integer experienceYears;
+    /** Ảnh đại diện hồ sơ PT (media TRAINER/AVATAR) — xem PtPublicProfileResponse. */
+    private String avatarUrl;
     private VerificationStatus verificationStatus;
     private String rejectionReason;
     private boolean active;

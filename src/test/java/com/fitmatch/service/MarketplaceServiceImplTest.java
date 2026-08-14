@@ -36,6 +36,7 @@ class MarketplaceServiceImplTest {
     @Mock private com.fitmatch.repository.OperatingHourRepository operatingHourRepository;
     @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
     @Mock private com.fitmatch.config.GeocodingProperties geocodingProperties;
+    @Mock private com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
     @InjectMocks private MarketplaceServiceImpl service;
 
     @Test
@@ -59,6 +60,38 @@ class MarketplaceServiceImplTest {
         PtPublicProfileResponse res = service.getPtDetail(1L);
 
         assertThat(res.getDisplayName()).isEqualTo("Coach");
+    }
+
+    /** Ảnh hồ sơ PT (media TRAINER/AVATAR) phải đi kèm hồ sơ công khai. */
+    @Test
+    void getPtDetail_carriesProfilePhoto() {
+        PtProfile p = PtProfile.builder().id(1L).displayName("Coach").build();
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
+                .thenReturn(Optional.of(p));
+        when(ptCertificationRepository.findByPtProfile_Id(1L)).thenReturn(List.of());
+        when(ratingAggregator.forPt(1L)).thenReturn(
+                new com.fitmatch.service.support.RatingAggregator.Rating(
+                        new java.math.BigDecimal("4.5"), 2));
+        when(ptAvatarResolver.urlOf(1L)).thenReturn("https://cdn/trainers/1/avatar.jpg");
+
+        assertThat(service.getPtDetail(1L).getAvatarUrl())
+                .isEqualTo("https://cdn/trainers/1/avatar.jpg");
+    }
+
+    /** Chưa đặt ảnh thì để null — FE hiện chữ cái đầu, không hiện ô ảnh vỡ. */
+    @Test
+    void getPtDetail_withoutPhoto_leavesUrlNull() {
+        PtProfile p = PtProfile.builder().id(1L).displayName("Coach").build();
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
+                .thenReturn(Optional.of(p));
+        when(ptCertificationRepository.findByPtProfile_Id(1L)).thenReturn(List.of());
+        when(ratingAggregator.forPt(1L)).thenReturn(
+                new com.fitmatch.service.support.RatingAggregator.Rating(java.math.BigDecimal.ZERO, 0));
+        when(ptAvatarResolver.urlOf(1L)).thenReturn(null);
+
+        assertThat(service.getPtDetail(1L).getAvatarUrl()).isNull();
     }
 
     @Test

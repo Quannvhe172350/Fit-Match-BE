@@ -28,6 +28,14 @@ public class PtPublicProfileResponse {
     private Integer experienceYears;
     private List<CertificationResponse> certifications;
 
+    /**
+     * Ảnh đại diện hồ sơ PT (media TRAINER/AVATAR). null = chưa đặt, FE hiện chữ
+     * cái đầu như trước. KHÔNG lấy từ {@code users.avatar_url}: đây là ảnh nghề
+     * nghiệp của hồ sơ PT, gym chủ quản cũng sửa được (xem MediaAccessGuard),
+     * còn ảnh tài khoản là chuyện riêng của người dùng.
+     */
+    private String avatarUrl;
+
     /** Điểm đánh giá trung bình (VISIBLE) và số lượt — UC-071. */
     private java.math.BigDecimal averageRating;
     private Long reviewCount;

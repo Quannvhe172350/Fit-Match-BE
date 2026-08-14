@@ -34,6 +34,7 @@ class PtProfileServiceImplTest {
     @Mock private PtDocumentRepository ptDocumentRepository;
     @Mock private com.fitmatch.repository.PtCertificationRepository ptCertificationRepository;
     @Mock private UserRepository userRepository;
+    @Mock private com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
     @InjectMocks private PtProfileServiceImpl service;
 
     private SubmitPtRegistrationRequest request() {
