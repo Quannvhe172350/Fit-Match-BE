@@ -3,8 +3,10 @@ package com.fitmatch.controller;
 import com.fitmatch.common.enums.TicketKind;
 import com.fitmatch.common.response.ApiResponse;
 import com.fitmatch.common.response.PageResponse;
+import com.fitmatch.dto.gym.GymServiceResponse;
 import com.fitmatch.dto.ticket.MarketplaceTicketTypeResponse;
 import com.fitmatch.dto.ticket.TicketTypeResponse;
+import com.fitmatch.service.GymServiceCatalogService;
 import com.fitmatch.service.TicketTypeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,6 +32,7 @@ import java.util.List;
 public class MarketplaceTicketTypeController {
 
     private final TicketTypeService ticketTypeService;
+    private final GymServiceCatalogService gymServiceCatalogService;
 
     @Operation(summary = "Vé đang bán tại một chi nhánh",
             description = "Công khai (GET /api/marketplace/** permitAll). Chỉ trả vé PUBLISHED. "
@@ -38,6 +41,15 @@ public class MarketplaceTicketTypeController {
     public ResponseEntity<ApiResponse<List<TicketTypeResponse>>> listForBranch(
             @PathVariable Long branchId) {
         return ResponseEntity.ok(ApiResponse.success(ticketTypeService.listForBranch(branchId)));
+    }
+
+    @Operation(summary = "Dịch vụ kèm vé bán tại một chi nhánh (V82)",
+            description = "Công khai. Add-on khách có thể tick thêm lúc mua vé; giá cộng MỘT LẦN "
+                    + "cho cả vé, không nhân theo số ngày. Chỉ trả dịch vụ PUBLISHED.")
+    @GetMapping("/branches/{branchId}/services")
+    public ResponseEntity<ApiResponse<List<GymServiceResponse>>> servicesForBranch(
+            @PathVariable Long branchId) {
+        return ResponseEntity.ok(ApiResponse.success(gymServiceCatalogService.listForBranch(branchId)));
     }
 
     @Operation(summary = "Duyệt vé đang bán trên toàn sàn",

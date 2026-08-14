@@ -14,14 +14,17 @@ import com.fitmatch.dto.ticket.TicketQuoteResponse;
 import com.fitmatch.dto.ticket.TicketResponse;
 import com.fitmatch.dto.ticket.TicketStatusHistoryResponse;
 import com.fitmatch.entity.GymBranch;
+import com.fitmatch.entity.GymService;
 import com.fitmatch.entity.PlatformTicketConfig;
 import com.fitmatch.entity.Ticket;
+import com.fitmatch.entity.TicketServiceItem;
 import com.fitmatch.entity.TicketType;
 import com.fitmatch.entity.User;
 import com.fitmatch.entity.Voucher;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.GymBranchRepository;
+import com.fitmatch.repository.GymServiceRepository;
 import com.fitmatch.repository.PlatformTicketConfigRepository;
 import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.TicketStatusHistoryRepository;
@@ -45,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -59,6 +63,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
     private final TicketStatusHistoryRepository ticketStatusHistoryRepository;
     private final TrainingSessionRepository trainingSessionRepository;
     private final GymBranchRepository gymBranchRepository;
+    private final GymServiceRepository gymServiceRepository;
     private final UserRepository userRepository;
     private final TicketPriceCalculator priceCalculator;
     private final PlatformTicketConfigRepository ticketConfigRepository;
@@ -89,7 +94,8 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
         int balance = loyaltyService.availablePoints(customerUsername);
         int availablePoints = request.isUseLoyaltyPoints() ? balance : 0;
 
-        TicketPricing pricing = price(type, request.isWithPt(), voucher, availablePoints);
+        List<GymService> services = resolveServices(type, request.getServiceIds());
+        TicketPricing pricing = price(type, request.isWithPt(), voucher, availablePoints, services);
         if (voucher != null && pricing.voucherDiscount().compareTo(BigDecimal.ZERO) <= 0) {
             voucherMessage = "Mã không áp dụng được cho vé này (chưa đạt giá trị tối thiểu)";
         }
@@ -99,6 +105,11 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                 .dayCount(type.getDayCount())
                 .withPt(request.isWithPt())
                 .totalAmount(pricing.totalAmount())
+                .servicesAmount(pricing.servicesAmount())
+                .services(services.stream()
+                        .map(s -> TicketQuoteResponse.ServiceLine.builder()
+                                .id(s.getId()).name(s.getName()).price(s.getPrice()).build())
+                        .toList())
                 .voucherDiscount(pricing.voucherDiscount())
                 .voucherCode(voucher != null ? voucher.getCode() : null)
                 .voucherMessage(voucherMessage)
@@ -126,7 +137,8 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
         int availablePoints = request.isUseLoyaltyPoints()
                 ? loyaltyService.availablePoints(customerUsername) : 0;
 
-        TicketPricing pricing = price(type, request.isWithPt(), voucher, availablePoints);
+        List<GymService> services = resolveServices(type, request.getServiceIds());
+        TicketPricing pricing = price(type, request.isWithPt(), voucher, availablePoints, services);
 
         Ticket ticket = Ticket.builder()
                 .customer(customer)
@@ -145,6 +157,16 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                 .expiresAt(expiryOf(type.getKind()))
                 .build();
         priceCalculator.applyTo(ticket, pricing);
+        // Snapshot tên + giá dịch vụ vào vé: gym sửa bảng giá ngày mai không được
+        // làm đổi số tiền của vé đã bán (cùng nguyên tắc với unitPrice).
+        for (GymService service : services) {
+            ticket.getServiceItems().add(TicketServiceItem.builder()
+                    .ticket(ticket)
+                    .gymService(service)
+                    .name(service.getName())
+                    .price(service.getPrice())
+                    .build());
+        }
         ticket = ticketRepository.save(ticket);
 
         // Tiêu điểm/voucher NGAY tại lúc mua, trước khi tiền về — giữ nguyên cách
@@ -239,7 +261,11 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
 
     // ---------- helpers ----------
 
-    private TicketPricing price(TicketType type, boolean withPt, Voucher voucher, int availablePoints) {
+    private TicketPricing price(TicketType type, boolean withPt, Voucher voucher,
+                                int availablePoints, List<GymService> services) {
+        BigDecimal servicesAmount = services.stream()
+                .map(GymService::getPrice)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal voucherDiscount = BigDecimal.ZERO;
         if (voucher != null) {
             BigDecimal surcharge = type.getPtSurchargePerDay() != null
@@ -248,10 +274,38 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
             if (withPt) {
                 total = total.add(surcharge.multiply(BigDecimal.valueOf(type.getDayCount())));
             }
-            voucherDiscount = voucherService.computeDiscount(voucher, total);
+            // Ngưỡng tối thiểu của voucher xét trên tổng ĐÃ gồm dịch vụ, khớp với
+            // total mà TicketPriceCalculator dùng — hai chỗ lệch nhau thì khách
+            // thấy một mức giảm ở /quote và bị trừ mức khác lúc mua.
+            voucherDiscount = voucherService.computeDiscount(voucher, total.add(servicesAmount));
         }
         return priceCalculator.calculate(type.getPrice(), type.getPtSurchargePerDay(),
-                type.getDayCount(), withPt, voucherDiscount, availablePoints);
+                type.getDayCount(), withPt, servicesAmount, voucherDiscount, availablePoints);
+    }
+
+    /**
+     * Dịch vụ phải thuộc ĐÚNG gym của vé và còn mở bán. Không kiểm thì khách gửi
+     * id dịch vụ của gym khác vào là mua được combo giá rẻ của nơi khác.
+     */
+    private List<GymService> resolveServices(TicketType type, List<Long> serviceIds) {
+        if (serviceIds == null || serviceIds.isEmpty()) {
+            return List.of();
+        }
+        return new LinkedHashSet<>(serviceIds).stream()
+                .map(id -> {
+                    GymService service = gymServiceRepository.findById(id)
+                            .orElseThrow(() -> new ResourceNotFoundException("Gym service", id));
+                    if (!service.getGymProfile().getId().equals(type.getGymProfile().getId())) {
+                        throw new BusinessException(ErrorCode.FORBIDDEN,
+                                "Dịch vụ " + id + " không thuộc phòng gym của vé này");
+                    }
+                    if (service.getStatus() != CatalogStatus.PUBLISHED || !service.isActive()) {
+                        throw new BusinessException(ErrorCode.INVALID_STATE,
+                                "Dịch vụ '" + service.getName() + "' hiện không được mở bán");
+                    }
+                    return service;
+                })
+                .toList();
     }
 
     /** Câu 32: hạn vé chốt tại thời điểm mua từ config admin — không đọc động. */

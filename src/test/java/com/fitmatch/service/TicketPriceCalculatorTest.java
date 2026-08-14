@@ -1,5 +1,6 @@
 package com.fitmatch.service;
 
+import com.fitmatch.exception.BusinessException;
 import com.fitmatch.service.support.TicketPriceCalculator;
 import com.fitmatch.service.support.TicketPriceCalculator.TicketPricing;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Công thức giá vé: price + ptSurchargePerDay * dayCount, rồi voucher, rồi điểm. */
 class TicketPriceCalculatorTest {
@@ -102,5 +104,57 @@ class TicketPriceCalculatorTest {
         TicketPricing p = calculator.calculate(new BigDecimal("150000.49"), null, 1, false, null, 0);
 
         assertThat(p.payableAmount()).isEqualByComparingTo(vnd(150_000));
+    }
+
+    // ---------- V82: dịch vụ kèm vé ----------
+
+    /** Dịch vụ cộng MỘT LẦN cho cả vé — khác phụ phí PT vốn nhân theo số ngày. */
+    @Test
+    void services_addedOnce_notPerDay() {
+        TicketPricing p = calculator.calculate(vnd(1_000_000), vnd(200_000), 10, true,
+                vnd(300_000), null, 0);
+
+        // 1.000.000 + 200.000*10 + 300.000 (không phải 300.000*10)
+        assertThat(p.totalAmount()).isEqualByComparingTo(vnd(3_300_000));
+        assertThat(p.servicesAmount()).isEqualByComparingTo(vnd(300_000));
+        assertThat(p.payableAmount()).isEqualByComparingTo(vnd(3_300_000));
+    }
+
+    /** Voucher giảm trên tổng ĐÃ gồm dịch vụ, không phải trên riêng giá vé. */
+    @Test
+    void services_includedBeforeVoucher() {
+        TicketPricing p = calculator.calculate(vnd(500_000), null, 1, false,
+                vnd(200_000), vnd(100_000), 0);
+
+        assertThat(p.totalAmount()).isEqualByComparingTo(vnd(700_000));
+        assertThat(p.payableAmount()).isEqualByComparingTo(vnd(600_000));
+    }
+
+    /** Điểm thưởng vẫn ăn sau cùng, sau khi dịch vụ đã vào tổng. */
+    @Test
+    void services_thenVoucher_thenPoints() {
+        TicketPricing p = calculator.calculate(vnd(500_000), null, 1, false,
+                vnd(200_000), vnd(100_000), 300);
+
+        assertThat(p.totalAmount()).isEqualByComparingTo(vnd(700_000));
+        assertThat(p.loyaltyDiscount()).isEqualByComparingTo(vnd(300_000));
+        assertThat(p.loyaltyPointsUsed()).isEqualTo(300);
+        assertThat(p.payableAmount()).isEqualByComparingTo(vnd(300_000));
+    }
+
+    /** Không chọn dịch vụ nào -> hành vi y hệt trước V82. */
+    @Test
+    void noServices_behavesAsBefore() {
+        TicketPricing p = calculator.calculate(vnd(150_000), null, 1, false, null, null, 0);
+
+        assertThat(p.servicesAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(p.totalAmount()).isEqualByComparingTo(vnd(150_000));
+    }
+
+    @Test
+    void negativeServicesAmount_rejected() {
+        assertThatThrownBy(() -> calculator.calculate(vnd(150_000), null, 1, false,
+                vnd(-1), null, 0))
+                .isInstanceOf(BusinessException.class);
     }
 }

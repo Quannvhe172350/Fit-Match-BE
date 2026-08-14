@@ -13,9 +13,12 @@ import java.math.RoundingMode;
  *
  * <pre>
  *   total    = price + (withPt ? ptSurchargePerDay * dayCount : 0)   (câu 6)
+ *              + servicesAmount                                      (V82)
  *   sau đó trừ voucher, rồi trừ điểm thưởng
  *   payable  = phần còn lại, làm tròn HALF_UP về số nguyên VND
  * </pre>
+ *
+ * <p>Dịch vụ cộng MỘT LẦN cho cả vé, khác phụ phí PT vốn nhân theo số ngày.
  *
  * <p>Không còn khái niệm đặt cọc (câu 25) — khách trả đủ ngay khi mua.
  *
@@ -35,6 +38,7 @@ public class TicketPriceCalculator {
      */
     public record TicketPricing(
             BigDecimal totalAmount,
+            BigDecimal servicesAmount,
             BigDecimal voucherDiscount,
             int loyaltyPointsUsed,
             BigDecimal loyaltyDiscount,
@@ -52,13 +56,30 @@ public class TicketPriceCalculator {
      */
     public TicketPricing calculate(BigDecimal price, BigDecimal ptSurchargePerDay, int dayCount,
                                    boolean withPt, BigDecimal voucherDiscount, int availablePoints) {
+        return calculate(price, ptSurchargePerDay, dayCount, withPt, BigDecimal.ZERO,
+                voucherDiscount, availablePoints);
+    }
+
+    /**
+     * @param servicesAmount V82: tổng tiền dịch vụ kèm vé, cộng MỘT LẦN (không
+     *                       nhân theo ngày như phụ phí PT) và cộng TRƯỚC voucher
+     *                       để voucher giảm trên tổng khách thực trả.
+     */
+    public TicketPricing calculate(BigDecimal price, BigDecimal ptSurchargePerDay, int dayCount,
+                                   boolean withPt, BigDecimal servicesAmount,
+                                   BigDecimal voucherDiscount, int availablePoints) {
         if (dayCount <= 0) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "dayCount must be positive");
+        }
+        BigDecimal services = servicesAmount != null ? servicesAmount : BigDecimal.ZERO;
+        if (services.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "servicesAmount must be >= 0");
         }
         BigDecimal total = price;
         if (withPt && ptSurchargePerDay != null && ptSurchargePerDay.compareTo(BigDecimal.ZERO) > 0) {
             total = total.add(ptSurchargePerDay.multiply(BigDecimal.valueOf(dayCount)));
         }
+        total = total.add(services);
 
         // Voucher trước, điểm thưởng sau: điểm chỉ phủ phần còn thiếu nên khách
         // không "đốt" điểm vào phần đã được voucher giảm.
@@ -80,12 +101,13 @@ public class TicketPriceCalculator {
         }
 
         BigDecimal payable = remaining.max(BigDecimal.ZERO).setScale(0, RoundingMode.HALF_UP);
-        return new TicketPricing(total, voucher, pointsUsed, loyaltyDiscount, payable);
+        return new TicketPricing(total, services, voucher, pointsUsed, loyaltyDiscount, payable);
     }
 
     /** Ghi kết quả tính giá vào vé (dùng ở /tickets/purchase). */
     public void applyTo(Ticket ticket, TicketPricing pricing) {
         ticket.setTotalAmount(pricing.totalAmount());
+        ticket.setServicesAmount(pricing.servicesAmount());
         ticket.setDiscountAmount(pricing.voucherDiscount().add(pricing.loyaltyDiscount()));
         ticket.setLoyaltyPointsUsed(pricing.loyaltyPointsUsed() > 0 ? pricing.loyaltyPointsUsed() : null);
         ticket.setPayableAmount(pricing.payableAmount());

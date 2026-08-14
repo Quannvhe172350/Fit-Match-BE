@@ -3,6 +3,7 @@ package com.fitmatch.entity;
 import com.fitmatch.common.enums.SettlementStatus;
 import com.fitmatch.common.enums.TicketKind;
 import com.fitmatch.common.enums.TicketStatus;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
@@ -25,6 +27,8 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Vé đã bán — đơn vị escrow của hệ thống. Mọi dòng tiền (payment_orders,
@@ -95,9 +99,23 @@ public class Ticket extends BaseEntity {
     @Column(name = "pt_surcharge_per_day", precision = 12, scale = 2)
     private BigDecimal ptSurchargePerDay;
 
-    /** unitPrice + (withPt ? ptSurchargePerDay * dayCount : 0), trước giảm giá. */
+    /**
+     * unitPrice + (withPt ? ptSurchargePerDay * dayCount : 0) + servicesAmount,
+     * trước giảm giá.
+     */
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
+
+    /** V82: tổng tiền dịch vụ kèm theo, đã snapshot trong {@link #serviceItems}. */
+    @Column(name = "services_amount", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal servicesAmount = BigDecimal.ZERO;
+
+    /** Dịch vụ khách tick thêm lúc mua. Rỗng = vé thuần, không có add-on. */
+    @OneToMany(mappedBy = "ticket", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<TicketServiceItem> serviceItems = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "voucher_id")

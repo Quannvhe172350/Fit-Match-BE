@@ -45,6 +45,23 @@ public class TicketResponse {
     private Integer loyaltyPointsUsed;
     private BigDecimal payableAmount;
 
+    /** V82: tổng tiền dịch vụ kèm vé, đã nằm trong totalAmount. */
+    private BigDecimal servicesAmount;
+
+    /** Dịch vụ đã mua kèm — tên/giá là snapshot lúc mua, không tra lại catalog. */
+    private List<ServiceItem> services;
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ServiceItem {
+        private Long id;
+        private String name;
+        private BigDecimal price;
+    }
+
     private TicketStatus status;
     private String statusReason;
     private LocalDateTime purchasedAt;
@@ -98,6 +115,11 @@ public class TicketResponse {
                 .unitPrice(t.getUnitPrice())
                 .ptSurchargePerDay(t.getPtSurchargePerDay())
                 .totalAmount(t.getTotalAmount())
+                .servicesAmount(t.getServicesAmount())
+                .services(t.getServiceItems().stream()
+                        .map(i -> ServiceItem.builder()
+                                .id(i.getId()).name(i.getName()).price(i.getPrice()).build())
+                        .toList())
                 .discountAmount(t.getDiscountAmount())
                 .loyaltyPointsUsed(t.getLoyaltyPointsUsed())
                 .payableAmount(t.getPayableAmount())
