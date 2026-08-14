@@ -5,18 +5,23 @@ import com.fitmatch.common.enums.SessionStatus;
 import com.fitmatch.common.enums.TicketKind;
 import com.fitmatch.common.enums.TicketStatus;
 import com.fitmatch.common.enums.VerificationStatus;
+import com.fitmatch.entity.OperatingHour;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TrainingSession;
 import com.fitmatch.exception.BusinessException;
+import com.fitmatch.repository.OperatingHourRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -24,13 +29,18 @@ import java.util.Set;
  * cũ. Cố ý không biết gì về PT: buổi tập không có PT chỉ đi qua lớp này và
  * không bao giờ chạm {@link PtSlotValidator}.
  *
- * <p>Những thứ đã biến mất so với mô hình cũ: giờ mở cửa chi nhánh, sức chứa,
- * thời gian báo trước tối thiểu, và ràng buộc "một khách một khung giờ". Vé có
- * giá trị cả ngày nên trùng ngày là chuyện bình thường — khách chỉ được CẢNH
- * BÁO ở tầng API (câu 29), không bị chặn.
+ * <p>Những thứ đã biến mất so với mô hình cũ: sức chứa, thời gian báo trước tối
+ * thiểu, và ràng buộc "một khách một khung giờ". Vé có giá trị cả ngày nên trùng
+ * ngày là chuyện bình thường — khách chỉ được CẢNH BÁO ở tầng API (câu 29),
+ * không bị chặn.
  *
- * <p>Mốc thời gian duy nhất còn lại là 00:00 của ngày tập: ngày đã tới thì
- * không dời và không huỷ được nữa.
+ * <p>Giờ mở cửa chi nhánh quay lại nhưng CHỈ cho đúng một câu hỏi: đặt lịch cho
+ * CHÍNH HÔM NAY khi chi nhánh đã đóng cửa. Đặt cho ngày mai trở đi không cần
+ * biết giờ giấc — gym còn cả ngày để mở cửa. Không tái lập ràng buộc "buổi tập
+ * phải nằm trong giờ mở cửa": vé tính theo NGÀY, không theo khung giờ.
+ *
+ * <p>Hai mốc thời gian: 00:00 của ngày tập (ngày đã tới thì không dời/huỷ được)
+ * và giờ đóng cửa của hôm nay (đặt cho hôm nay).
  */
 @Component
 @RequiredArgsConstructor
@@ -41,6 +51,7 @@ public class SessionSchedulingValidator {
             Set.of(SessionStatus.SCHEDULED, SessionStatus.DONE);
 
     private final TrainingSessionRepository trainingSessionRepository;
+    private final OperatingHourRepository operatingHourRepository;
 
     /**
      * Kiểm tra vé còn đặt lịch được và các ngày yêu cầu hợp lệ.
@@ -49,11 +60,21 @@ public class SessionSchedulingValidator {
      *              PACKAGE: đủ {@code dayCount} ngày liên tiếp)
      */
     public void assertSchedulable(Ticket ticket, List<LocalDate> dates) {
-        assertSchedulable(ticket, dates, LocalDate.now());
+        assertSchedulable(ticket, dates, LocalDateTime.now());
     }
 
-    /** Bản nhận {@code today} tường minh để test không phụ thuộc đồng hồ máy. */
+    /**
+     * Bản nhận ngày tường minh — giữ cho các test cũ không phụ thuộc đồng hồ máy.
+     * Quy về ĐẦU ngày: chỉ hỏi "ngày nào", nên mọi giờ đóng cửa đều còn ở phía
+     * trước và luật giờ đóng cửa không đổi kết quả.
+     */
     public void assertSchedulable(Ticket ticket, List<LocalDate> dates, LocalDate today) {
+        assertSchedulable(ticket, dates, today.atStartOfDay());
+    }
+
+    /** Bản đầy đủ: cần cả GIỜ vì đặt cho hôm nay phải trước giờ đóng cửa. */
+    public void assertSchedulable(Ticket ticket, List<LocalDate> dates, LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
         List<String> reasons = new ArrayList<>(ticketIssues(ticket, today));
 
         if (dates == null || dates.isEmpty()) {
@@ -70,6 +91,7 @@ public class SessionSchedulingValidator {
                     reasons.add("Ngày " + date + " vượt quá hạn dùng của vé ("
                             + ticket.getExpiresAt().toLocalDate() + ")");
                 }
+                closedTodayIssue(ticket, date, now).ifPresent(reasons::add);
             }
 
             long alreadyBooked = trainingSessionRepository
@@ -94,12 +116,19 @@ public class SessionSchedulingValidator {
      * n ngày liên tiếp không còn liên tiếp nếu rút một ngày ra giữa.
      */
     public void assertReschedulable(Ticket ticket, TrainingSession session, LocalDate newDate) {
-        assertReschedulable(ticket, session, newDate, LocalDate.now());
+        assertReschedulable(ticket, session, newDate, LocalDateTime.now());
     }
 
-    /** Bản nhận {@code today} tường minh để test không phụ thuộc đồng hồ máy. */
+    /** Xem {@link #assertSchedulable(Ticket, List, LocalDate)} về việc quy đầu ngày. */
     public void assertReschedulable(Ticket ticket, TrainingSession session,
                                     LocalDate newDate, LocalDate today) {
+        assertReschedulable(ticket, session, newDate, today.atStartOfDay());
+    }
+
+    /** Dời sang HÔM NAY cũng phải trước giờ đóng cửa — cùng luật với đặt mới. */
+    public void assertReschedulable(Ticket ticket, TrainingSession session,
+                                    LocalDate newDate, LocalDateTime now) {
+        LocalDate today = now.toLocalDate();
         List<String> reasons = new ArrayList<>(ticketIssues(ticket, today));
 
         if (ticket.getKind() == TicketKind.PACKAGE) {
@@ -119,8 +148,41 @@ public class SessionSchedulingValidator {
             reasons.add("Ngày " + newDate + " vượt quá hạn dùng của vé ("
                     + ticket.getExpiresAt().toLocalDate() + ")");
         }
+        closedTodayIssue(ticket, newDate, now).ifPresent(reasons::add);
 
         reject(reasons);
+    }
+
+    /**
+     * Chi nhánh đã đóng cửa cho ngày HÔM NAY chưa. Trả rỗng với mọi ngày khác:
+     * ngày mai trở đi thì giờ giấc hôm nay không nói lên điều gì.
+     *
+     * <p>Chi nhánh CHƯA khai giờ hoạt động thì bỏ qua luật này. Không có dữ liệu
+     * khác với "đóng cửa" — suy diễn ngược lại sẽ khoá đặt lịch trong ngày của
+     * mọi chi nhánh chưa kịp cấu hình, một lỗi im lặng không ai truy ra được.
+     * Đã khai mà thiếu đúng thứ trong tuần đó thì mới là nghỉ.
+     */
+    private Optional<String> closedTodayIssue(Ticket ticket, LocalDate date, LocalDateTime now) {
+        if (!date.equals(now.toLocalDate()) || ticket.getGymBranch() == null) {
+            return Optional.empty();
+        }
+        List<OperatingHour> hours = operatingHourRepository
+                .findByGymBranch_IdOrderByDayOfWeek(ticket.getGymBranch().getId());
+        if (hours.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<OperatingHour> forToday = hours.stream()
+                .filter(h -> Objects.equals(h.getDayOfWeek(), date.getDayOfWeek().getValue()))
+                .findFirst();
+        if (forToday.isEmpty() || forToday.get().isClosed()) {
+            return Optional.of("Chi nhánh nghỉ hôm nay — vui lòng chọn ngày khác");
+        }
+        LocalTime closeTime = forToday.get().getCloseTime();
+        if (closeTime != null && !now.toLocalTime().isBefore(closeTime)) {
+            return Optional.of("Chi nhánh đã đóng cửa hôm nay (đóng lúc " + closeTime
+                    + ") — vui lòng chọn ngày khác");
+        }
+        return Optional.empty();
     }
 
     /** Điều kiện chung: vé dùng được và phòng gym còn nhận khách. */

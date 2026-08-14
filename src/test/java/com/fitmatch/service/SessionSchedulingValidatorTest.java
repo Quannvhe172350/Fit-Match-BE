@@ -4,10 +4,13 @@ import com.fitmatch.common.enums.SessionStatus;
 import com.fitmatch.common.enums.TicketKind;
 import com.fitmatch.common.enums.TicketStatus;
 import com.fitmatch.common.enums.VerificationStatus;
+import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymProfile;
+import com.fitmatch.entity.OperatingHour;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TrainingSession;
 import com.fitmatch.exception.BusinessException;
+import com.fitmatch.repository.OperatingHourRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.service.support.PtSlotValidator;
 import com.fitmatch.service.support.SessionSchedulingValidator;
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +37,10 @@ class SessionSchedulingValidatorTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 8, 13);
 
+    private static final Long BRANCH_ID = 7L;
+
     @Mock private TrainingSessionRepository trainingSessionRepository;
+    @Mock private OperatingHourRepository operatingHourRepository;
     @InjectMocks private SessionSchedulingValidator validator;
 
     private Ticket ticket(TicketKind kind, int dayCount, TicketStatus status) {
@@ -228,5 +235,116 @@ class SessionSchedulingValidatorTest {
         assertThatThrownBy(() -> validator.assertSchedulable(t, List.of(TODAY.plusDays(1)), TODAY))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Vé đã hết hạn");
+    }
+
+    // ---------- giờ đóng cửa của chi nhánh (chỉ áp cho ngày HÔM NAY) ----------
+
+    /** Vé gắn chi nhánh — các test cũ để null nên không chạm luật giờ đóng cửa. */
+    private Ticket ticketAtBranch() {
+        Ticket t = ticket(TicketKind.DAY, 1, TicketStatus.ACTIVE);
+        t.setGymBranch(GymBranch.builder().id(BRANCH_ID).name("Chi nhánh 1").build());
+        return t;
+    }
+
+    private void openingHours(LocalTime open, LocalTime close, boolean closed) {
+        when(operatingHourRepository.findByGymBranch_IdOrderByDayOfWeek(BRANCH_ID))
+                .thenReturn(List.of(OperatingHour.builder()
+                        .dayOfWeek(TODAY.getDayOfWeek().getValue())
+                        .openTime(open).closeTime(close).closed(closed).build()));
+    }
+
+    @Test
+    void today_beforeClosingTime_passes() {
+        alreadyBooked(0);
+        openingHours(LocalTime.of(6, 0), LocalTime.of(22, 0), false);
+
+        validator.assertSchedulable(ticketAtBranch(), List.of(TODAY),
+                TODAY.atTime(21, 59));
+    }
+
+    @Test
+    void today_afterClosingTime_rejected() {
+        alreadyBooked(0);
+        openingHours(LocalTime.of(6, 0), LocalTime.of(22, 0), false);
+
+        assertThatThrownBy(() -> validator.assertSchedulable(ticketAtBranch(), List.of(TODAY),
+                TODAY.atTime(22, 30)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã đóng cửa hôm nay");
+    }
+
+    /** Đúng giờ đóng cửa cũng là muộn: 22:00 nghĩa là 22:00 đã ngừng nhận. */
+    @Test
+    void today_exactlyAtClosingTime_rejected() {
+        alreadyBooked(0);
+        openingHours(LocalTime.of(6, 0), LocalTime.of(22, 0), false);
+
+        assertThatThrownBy(() -> validator.assertSchedulable(ticketAtBranch(), List.of(TODAY),
+                TODAY.atTime(22, 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã đóng cửa hôm nay");
+    }
+
+    /** Ngày mai thì giờ giấc hôm nay không nói lên điều gì — gym còn cả ngày để mở. */
+    @Test
+    void tomorrow_afterTodaysClosingTime_passes() {
+        alreadyBooked(0);
+
+        validator.assertSchedulable(ticketAtBranch(), List.of(TODAY.plusDays(1)),
+                TODAY.atTime(23, 30));
+    }
+
+    @Test
+    void today_branchClosedAllDay_rejected() {
+        alreadyBooked(0);
+        openingHours(null, null, true);
+
+        assertThatThrownBy(() -> validator.assertSchedulable(ticketAtBranch(), List.of(TODAY),
+                TODAY.atTime(9, 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("nghỉ hôm nay");
+    }
+
+    /** Đã khai giờ nhưng thiếu đúng thứ trong tuần đó = nghỉ. */
+    @Test
+    void today_weekdayMissingFromDeclaredHours_rejected() {
+        alreadyBooked(0);
+        when(operatingHourRepository.findByGymBranch_IdOrderByDayOfWeek(BRANCH_ID))
+                .thenReturn(List.of(OperatingHour.builder()
+                        .dayOfWeek(TODAY.plusDays(1).getDayOfWeek().getValue())
+                        .openTime(LocalTime.of(6, 0)).closeTime(LocalTime.of(22, 0)).build()));
+
+        assertThatThrownBy(() -> validator.assertSchedulable(ticketAtBranch(), List.of(TODAY),
+                TODAY.atTime(9, 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("nghỉ hôm nay");
+    }
+
+    /**
+     * Chi nhánh chưa khai giờ thì KHÔNG suy ra là đóng cửa — nếu không, mọi chi
+     * nhánh chưa kịp cấu hình sẽ âm thầm mất quyền đặt lịch trong ngày.
+     */
+    @Test
+    void today_branchWithoutDeclaredHours_passes() {
+        alreadyBooked(0);
+        when(operatingHourRepository.findByGymBranch_IdOrderByDayOfWeek(BRANCH_ID))
+                .thenReturn(List.of());
+
+        validator.assertSchedulable(ticketAtBranch(), List.of(TODAY), TODAY.atTime(23, 0));
+    }
+
+    /** Dời sang hôm nay cũng phải trước giờ đóng cửa — cùng luật với đặt mới. */
+    @Test
+    void reschedule_toTodayAfterClosingTime_rejected() {
+        openingHours(LocalTime.of(6, 0), LocalTime.of(22, 0), false);
+        Ticket t = ticketAtBranch();
+        TrainingSession session = TrainingSession.builder()
+                .id(5L).ticket(t).status(SessionStatus.SCHEDULED)
+                .sessionDate(TODAY.plusDays(3)).build();
+
+        assertThatThrownBy(() -> validator.assertReschedulable(t, session, TODAY,
+                TODAY.atTime(22, 30)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã đóng cửa hôm nay");
     }
 }
