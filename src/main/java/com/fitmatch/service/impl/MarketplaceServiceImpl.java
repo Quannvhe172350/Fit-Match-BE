@@ -51,6 +51,7 @@ public class MarketplaceServiceImpl implements MarketplaceService {
     private final GymBranchRepository gymBranchRepository;
     private final MediaService mediaService;
     private final OperatingHourRepository operatingHourRepository;
+    private final com.fitmatch.repository.GymFacilityRepository gymFacilityRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
     private final com.fitmatch.config.GeocodingProperties geocodingProperties;
@@ -260,6 +261,23 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         mediaService.listForEntities(MediaEntityType.BRANCH, branchIds, null)
                 .values().forEach(list -> list.forEach(m -> media.add(GymMediaResponse.of(m))));
         return media;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.fitmatch.dto.gym.FacilityResponse> listGymFacilities(Long gymProfileId) {
+        requireVisibleGym(gymProfileId);
+        // Chỉ hạng mục đang hoạt động: gym tắt một phòng đang sửa chữa thì khách
+        // không được thấy nó nữa, dù ảnh vẫn còn trên bucket.
+        var facilities = gymFacilityRepository.findByGymProfile_IdAndActiveTrueOrderByIdAsc(gymProfileId);
+        // Một truy vấn ảnh cho cả danh sách — cùng cách làm với bản của operator.
+        var images = mediaService.listForEntities(
+                MediaEntityType.FACILITY,
+                facilities.stream().map(com.fitmatch.entity.GymFacility::getId).toList(),
+                MediaImageType.GALLERY);
+        return facilities.stream()
+                .map(f -> com.fitmatch.dto.gym.FacilityResponse.of(f, images.get(f.getId())))
+                .toList();
     }
 
     @Override

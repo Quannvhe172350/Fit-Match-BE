@@ -101,6 +101,16 @@ public class MarketplaceGymController {
     }
 
     @Operation(
+            summary = "UC-047 — Cơ sở vật chất của Gym (công khai)",
+            description = "Actor: **Customer / Guest**. Chỉ hạng mục đang hoạt động, kèm ảnh "
+                    + "(media FACILITY/GALLERY). Lỗi: 404 gym không hiển thị.")
+    @GetMapping("/{id}/facilities")
+    public ResponseEntity<ApiResponse<java.util.List<com.fitmatch.dto.gym.FacilityResponse>>> facilities(
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(marketplaceService.listGymFacilities(id)));
+    }
+
+    @Operation(
             summary = "UC-009 — PT của Gym (công khai)",
             description = """
                     Actor: **Customer / Guest**. PT đang hoạt động của Gym — phục vụ chọn PT khi \

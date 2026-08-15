@@ -12,6 +12,9 @@ public interface GymFacilityRepository extends JpaRepository<GymFacility, Long> 
 
     List<GymFacility> findByGymProfile_Id(Long gymProfileId);
 
+    /** Bản công khai: gym tắt một hạng mục là khách không còn thấy nó nữa. */
+    List<GymFacility> findByGymProfile_IdAndActiveTrueOrderByIdAsc(Long gymProfileId);
+
     /** Vừa định vị vừa kiểm tra quyền sở hữu theo user (chống IDOR). */
     Optional<GymFacility> findByIdAndGymProfile_User_Username(Long id, String username);
 }

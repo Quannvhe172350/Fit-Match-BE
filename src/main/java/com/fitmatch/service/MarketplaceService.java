@@ -40,6 +40,9 @@ public interface MarketplaceService {
     /** UC-009: media công khai của Gym hiển thị. */
     List<GymMediaResponse> listGymMedia(Long gymProfileId);
 
+    /** UC-047: cơ sở vật chất đang hoạt động của gym, kèm ảnh — mục riêng ở trang gym. */
+    List<com.fitmatch.dto.gym.FacilityResponse> listGymFacilities(Long gymProfileId);
+
     /**
      * UC-009: PT đang hoạt động của Gym hiển thị — phục vụ chọn PT khi booking.
      * Bug S2-04: {@code branchId} khác null thì chỉ trả PT được phân công cho chi
