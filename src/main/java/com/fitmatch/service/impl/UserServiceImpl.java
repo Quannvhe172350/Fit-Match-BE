@@ -38,12 +38,42 @@ public class UserServiceImpl implements UserService {
     private final MediaService mediaService;
     private final PasswordEncoder passwordEncoder;
     private final EmailVerificationIssuer emailVerificationIssuer;
+    private final com.fitmatch.service.support.MediaUrlResolver mediaUrlResolver;
 
     @Override
+    @Transactional
     public UserResponse getProfile(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("User", username));
+        refreshAvatarCache(user);
         return UserMapper.toResponse(user);
+    }
+
+    /**
+     * Đồng bộ lại cột cache {@code users.avatar_url} với ảnh AVATAR hiện hành.
+     *
+     * <p>Cột này là URL chụp tại thời điểm upload. Ảnh tải lên khi ứng dụng còn
+     * chạy storage local mang sẵn {@code http://localhost:8080/...} và giữ nguyên
+     * kể cả sau khi bật GCS — ảnh vỡ ở mọi nơi đọc thẳng cột này (danh sách
+     * booking, đánh giá, menu tài khoản) mà không có gì tự sửa. Đọc hồ sơ là chỗ
+     * rẻ nhất để đối chiếu và vá dần: mỗi user một lần ghi duy nhất.
+     *
+     * <p>Chỉ làm khi URL ổn định. Bucket private ký lại URL mỗi lần gọi nên đem
+     * lưu là vừa ghi DB mỗi lần đọc hồ sơ, vừa cache một thứ sắp hết hạn.
+     */
+    private void refreshAvatarCache(User user) {
+        if (!mediaUrlResolver.isStableUrl()) {
+            return;
+        }
+        MediaResponse avatar = mediaService.primaryFor(
+                MediaEntityType.USER, user.getId(), MediaImageType.AVATAR);
+        if (avatar == null || avatar.getUrl() == null
+                || avatar.getUrl().equals(user.getAvatarUrl())) {
+            return;
+        }
+        user.setAvatarUrl(avatar.getUrl());
+        userRepository.save(user);
+        log.info("Refreshed stale avatar URL cache for user {}", user.getUsername());
     }
 
     @Override
