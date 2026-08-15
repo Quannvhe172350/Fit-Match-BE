@@ -24,8 +24,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -155,18 +158,40 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     }
 
     /**
-     * Gán lại toàn bộ danh sách chi nhánh. Dùng {@code orphanRemoval} nên phải
-     * sửa TRÊN collection hiện có, không thay bằng list mới — Hibernate không
-     * chấp nhận việc thay thế một collection đang được quản lý.
+     * Đưa danh sách chi nhánh của loại vé về đúng {@code branchIds}, bằng cách
+     * CHỈ gỡ cái không còn và CHỈ thêm cái chưa có.
+     *
+     * <p>Sửa TRÊN collection hiện có chứ không thay bằng list mới: collection
+     * dùng {@code orphanRemoval} và Hibernate không chấp nhận việc thay thế một
+     * collection đang được quản lý.
+     *
+     * <p>Không xoá sạch rồi thêm lại: {@code ticket_type_branches} có unique key
+     * {@code (ticket_type_id, gym_branch_id)}, mà trong một lần flush Hibernate
+     * chạy INSERT TRƯỚC DELETE. Sửa gói tập nhưng giữ nguyên chi nhánh — thao tác
+     * thường gặp nhất, vì form gửi lại y nguyên danh sách cũ — sẽ chèn hàng trùng
+     * đúng hàng chưa kịp xoá và chết ở uk_ttb_type_branch.
+     *
+     * <p>Giữ lại hàng cũ còn cho một cái lợi nữa: id và mốc tạo của liên kết
+     * không đổi mỗi lần gym sửa giá.
      */
     private void replaceBranches(TicketType type, GymProfile gym, List<Long> branchIds) {
         List<GymBranch> branches = resolveBranches(gym, branchIds);
-        type.getBranches().clear();
+        Set<Long> wanted = branches.stream().map(GymBranch::getId).collect(Collectors.toSet());
+
+        type.getBranches().removeIf(link -> !wanted.contains(link.getGymBranch().getId()));
+
+        Set<Long> existing = type.getBranches().stream()
+                .map(link -> link.getGymBranch().getId())
+                .collect(Collectors.toCollection(HashSet::new));
         for (GymBranch branch : branches) {
-            type.getBranches().add(TicketTypeBranch.builder()
-                    .ticketType(type)
-                    .gymBranch(branch)
-                    .build());
+            // add() trả false khi chi nhánh đã có liên kết -> vừa lọc trùng trong
+            // chính request, vừa bỏ qua hàng đang tồn tại.
+            if (existing.add(branch.getId())) {
+                type.getBranches().add(TicketTypeBranch.builder()
+                        .ticketType(type)
+                        .gymBranch(branch)
+                        .build());
+            }
         }
     }
 
