@@ -43,12 +43,20 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, Long> {
      *
      * <p>{@code distinct} là bắt buộc: một loại vé bán ở nhiều chi nhánh sẽ nhân
      * dòng qua bảng nối.
+     *
+     * <p>Lọc theo trạng thái GYM chứ không chỉ trạng thái vé — cùng luật với
+     * {@code GymProfileSpecifications.visibleOnMarketplace()}. Thiếu điều kiện này
+     * thì vé của gym chưa duyệt hoặc đang tắt vẫn nằm trên trang duyệt vé công
+     * khai; khách mua xong mới biết vì validator đặt lịch từ chối với lý do
+     * "Phòng gym hiện không nhận đặt lịch".
      */
     @Query("""
             select distinct t from TicketType t
             join t.gymProfile g
             where t.status = com.fitmatch.common.enums.CatalogStatus.PUBLISHED
               and t.active = true
+              and g.verificationStatus = com.fitmatch.common.enums.VerificationStatus.APPROVED
+              and g.active = true
               and (:kind is null or t.kind = :kind)
               and (:city is null or g.city = :city)
               and (:district is null or g.district = :district)
