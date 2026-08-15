@@ -23,6 +23,6 @@ public class PtSessionServiceImpl implements PtSessionService {
         return sessionRepository
                 .findByPtProfile_User_UsernameAndSessionDateBetweenAndStatusInOrderBySessionDateAscPtSlotStartAsc(
                         ptUsername, from, to, List.of(SessionStatus.SCHEDULED, SessionStatus.DONE))
-                .stream().map(TrainingSessionResponse::of).toList();
+                .stream().map(TrainingSessionResponse::forPt).toList();
     }
 }

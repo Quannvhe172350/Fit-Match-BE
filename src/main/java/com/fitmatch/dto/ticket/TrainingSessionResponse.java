@@ -36,6 +36,13 @@ public class TrainingSessionResponse {
     private LocalDateTime ptConfirmedAt;
     private String evidenceUrl;
 
+    /**
+     * Chỉ điền ở lịch dạy của PT ({@link #forPt}). Buổi tập vốn chỉ mang
+     * {@code ticketId}, mà PT nhìn "vé #123" thì không biết mình dạy ai; còn ở
+     * lịch của chính khách thì tên đó là tên họ, thêm vào chỉ tốn chỗ.
+     */
+    private String customerName;
+
     public static TrainingSessionResponse of(TrainingSession s) {
         return TrainingSessionResponse.builder()
                 .id(s.getId())
@@ -51,5 +58,15 @@ public class TrainingSessionResponse {
                 .ptConfirmedAt(s.getPtConfirmedAt())
                 .evidenceUrl(s.getEvidenceUrl())
                 .build();
+    }
+
+    /** Bản cho lịch dạy của PT — kèm tên khách của vé. */
+    public static TrainingSessionResponse forPt(TrainingSession s) {
+        TrainingSessionResponse response = of(s);
+        var customer = s.getTicket() != null ? s.getTicket().getCustomer() : null;
+        if (customer != null) {
+            response.setCustomerName(customer.getFullName());
+        }
+        return response;
     }
 }
