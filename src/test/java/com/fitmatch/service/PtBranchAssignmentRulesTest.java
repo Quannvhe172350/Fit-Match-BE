@@ -9,6 +9,7 @@ import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.PtAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.service.impl.PtAssignmentServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,7 @@ class PtBranchAssignmentRulesTest {
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private GymBranchRepository gymBranchRepository;
     @Mock private TrainingSessionRepository trainingSessionRepository;
+    @Mock private PtShiftAssignmentRepository ptShiftAssignmentRepository;
     @InjectMocks private PtAssignmentServiceImpl service;
 
     private void ownedPt() {

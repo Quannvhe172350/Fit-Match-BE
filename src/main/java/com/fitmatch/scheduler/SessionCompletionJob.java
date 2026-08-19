@@ -22,6 +22,14 @@ public class SessionCompletionJob {
 
     @Scheduled(cron = "${app.ticket.session-completion-cron:0 10 0 * * *}")
     public void completeElapsedSessions() {
+        // Quyết định §4.1: chốt các buổi mất PT mà khách chưa quyết TRƯỚC khi
+        // đẩy buổi sang DONE. Ngược thứ tự thì buổi đóng lại trong khi vẫn còn
+        // một khoản phụ phí PT treo chưa hoàn cho khách.
+        try {
+            maintenanceService.autoResolvePtCancellations();
+        } catch (Exception e) {
+            log.error("PT cancellation auto-resolve failed", e);
+        }
         try {
             maintenanceService.completeElapsedSessions();
         } catch (Exception e) {

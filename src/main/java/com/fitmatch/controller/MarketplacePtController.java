@@ -52,7 +52,7 @@ public class MarketplacePtController {
         return ResponseEntity.ok(ApiResponse.success(marketplaceService.getPtDetail(id)));
     }
 
-    // /{id}/availability đã bỏ: lịch rảnh giờ theo NGÀY cụ thể chứ không theo
-    // thứ trong tuần, và ô đã có người đặt cũng phải hiển thị mờ — xem
-    // GET /api/pt-availability/grid?branchId=&ptId=&from=&to=.
+    // /{id}/availability đã bỏ: slot của PT sinh từ CA do Gym xếp (V85) nên
+    // phải hỏi theo chi nhánh và khoảng ngày, và ô đã có người đặt cũng phải
+    // hiển thị mờ — xem GET /api/pt-availability/grid?branchId=&ptId=&from=&to=.
 }

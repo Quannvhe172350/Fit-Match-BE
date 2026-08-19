@@ -12,6 +12,7 @@ import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.PtAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.service.impl.PtAssignmentServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +37,7 @@ class PtAssignmentRemoveGuardTest {
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private GymBranchRepository gymBranchRepository;
     @Mock private TrainingSessionRepository trainingSessionRepository;
+    @Mock private PtShiftAssignmentRepository ptShiftAssignmentRepository;
     @InjectMocks private PtAssignmentServiceImpl service;
 
     @Test
@@ -66,6 +68,25 @@ class PtAssignmentRemoveGuardTest {
         service.remove("gym", 2L, 7L);
 
         verify(ptAssignmentRepository).delete(a);
+    }
+
+    /** Edge case §7.3 (V85): còn CA tương lai thì cũng không được gỡ chi nhánh. */
+    @Test
+    void remove_withFutureShifts_blocksAndDoesNotDelete() {
+        when(ptProfileRepository.findByIdAndGymProfile_User_Username(2L, "gym"))
+                .thenReturn(Optional.of(PtProfile.builder().id(2L).build()));
+        when(ptAssignmentRepository.findByIdAndPtProfile_GymProfile_User_Username(7L, "gym"))
+                .thenReturn(Optional.of(PtAssignment.builder().id(7L).build()));
+        when(trainingSessionRepository.countByPtProfile_IdAndStatusAndSessionDateGreaterThanEqual(
+                eq(2L), any(), any())).thenReturn(0L);
+        when(ptShiftAssignmentRepository.countByPtProfile_IdAndActiveTrueAndWorkDateGreaterThanEqual(
+                eq(2L), any())).thenReturn(5L);
+
+        assertThatThrownBy(() -> service.remove("gym", 2L, 7L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã được xếp ca");
+
+        verify(ptAssignmentRepository, never()).delete(any());
     }
 
     @Test

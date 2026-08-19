@@ -49,6 +49,7 @@ class WalletServiceImplTest {
                 .availableBalance(BigDecimal.ZERO).frozenBalance(BigDecimal.ZERO)
                 .build();
         lenient().when(walletRepository.findByGymProfile_Id(5L)).thenReturn(Optional.of(wallet));
+        lenient().when(walletRepository.lockByGymProfileId(5L)).thenReturn(Optional.of(wallet));
         lenient().when(walletRepository.lockById(1L)).thenReturn(Optional.of(wallet));
     }
 
@@ -60,6 +61,24 @@ class WalletServiceImplTest {
         ArgumentCaptor<WalletTransaction> cap = ArgumentCaptor.forClass(WalletTransaction.class);
         verify(walletTransactionRepository, org.mockito.Mockito.atLeastOnce()).save(cap.capture());
         return cap.getAllValues();
+    }
+
+    /**
+     * Hồi quy: ví vừa được {@code WalletCreator} tạo ở transaction REQUIRES_NEW
+     * thì transaction ngoài (REPEATABLE READ) KHÔNG thấy bằng truy vấn thường,
+     * chỉ thấy bằng truy vấn có khoá. Bản cũ đọc thường trước rồi mới khoá nên
+     * lần thanh toán đầu tiên của mỗi gym luôn ném "Wallet for gym not found",
+     * vé kẹt PENDING_PAYMENT và tiền không được giữ.
+     */
+    @Test
+    void holdForTicket_findsWalletVisibleOnlyToLockingRead() {
+        // Mô phỏng đúng tình huống thật: truy vấn THƯỜNG không thấy ví (ảnh chụp
+        // REPEATABLE READ cũ hơn lần commit tạo ví), chỉ truy vấn CÓ KHOÁ mới thấy.
+        lenient().when(walletRepository.findByGymProfile_Id(5L)).thenReturn(Optional.empty());
+
+        service.holdForTicket(5L, 10L, new BigDecimal("200.00"));
+
+        assertThat(wallet.getHeldBalance()).isEqualByComparingTo("200.00");
     }
 
     @Test

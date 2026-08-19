@@ -12,6 +12,7 @@ import com.fitmatch.repository.TrainingSessionRepository;
 import com.fitmatch.repository.GymBranchRepository;
 import com.fitmatch.repository.PtAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.service.PtAssignmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
     private final PtProfileRepository ptProfileRepository;
     private final GymBranchRepository gymBranchRepository;
     private final TrainingSessionRepository trainingSessionRepository;
+    private final PtShiftAssignmentRepository ptShiftAssignmentRepository;
 
     @Override
     @Transactional
@@ -90,6 +92,17 @@ public class PtAssignmentServiceImpl implements PtAssignmentService {
             throw new BusinessException(ErrorCode.INVALID_STATE,
                     "Không thể gỡ phân công: PT còn " + future + " buổi tập đã đặt. "
                             + "Hãy để khách đổi PT trước.");
+        }
+        // Edge case §7.3 (V85): gỡ chi nhánh khi PT còn CA tương lai ở đó sẽ để
+        // lại lịch ma — ca vẫn hiện trên lưới phân ca nhưng PtSlotValidator từ
+        // chối mọi lượt đặt vì điều kiện "PT phụ trách chi nhánh" đã hỏng.
+        long futureShifts = ptShiftAssignmentRepository
+                .countByPtProfile_IdAndActiveTrueAndWorkDateGreaterThanEqual(
+                        ptId, java.time.LocalDate.now());
+        if (futureShifts > 0) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Không thể gỡ phân công: PT còn " + futureShifts
+                            + " ngày đã được xếp ca. Hãy gỡ ca của PT ở chi nhánh này trước.");
         }
         ptAssignmentRepository.delete(assignment);
         log.info("Gym {} removed assignment {} of PT {}", gymUsername, assignmentId, ptId);

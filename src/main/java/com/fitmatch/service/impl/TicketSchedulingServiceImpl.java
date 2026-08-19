@@ -7,7 +7,6 @@ import com.fitmatch.dto.ticket.ScheduleTicketRequest;
 import com.fitmatch.dto.ticket.TicketResponse;
 import com.fitmatch.dto.ticket.TrainingSessionResponse;
 import com.fitmatch.dto.ticket.UpdateSessionPtRequest;
-import com.fitmatch.entity.PtAvailability;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TrainingSession;
@@ -16,6 +15,7 @@ import com.fitmatch.exception.ResourceNotFoundException;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
+import com.fitmatch.service.SessionPtCancellationService;
 import com.fitmatch.service.TicketSchedulingService;
 import com.fitmatch.service.support.NotificationDispatcher;
 import com.fitmatch.service.support.PackageDayGenerator;
@@ -48,6 +48,7 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
     private final PackageDayGenerator packageDayGenerator;
     private final SessionLifecycle sessionLifecycle;
     private final NotificationDispatcher notificationDispatcher;
+    private final SessionPtCancellationService ptCancellationService;
 
     @Override
     @Transactional
@@ -115,15 +116,15 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
         if (oldDate.equals(date)) {
             return TrainingSessionResponse.of(session);
         }
-        // Khung giờ PT gắn với NGÀY cụ thể: PT phải khai đúng khung đó ở ngày mới,
-        // nếu không thì 409 và khách chọn lại — thay vì im lặng dời sang một ngày
-        // PT không rảnh. Giờ kết thúc lấy lại từ khung của ngày mới vì PT có thể
-        // khai 18:00-19:00 hôm nay nhưng 18:00-20:00 hôm sau.
+        // V85: PT phải có CA phủ đúng khung giờ đó ở ngày mới, nếu không thì 409 và
+        // khách chọn lại — thay vì im lặng dời sang một ngày PT không làm việc.
+        // Giờ kết thúc lấy lại từ ca của ngày mới vì hai ngày có thể thuộc hai ca
+        // với slotMinutes khác nhau.
         if (session.getPtProfile() != null) {
-            PtAvailability slot = ptSlotValidator.resolveSlot(
+            PtSlotValidator.ResolvedSlot slot = ptSlotValidator.resolveSlot(
                     session.getPtProfile().getId(), ticket.getGymBranch().getId(),
                     date, session.getPtSlotStart(), session.getId());
-            session.setPtSlotEnd(slot.getEndTime());
+            session.setPtSlotEnd(slot.endTime());
         }
         session.setSessionDate(date);
         if (ticket.getStartDate() != null && date.isBefore(ticket.getStartDate())) {
@@ -148,6 +149,10 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
         sessionLifecycle.recordNote(session, "Chọn PT #" + request.getPtId()
                 + " khung " + request.getSlotStart());
         sessionRepository.save(session);
+        // Quyết định §4.1: nếu buổi này đang chờ khách xử lý vì PT cũ xin nghỉ thì
+        // việc chọn được PT mới CHÍNH LÀ câu trả lời — đóng luôn, không bắt khách
+        // vào thêm một màn hình nữa để xác nhận.
+        ptCancellationService.markReplaced(session.getId());
 
         notificationDispatcher.sessionPtAssigned(session);
         return TrainingSessionResponse.of(session);
@@ -238,7 +243,7 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
         return map;
     }
 
-    /** Gán PT + khung giờ vào một buổi, sau khi qua đủ bốn điều kiện của PtSlotValidator. */
+    /** Gán PT + khung giờ vào một buổi, sau khi qua đủ năm điều kiện của PtSlotValidator. */
     private void applyPt(Ticket ticket, TrainingSession session, Long ptId,
                          LocalTime slotStart, LocalDate date) {
         if (!ticket.isWithPt()) {
@@ -249,15 +254,15 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "slotStart is required when a PT is selected");
         }
-        PtAvailability slot = ptSlotValidator.resolveSlot(
+        PtSlotValidator.ResolvedSlot slot = ptSlotValidator.resolveSlot(
                 ptId, ticket.getGymBranch().getId(), date, slotStart, session.getId());
         PtProfile pt = ptProfileRepository.findById(ptId)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
 
         session.setPtProfile(pt);
-        session.setPtSlotStart(slot.getStartTime());
-        // Giờ kết thúc lấy từ khung PT đã khai — khách chỉ chọn giờ bắt đầu.
-        session.setPtSlotEnd(slot.getEndTime());
+        session.setPtSlotStart(slot.startTime());
+        // Giờ kết thúc do CA quyết (slotMinutes) — khách chỉ chọn giờ bắt đầu.
+        session.setPtSlotEnd(slot.endTime());
     }
 
     /** Buổi chỉ sửa được khi còn SCHEDULED và ngày tập chưa tới (mốc 00:00). */

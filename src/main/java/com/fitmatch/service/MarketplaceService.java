@@ -51,5 +51,6 @@ public interface MarketplaceService {
     PageResponse<PtPublicProfileResponse> listGymPts(Long gymProfileId, Long branchId, Pageable pageable);
 
     // Lịch rảnh của PT giờ theo NGÀY cụ thể, không còn thời gian biểu tuần:
-    // xem GET /api/pt-availability/grid?branchId=&ptId=&from=&to=.
+    // xem GET /api/pt-availability/grid?branchId=&ptId=&from=&to= (V85: slot
+    // sinh từ ca Gym đã xếp, trừ đi đơn nghỉ đã duyệt).
 }

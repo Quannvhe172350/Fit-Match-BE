@@ -93,9 +93,9 @@ public class PtController {
                 ptProfileService.updateProfile(userDetails.getUsername(), request)));
     }
 
-    // Lịch rảnh chuyển sang GET/PUT /api/pt/availability/daily (theo NGÀY cụ thể,
-    // câu 26). Blocked-times bị bỏ hoàn toàn: với lịch theo ngày thì "bận" đơn
-    // giản là không khai khung giờ cho ngày đó.
+    // V85: lịch của PT do GYM xếp. PT chỉ ĐỌC ca của mình ở GET /api/pt/shifts
+    // và gửi đơn nghỉ ở /api/pt/leave-requests — xem PtShiftController. Cả lịch
+    // rảnh hằng tuần lẫn blocked-times của các mô hình trước đều không còn.
 
     @Operation(
             summary = "UC-007 — Xem trước hồ sơ PT công khai",

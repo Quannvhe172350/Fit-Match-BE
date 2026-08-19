@@ -6,10 +6,11 @@ import com.fitmatch.common.enums.TicketStatus;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TrainingSession;
-import com.fitmatch.repository.PtAvailabilityRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
+import com.fitmatch.service.SessionPtCancellationService;
 import com.fitmatch.service.SettlementService;
 import com.fitmatch.service.TicketMaintenanceService;
 import com.fitmatch.service.support.NotificationDispatcher;
@@ -34,13 +35,20 @@ public class TicketMaintenanceServiceImpl implements TicketMaintenanceService {
     /** Nhắc trước khi vé hết hạn. */
     private static final int EXPIRY_WARNING_DAYS = 3;
 
+    /**
+     * Cửa sổ kiểm "PT đã được xếp ca chưa". Hai tuần đủ để Gym kịp xử lý mà
+     * không cảnh báo quá sớm — lịch tháng sau thường chưa xếp là bình thường.
+     */
+    private static final int ROSTER_HORIZON_DAYS = 14;
+
     private final TicketRepository ticketRepository;
     private final TrainingSessionRepository sessionRepository;
     private final PtProfileRepository ptProfileRepository;
-    private final PtAvailabilityRepository ptAvailabilityRepository;
+    private final PtShiftAssignmentRepository shiftAssignmentRepository;
     private final TicketLifecycle ticketLifecycle;
     private final SessionLifecycle sessionLifecycle;
     private final SettlementService settlementService;
+    private final SessionPtCancellationService sessionPtCancellationService;
     private final NotificationDispatcher notificationDispatcher;
 
     @Override
@@ -129,23 +137,30 @@ public class TicketMaintenanceServiceImpl implements TicketMaintenanceService {
 
     @Override
     @Transactional(readOnly = true)
-    public int warnPtsWithThinAvailability() {
-        int threshold = PtDailyAvailabilityServiceImpl.RECOMMENDED_DAYS;
+    public int warnPtsWithoutRoster() {
         LocalDate today = LocalDate.now();
+        LocalDate horizon = today.plusDays(ROSTER_HORIZON_DAYS);
         int warned = 0;
         for (PtProfile pt : ptProfileRepository.findByStatus(PtStatus.ACTIVE)) {
-            long days = ptAvailabilityRepository.countDistinctDaysFrom(pt.getId(), today);
-            if (days >= threshold) {
+            long shifts = shiftAssignmentRepository
+                    .countByPtProfile_IdAndActiveTrueAndWorkDateBetween(pt.getId(), today, horizon);
+            if (shifts > 0) {
                 continue;
             }
-            // Quyết định #8: CHỈ cảnh báo. PT này vẫn xuất hiện trong tìm kiếm và
-            // khách vẫn đặt được — không có nhánh nào ẩn PT đi ở đây.
-            notificationDispatcher.ptAvailabilityBelowThreshold(
-                    pt.getUser(),
-                    pt.getGymProfile() != null ? pt.getGymProfile().getUser() : null,
-                    days, threshold);
-            warned++;
+            // Gửi cho GYM chứ không gửi cho PT: trong mô hình mới PT không có
+            // quyền tự sửa, nhắc PT chỉ tạo ra một thông báo họ không làm gì được.
+            if (pt.getGymProfile() != null) {
+                notificationDispatcher.ptNotRostered(
+                        pt.getGymProfile().getUser(), pt.getDisplayName(), ROSTER_HORIZON_DAYS);
+                warned++;
+            }
         }
         return warned;
+    }
+
+    @Override
+    @Transactional
+    public int autoResolvePtCancellations() {
+        return sessionPtCancellationService.autoResolveDueCancellations();
     }
 }

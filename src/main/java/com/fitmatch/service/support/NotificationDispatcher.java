@@ -3,6 +3,7 @@ package com.fitmatch.service.support;
 import com.fitmatch.common.enums.NotificationCategory;
 import com.fitmatch.entity.Dispute;
 import com.fitmatch.entity.GymProfile;
+import com.fitmatch.entity.PtLeaveRequest;
 import com.fitmatch.entity.Review;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TrainingSession;
@@ -341,18 +342,84 @@ public class NotificationDispatcher {
                         "reason", s(reason)));
     }
 
-    /** Quyết định #8: PT khai dưới ngưỡng ngày — cảnh báo PT và gym quản lý. */
-    public void ptAvailabilityBelowThreshold(User ptUser, User gymOwner, long daysDeclared, int threshold) {
-        Map<String, String> vars = Map.of(
-                "days", s(daysDeclared), "threshold", s(threshold));
-        dispatch("PT_AVAILABILITY_LOW_PT", ptUser, NotificationCategory.SYSTEM,
-                "Lịch rảnh của bạn còn ít",
-                "Bạn mới khai " + daysDeclared + "/" + threshold
-                        + " ngày. Khách vẫn đặt được, nhưng khai thêm sẽ có nhiều lịch hơn.",
-                "/trainer/availability", vars);
-        dispatch("PT_AVAILABILITY_LOW_GYM", gymOwner, NotificationCategory.SYSTEM,
-                "PT khai lịch rảnh dưới ngưỡng",
-                "Một PT của bạn mới khai " + daysDeclared + "/" + threshold + " ngày.",
-                "/gym/pts", vars);
+    // ----- Vận hành nhân sự: ca làm việc & đơn nghỉ của PT (V85-V89) -----
+
+    /**
+     * V85: cảnh báo GYM khi một PT đang ACTIVE nhưng chưa được xếp ca nào.
+     * Thay {@code ptAvailabilityBelowThreshold} cũ — ở mô hình mới PT không tự
+     * khai lịch nữa, nên "khai dưới 20 ngày" không còn là lỗi của PT mà là việc
+     * Gym chưa làm. Chỉ gửi cho Gym: PT không có quyền tự sửa.
+     */
+    public void ptNotRostered(User gymOwner, String ptName, int days) {
+        dispatch("PT_SHIFT_NOT_ROSTERED", gymOwner, NotificationCategory.WORKFORCE,
+                "PT chưa được xếp ca",
+                "PT " + ptName + " đang hoạt động nhưng chưa có ca nào trong " + days
+                        + " ngày tới — khách không đặt được HLV này.",
+                "/gym/pts",
+                Map.of("ptName", s(ptName), "days", s(days)));
+    }
+
+    /** PT gửi đơn nghỉ — Gym Operator phải biết ngay vì slot chỉ khoá sau khi duyệt. */
+    public void ptLeaveSubmitted(User gymOwner, String ptName, PtLeaveRequest request) {
+        dispatch("PT_LEAVE_SUBMITTED", gymOwner, NotificationCategory.WORKFORCE,
+                "PT gửi đơn xin nghỉ",
+                ptName + " xin nghỉ từ " + request.getFromDate() + " đến " + request.getToDate()
+                        + " (" + request.getType() + "): " + request.getReason()
+                        + ". Vào duyệt đơn để chốt lịch.",
+                "/gym/leave-requests",
+                Map.of("ptName", s(ptName), "fromDate", s(request.getFromDate()),
+                        "toDate", s(request.getToDate()), "type", s(request.getType()),
+                        "reason", s(request.getReason())));
+    }
+
+    /** Gym duyệt đơn — kèm số buổi của khách bị ảnh hưởng để PT biết hệ quả. */
+    public void ptLeaveApproved(User ptUser, PtLeaveRequest request, int affectedSessions) {
+        dispatch("PT_LEAVE_APPROVED", ptUser, NotificationCategory.WORKFORCE,
+                "Đơn nghỉ đã được duyệt",
+                "Đơn nghỉ " + request.getFromDate() + " - " + request.getToDate()
+                        + " đã được duyệt. Số buổi tập bị ảnh hưởng: " + affectedSessions + ".",
+                "/trainer/availability",
+                Map.of("fromDate", s(request.getFromDate()), "toDate", s(request.getToDate()),
+                        "affected", s(affectedSessions)));
+    }
+
+    /** Gym từ chối — lý do bắt buộc, PT cần biết để sắp xếp lại. */
+    public void ptLeaveRejected(User ptUser, PtLeaveRequest request, String reason) {
+        dispatch("PT_LEAVE_REJECTED", ptUser, NotificationCategory.WORKFORCE,
+                "Đơn nghỉ bị từ chối",
+                "Đơn nghỉ " + request.getFromDate() + " - " + request.getToDate()
+                        + " bị từ chối: " + reason + ". Lịch ca của bạn giữ nguyên.",
+                "/trainer/availability",
+                Map.of("fromDate", s(request.getFromDate()), "toDate", s(request.getToDate()),
+                        "reason", s(reason)));
+    }
+
+    /**
+     * Quyết định §4.1: buổi tập mất PT — KHÁCH là người quyết. Thông báo phải
+     * nêu đủ hai lựa chọn và số tiền, nếu không khách sẽ không hiểu vì sao buổi
+     * vẫn còn trên lịch mà không có tên huấn luyện viên.
+     */
+    public void sessionPtCancelled(TrainingSession session, String ptName,
+                                   java.time.LocalTime slotStart, BigDecimal refundAmount) {
+        Ticket ticket = session.getTicket();
+        dispatch("SESSION_PT_CANCELLED", ticket.getCustomer(), NotificationCategory.BOOKING,
+                "HLV của buổi tập xin nghỉ",
+                "HLV " + ptName + " không thể phụ trách buổi ngày " + session.getSessionDate()
+                        + " lúc " + slotStart + ". Bạn có thể chọn HLV khác hoặc nhận hoàn "
+                        + refundAmount + " đ phụ phí HLV của ngày này.",
+                "/sessions/" + session.getId(),
+                Map.of("ptName", s(ptName), "date", s(session.getSessionDate()),
+                        "slotStart", s(slotStart), "refundAmount", s(refundAmount)));
+    }
+
+    /** Khách không quyết tới ngày tập — hệ thống tự hoàn để khách không thiệt. */
+    public void sessionPtAutoRefunded(TrainingSession session, BigDecimal refundAmount) {
+        Ticket ticket = session.getTicket();
+        dispatch("SESSION_PT_AUTO_REFUNDED", ticket.getCustomer(), NotificationCategory.BOOKING,
+                "Đã hoàn phụ phí HLV của buổi tập",
+                "Buổi ngày " + session.getSessionDate() + " không được chọn HLV thay thế nên "
+                        + refundAmount + " đ phụ phí HLV đã được hoàn vào ví của bạn.",
+                "/profile/wallet",
+                Map.of("date", s(session.getSessionDate()), "refundAmount", s(refundAmount)));
     }
 }

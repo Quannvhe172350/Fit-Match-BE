@@ -17,6 +17,10 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MariaDBDialect
+  # Edge case §7.8: chốt múi giờ để LocalDate/LocalDateTime không phụ thuộc vào
+  # cấu hình máy chủ. TimeZoneConfig set TimeZone.setDefault tương ứng cho tầng Java.
+  jackson:
+    time-zone: Asia/Ho_Chi_Minh
   servlet:
     multipart:
       # Hạn mức của tầng servlet, PHẢI lớn hơn app.media.max-image-size-mb — nếu

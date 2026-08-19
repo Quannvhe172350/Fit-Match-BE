@@ -9,7 +9,6 @@ import com.fitmatch.dto.ticket.TicketResponse;
 import com.fitmatch.dto.ticket.UpdateSessionPtRequest;
 import com.fitmatch.entity.GymBranch;
 import com.fitmatch.entity.GymProfile;
-import com.fitmatch.entity.PtAvailability;
 import com.fitmatch.entity.PtProfile;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TicketType;
@@ -68,6 +67,7 @@ class TicketSchedulingServiceImplTest {
     @Spy private PackageDayGenerator packageDayGenerator = new PackageDayGenerator();
     @Mock private SessionLifecycle sessionLifecycle;
     @Mock private NotificationDispatcher notificationDispatcher;
+    @Mock private com.fitmatch.service.SessionPtCancellationService ptCancellationService;
     @InjectMocks private TicketSchedulingServiceImpl service;
 
     private GymBranch branch;
@@ -86,8 +86,10 @@ class TicketSchedulingServiceImplTest {
         when(sessionRepository.findByTicket_IdOrderByDayIndexAsc(TICKET_ID)).thenReturn(List.of());
         when(ptProfileRepository.findById(PT_ID)).thenReturn(Optional.of(
                 PtProfile.builder().id(PT_ID).displayName("PT A").build()));
+        // V85: validator trả khung giờ đã phân giải TỪ CA, không còn trả entity
+        // pt_availabilities (bảng đã bị gỡ khỏi mô hình).
         when(ptSlotValidator.resolveSlot(any(), any(), any(), any(), any())).thenReturn(
-                PtAvailability.builder().startTime(SLOT).endTime(LocalTime.of(19, 0)).build());
+                new PtSlotValidator.ResolvedSlot(null, SLOT, LocalTime.of(19, 0)));
     }
 
     private Ticket ticket(TicketKind kind, int dayCount, boolean withPt) {

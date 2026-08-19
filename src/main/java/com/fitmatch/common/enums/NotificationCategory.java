@@ -11,6 +11,8 @@ public enum NotificationCategory {
     DISPUTE,
     REVIEW,
     ACCOUNT,
+    /** Vận hành nhân sự của Gym: đơn nghỉ của PT, phân ca, cảnh báo chưa xếp ca. */
+    WORKFORCE,
     SYSTEM,
     MARKETING
 }

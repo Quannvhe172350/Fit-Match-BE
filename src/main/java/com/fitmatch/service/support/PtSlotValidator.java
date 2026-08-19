@@ -1,14 +1,18 @@
 package com.fitmatch.service.support;
 
 import com.fitmatch.common.enums.ErrorCode;
+import com.fitmatch.common.enums.LeaveStatus;
 import com.fitmatch.common.enums.PtStatus;
 import com.fitmatch.common.enums.SessionStatus;
-import com.fitmatch.entity.PtAvailability;
+import com.fitmatch.entity.GymShift;
+import com.fitmatch.entity.PtLeaveRequest;
 import com.fitmatch.entity.PtProfile;
+import com.fitmatch.entity.PtShiftAssignment;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.repository.PtAssignmentRepository;
-import com.fitmatch.repository.PtAvailabilityRepository;
+import com.fitmatch.repository.PtLeaveRequestRepository;
 import com.fitmatch.repository.PtProfileRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -20,19 +24,23 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Kiểm tra một khung giờ PT có đặt được không — nửa thứ hai của
- * {@code BookingEligibilityChecker} cũ, tách hẳn ra vì buổi tập KHÔNG có PT
- * không được chạm tới lớp này (vé cả ngày thì không có gì để kiểm về giờ giấc).
+ * Kiểm tra một khung giờ PT có đặt được không.
  *
- * <p>Bốn điều kiện, đúng thứ tự rẻ tiền trước:
+ * <p>V85 đảo chủ thể sở hữu lịch: trước đây điều kiện then chốt là "PT đã tự
+ * khai khung giờ này" ({@code pt_availabilities}); giờ là "GYM đã xếp PT vào
+ * một ca phủ khung giờ này, và PT không có đơn nghỉ đã duyệt phủ lên".
+ *
+ * <p>Năm điều kiện, đúng thứ tự rẻ tiền trước:
  * <ol>
  *   <li>PT đang ACTIVE;</li>
- *   <li>PT được phân công vào đúng chi nhánh của vé (câu 24 — assignment giờ
- *       chỉ còn đích chi nhánh);</li>
- *   <li>PT đã khai đúng khung giờ đó cho đúng ngày đó (pt_availabilities);</li>
+ *   <li>PT được phân công vào đúng chi nhánh của vé (câu 24);</li>
+ *   <li>PT có CA tại chi nhánh đó, đúng ngày đó, và khung giờ khách chọn nằm
+ *       đúng lưới slot của ca;</li>
+ *   <li>không có đơn nghỉ APPROVED nào phủ lên khung giờ đó;</li>
  *   <li>khung giờ chưa bị buổi tập nào khác chiếm.</li>
  * </ol>
- * Giờ mở cửa chi nhánh và sức chứa không còn tham gia (câu 26/27/28).
+ * Sức chứa chi nhánh vẫn không tham gia (câu 27/28); giờ mở cửa tham gia GIÁN
+ * TIẾP — ca đã bị ràng buộc phải nằm trong {@code operating_hours} lúc tạo.
  */
 @Component
 @RequiredArgsConstructor
@@ -42,21 +50,31 @@ public class PtSlotValidator {
     public static final Set<SessionStatus> HOLDING_STATUSES =
             Set.of(SessionStatus.SCHEDULED, SessionStatus.DONE);
 
+    /**
+     * Khung giờ đã phân giải từ ca. Thay {@code PtAvailability} ở vai trò "giá
+     * trị trả về cho caller chép endTime": caller chỉ cần hai mốc giờ, không
+     * cần một entity đã bị gỡ khỏi mô hình.
+     */
+    public record ResolvedSlot(GymShift shift, LocalTime startTime, LocalTime endTime) {
+    }
+
     private final PtProfileRepository ptProfileRepository;
     private final PtAssignmentRepository ptAssignmentRepository;
-    private final PtAvailabilityRepository ptAvailabilityRepository;
+    private final PtShiftAssignmentRepository shiftAssignmentRepository;
+    private final PtLeaveRequestRepository leaveRequestRepository;
     private final TrainingSessionRepository trainingSessionRepository;
+    private final ShiftSlotResolver slotResolver;
 
     /**
-     * Ném 409 kèm mọi vi phạm nếu không đặt được; trả về khung giờ đã khai của PT
-     * để caller chép {@code endTime} vào buổi tập (giờ kết thúc do PT quyết, khách
-     * chỉ chọn giờ bắt đầu).
+     * Ném 409 kèm mọi vi phạm nếu không đặt được; trả về khung giờ đã phân giải
+     * để caller chép {@code endTime} vào buổi tập (giờ kết thúc do CA quyết,
+     * khách chỉ chọn giờ bắt đầu).
      *
      * @param excludeSessionId buổi đang được sửa — loại trừ chính nó khi đổi khung
      *                         giờ trong cùng ngày; null khi đặt mới
      */
-    public PtAvailability resolveSlot(Long ptId, Long branchId, LocalDate date,
-                                      LocalTime slotStart, Long excludeSessionId) {
+    public ResolvedSlot resolveSlot(Long ptId, Long branchId, LocalDate date,
+                                    LocalTime slotStart, Long excludeSessionId) {
         List<String> reasons = new ArrayList<>();
 
         PtProfile pt = ptProfileRepository.findById(ptId).orElseThrow(() ->
@@ -68,13 +86,16 @@ public class PtSlotValidator {
             reasons.add("PT không phụ trách chi nhánh này");
         }
 
-        PtAvailability slot = ptAvailabilityRepository
-                .findByPtProfile_IdAndSlotDateAndStartTime(ptId, date, slotStart)
-                .orElse(null);
+        ResolvedSlot slot = findSlot(ptId, branchId, date, slotStart);
         if (slot == null) {
-            reasons.add("PT không khai khung giờ " + slotStart + " ngày " + date);
-        } else if (isTaken(ptId, date, slotStart, excludeSessionId)) {
-            reasons.add("Khung giờ này của PT đã có người đặt");
+            reasons.add("PT không có ca làm việc phủ khung giờ " + slotStart + " ngày " + date);
+        } else {
+            if (isOnApprovedLeave(ptId, date, slot)) {
+                reasons.add("PT đã được duyệt nghỉ vào khung giờ này");
+            }
+            if (isTaken(ptId, date, slotStart, excludeSessionId)) {
+                reasons.add("Khung giờ này của PT đã có người đặt");
+            }
         }
 
         if (!reasons.isEmpty()) {
@@ -82,6 +103,32 @@ public class PtSlotValidator {
                     "Không thể chọn PT: " + String.join("; ", reasons));
         }
         return slot;
+    }
+
+    /**
+     * Ca của PT tại chi nhánh đó phủ đúng {@code slotStart} — hoặc null. Một PT
+     * có thể có nhiều ca trong ngày (sáng + tối), nên phải duyệt hết.
+     */
+    public ResolvedSlot findSlot(Long ptId, Long branchId, LocalDate date, LocalTime slotStart) {
+        for (PtShiftAssignment assignment : shiftAssignmentRepository.findActiveByPtAndDate(ptId, date)) {
+            GymShift shift = assignment.getGymShift();
+            if (!shift.isActive() || !shift.getGymBranch().getId().equals(branchId)) {
+                continue;
+            }
+            LocalTime end = slotResolver.slotEndOrNull(shift, slotStart);
+            if (end != null) {
+                return new ResolvedSlot(shift, slotStart, end);
+            }
+        }
+        return null;
+    }
+
+    /** Có đơn nghỉ ĐÃ DUYỆT nào phủ khung giờ này không. */
+    public boolean isOnApprovedLeave(Long ptId, LocalDate date, ResolvedSlot slot) {
+        List<PtLeaveRequest> leaves = leaveRequestRepository.findOverlapping(
+                ptId, Set.of(LeaveStatus.APPROVED), date, date);
+        return slotResolver.anyLeaveCovers(leaves, date,
+                slot.startTime(), slot.endTime(), slot.shift());
     }
 
     /** Dùng cho lưới ngày x giờ ở FE: ô đã có người đặt thì hiển thị mờ. */

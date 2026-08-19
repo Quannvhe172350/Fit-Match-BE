@@ -132,6 +132,17 @@ public class Ticket extends BaseEntity {
     @Column(name = "payable_amount", nullable = false, precision = 12, scale = 2)
     private BigDecimal payableAmount;
 
+    /**
+     * Tổng phụ phí PT đã hoàn lẻ theo TỪNG BUỔI khi PT xin nghỉ (quyết định
+     * §4.1). Bắt buộc phải theo dõi: {@code PartialRefundCalculator} hoàn theo
+     * {@code payableAmount}, nên nếu hoàn lẻ rồi sau đó hoàn cả vé mà không trừ
+     * phần đã hoàn thì tổng hoàn vượt số khách đã trả — và WalletService không
+     * bắt được vì nó kiểm held_balance TỔNG của Gym chứ không theo từng vé.
+     */
+    @Column(name = "pt_refunded_amount", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal ptRefundedAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -31,10 +31,20 @@ public interface TicketMaintenanceService {
     int notifyExpiringSoon();
 
     /**
-     * Quyết định #8: PT khai dưới ngưỡng ngày -> cảnh báo PT và gym quản lý.
-     * Chỉ là thông báo, KHÔNG chặn PT khỏi kết quả tìm kiếm.
+     * V85: PT đang ACTIVE nhưng GYM chưa xếp ca nào trong thời gian tới -> cảnh
+     * báo cho Gym. Thay cảnh báo "PT khai dưới 20 ngày" của mô hình cũ: PT
+     * không còn quyền khai lịch, nên lịch mỏng giờ là việc Gym chưa làm chứ
+     * không phải lỗi của PT. Chỉ là thông báo, KHÔNG ẩn PT khỏi tìm kiếm.
      *
      * @return số PT bị cảnh báo
      */
-    int warnPtsWithThinAvailability();
+    int warnPtsWithoutRoster();
+
+    /**
+     * Quyết định §4.1: buổi tập mất PT mà tới ngày khách vẫn chưa chọn PT thay
+     * thế -> tự hoàn phụ phí PT. Khách không được thiệt vì quên thao tác.
+     *
+     * @return số quyết định đã chốt
+     */
+    int autoResolvePtCancellations();
 }

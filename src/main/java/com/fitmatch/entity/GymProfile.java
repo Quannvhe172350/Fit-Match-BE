@@ -150,6 +150,19 @@ public class GymProfile extends BaseEntity {
     private int ratingCount = 0;
 
     /**
+     * Quyết định §4.2: hạn mức đơn nghỉ mỗi tháng cho một PT, do Gym tự đặt và
+     * BẬT-TẮT được. Tắt (mặc định) = không giới hạn. Đếm theo tháng của
+     * {@code fromDate}; chỉ đơn PENDING và APPROVED tiêu hạn mức — đơn bị từ
+     * chối hay PT tự huỷ thì trả lại lượt.
+     */
+    @Column(name = "leave_quota_enabled", nullable = false)
+    @Builder.Default
+    private boolean leaveQuotaEnabled = false;
+
+    @Column(name = "leave_monthly_quota")
+    private Integer leaveMonthlyQuota;
+
+    /**
      * Optimistic lock (P1 batch 2): chống hai admin cùng xử lý một hồ sơ (approve
      * vs reject) ghi đè quyết định của nhau. Xem V36.
      */

@@ -11,7 +11,7 @@ import com.fitmatch.entity.Ticket;
 import com.fitmatch.entity.TicketType;
 import com.fitmatch.entity.TrainingSession;
 import com.fitmatch.entity.User;
-import com.fitmatch.repository.PtAvailabilityRepository;
+import com.fitmatch.repository.PtShiftAssignmentRepository;
 import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.TicketRepository;
 import com.fitmatch.repository.TrainingSessionRepository;
@@ -48,7 +48,8 @@ class TicketMaintenanceServiceImplTest {
     @Mock private TicketRepository ticketRepository;
     @Mock private TrainingSessionRepository sessionRepository;
     @Mock private PtProfileRepository ptProfileRepository;
-    @Mock private PtAvailabilityRepository ptAvailabilityRepository;
+    @Mock private PtShiftAssignmentRepository shiftAssignmentRepository;
+    @Mock private com.fitmatch.service.SessionPtCancellationService sessionPtCancellationService;
     @Mock private TicketLifecycle ticketLifecycle;
     @Mock private SessionLifecycle sessionLifecycle;
     @Mock private SettlementService settlementService;
@@ -197,7 +198,7 @@ class TicketMaintenanceServiceImplTest {
         verify(notificationDispatcher).ticketExpiringSoon(eq(t), anyLong());
     }
 
-    // ---------- cảnh báo lịch PT mỏng (quyết định #8) ----------
+    // ---------- cảnh báo Gym chưa xếp ca cho PT (V85) ----------
 
     private PtProfile pt() {
         return PtProfile.builder()
@@ -209,24 +210,34 @@ class TicketMaintenanceServiceImplTest {
     }
 
     @Test
-    void warnPts_below20Days_warnsButNeverBlocks() {
+    void warnPts_noUpcomingShift_warnsGymButNeverBlocks() {
         PtProfile pt = pt();
         when(ptProfileRepository.findByStatus(PtStatus.ACTIVE)).thenReturn(List.of(pt));
-        when(ptAvailabilityRepository.countDistinctDaysFrom(eq(11L), any())).thenReturn(19L);
+        when(shiftAssignmentRepository.countByPtProfile_IdAndActiveTrueAndWorkDateBetween(
+                eq(11L), any(), any())).thenReturn(0L);
 
-        assertThat(service.warnPtsWithThinAvailability()).isEqualTo(1);
-        verify(notificationDispatcher).ptAvailabilityBelowThreshold(any(), any(), eq(19L), eq(20));
-        // Không có nhánh nào đổi trạng thái PT — PT vẫn ACTIVE và vẫn đặt được.
+        assertThat(service.warnPtsWithoutRoster()).isEqualTo(1);
+        verify(notificationDispatcher).ptNotRostered(any(), eq("PT A"), eq(14));
+        // Chỉ cảnh báo: không có nhánh nào đổi trạng thái PT.
         assertThat(pt.getStatus()).isEqualTo(PtStatus.ACTIVE);
     }
 
     @Test
-    void warnPts_atThreshold_noWarning() {
+    void warnPts_hasUpcomingShift_noWarning() {
         when(ptProfileRepository.findByStatus(PtStatus.ACTIVE)).thenReturn(List.of(pt()));
-        when(ptAvailabilityRepository.countDistinctDaysFrom(eq(11L), any())).thenReturn(20L);
+        when(shiftAssignmentRepository.countByPtProfile_IdAndActiveTrueAndWorkDateBetween(
+                eq(11L), any(), any())).thenReturn(6L);
 
-        assertThat(service.warnPtsWithThinAvailability()).isZero();
+        assertThat(service.warnPtsWithoutRoster()).isZero();
         verify(notificationDispatcher, never())
-                .ptAvailabilityBelowThreshold(any(), any(), anyLong(), org.mockito.ArgumentMatchers.anyInt());
+                .ptNotRostered(any(), any(), org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    /** Job chốt tự động uỷ thác nguyên vẹn cho service chuyên trách. */
+    @Test
+    void autoResolvePtCancellations_delegates() {
+        when(sessionPtCancellationService.autoResolveDueCancellations()).thenReturn(3);
+
+        assertThat(service.autoResolvePtCancellations()).isEqualTo(3);
     }
 }

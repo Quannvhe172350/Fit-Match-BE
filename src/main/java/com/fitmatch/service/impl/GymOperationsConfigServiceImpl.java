@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 public class GymOperationsConfigServiceImpl implements GymOperationsConfigService {
 
     private final OperatingHourRepository operatingHourRepository;
+    private final com.fitmatch.repository.GymShiftRepository gymShiftRepository;
     private final GymPolicyRepository gymPolicyRepository;
     private final GymBranchRepository gymBranchRepository;
     private final GymProfileResolver gymProfileResolver;
@@ -66,10 +67,12 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
             }
         }
 
-        // P1-15 (C-1): không cho thu hẹp/đóng giờ mở cửa bỏ rơi booking đang giữ
-        // chỗ tương lai — nếu không khách đến nơi đóng cửa, không ai được báo.
-        // Câu 26/27: giờ mở cửa KHÔNG còn tham gia validate lịch tập — vé có giá
-        // trị cả ngày. Đây chỉ là thông tin marketplace, đổi lúc nào cũng được.
+        // Câu 26/27: giờ mở cửa KHÔNG tham gia validate lịch tập của khách — vé có
+        // giá trị cả ngày. NHƯNG từ V85 nó ràng buộc CA làm việc của PT, nên
+        // (edge case §7.6) phải kiểm ngược: đổi giờ mở cửa làm ca hiện có rơi ra
+        // ngoài thì chặn, kèm danh sách ca vướng. Không tự co ca — im lặng đổi
+        // giờ làm của PT tệ hơn là bắt Gym sửa ca trước.
+        assertShiftsStillInsideHours(branchId, request);
 
         // Thay toàn bộ lịch tuần (replace-all) để tránh trạng thái nửa vời.
         // P1-22: flush ngay sau delete để Hibernate không sắp xếp INSERT trước
@@ -123,5 +126,44 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
     private GymBranch requireOwnedBranch(String username, Long branchId) {
         return gymBranchRepository.findByIdAndGymProfile_User_Username(branchId, username)
                 .orElseThrow(() -> new ResourceNotFoundException("Gym branch", branchId));
+    }
+
+    /**
+     * Ca của chi nhánh phải vẫn nằm trong giờ mở cửa MỚI. Kiểm trước khi ghi để
+     * không rơi vào trạng thái nửa vời: giờ đã đổi mà ca thì sai.
+     */
+    private void assertShiftsStillInsideHours(Long branchId, UpdateOperatingHoursRequest request) {
+        java.util.Map<java.time.DayOfWeek, OperatingHourDto> incoming = new java.util.HashMap<>();
+        for (OperatingHourDto dto : request.getHours()) {
+            if (dto.getDayOfWeek() != null && dto.getDayOfWeek() >= 1 && dto.getDayOfWeek() <= 7) {
+                incoming.put(java.time.DayOfWeek.of(dto.getDayOfWeek()), dto);
+            }
+        }
+        List<String> problems = new java.util.ArrayList<>();
+        for (com.fitmatch.entity.GymShift shift
+                : gymShiftRepository.findByGymBranch_IdAndActiveTrueOrderByStartTimeAsc(branchId)) {
+            for (java.time.DayOfWeek day : shift.daysOfWeekSet()) {
+                OperatingHourDto dto = incoming.get(day);
+                String label = day == java.time.DayOfWeek.SUNDAY ? "CN" : "T" + (day.getValue() + 1);
+                if (dto == null) {
+                    problems.add("ca " + shift.getName() + " áp dụng " + label
+                            + " nhưng lịch mới không khai ngày này");
+                } else if (Boolean.TRUE.equals(dto.getClosed())) {
+                    problems.add("ca " + shift.getName() + " áp dụng " + label
+                            + " nhưng lịch mới đóng cửa ngày này");
+                } else if (dto.getOpenTime() != null && dto.getCloseTime() != null
+                        && (shift.getStartTime().isBefore(dto.getOpenTime())
+                        || shift.getEndTime().isAfter(dto.getCloseTime()))) {
+                    problems.add("ca " + shift.getName() + " (" + shift.getStartTime() + "-"
+                            + shift.getEndTime() + ") nằm ngoài giờ mở cửa mới " + label + " ("
+                            + dto.getOpenTime() + "-" + dto.getCloseTime() + ")");
+                }
+            }
+        }
+        if (!problems.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_STATE,
+                    "Không thể đổi giờ mở cửa: " + String.join("; ", problems)
+                            + ". Sửa hoặc tắt các ca này trước.");
+        }
     }
 }

@@ -23,6 +23,12 @@ import java.time.LocalDate;
  * <p>Điểm mấu chốt: {@code refund} luôn là phần BÙ TRỪ chứ không tính độc lập,
  * nên phần dư của phép làm tròn luôn thuộc về khoản hoàn cho khách và bất biến
  * {@code refund + retained == payableAmount} đúng với mọi bộ số.
+ *
+ * <p>V89: {@code payableAmount} ở mọi công thức trên được hiểu là phần CÒN LẠI
+ * sau khi trừ {@code ptRefundedAmount} — số đã hoàn lẻ cho những ngày PT xin
+ * nghỉ (quyết định §4.1). Không trừ thì hoàn lẻ 200k rồi hoàn cả vé 2tr sẽ
+ * chuyển cho khách 2,2tr trên một vé thu 2tr, và WalletService KHÔNG bắt được
+ * vì nó chỉ kiểm held_balance tổng của Gym chứ không theo từng vé.
  */
 @Component
 public class PartialRefundCalculator {
@@ -75,11 +81,20 @@ public class PartialRefundCalculator {
         return (int) Math.min(elapsed, ticket.getDayCount());
     }
 
+    /**
+     * Phần tiền còn hoàn được của vé: số khách đã trả trừ đi phần phụ phí PT đã
+     * hoàn lẻ theo từng buổi. Mọi công thức trong lớp này đi qua đây, nên bất
+     * biến "tổng hoàn không vượt payableAmount" đúng cho cả hai đường hoàn.
+     */
     private BigDecimal requirePayable(Ticket ticket) {
         BigDecimal payable = ticket.getPayableAmount();
         if (payable == null) {
             throw new BusinessException(ErrorCode.INVALID_STATE, "Ticket has no payable amount");
         }
-        return payable;
+        BigDecimal ptRefunded = ticket.getPtRefundedAmount();
+        if (ptRefunded == null || ptRefunded.signum() <= 0) {
+            return payable;
+        }
+        return payable.subtract(ptRefunded).max(BigDecimal.ZERO);
     }
 }

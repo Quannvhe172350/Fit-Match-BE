@@ -75,8 +75,12 @@ class FlywayMigrationTest {
                 .load();
         var result = flyway.migrate();
         assertThat(result.success).as("Flyway migrate should succeed").isTrue();
-        assertThat(flyway.info().current().getVersion().getVersion())
-                .as("latest applied migration version").isEqualTo("81");
+        // So với version CAO NHẤT có trên đĩa thay vì một số hằng: bản cũ ghim
+        // "81" và đã âm thầm sai từ khi V82 ra đời — mỗi đợt migration mới lại
+        // phải nhớ sửa test, và không ai nhớ.
+        assertThat(flyway.info().current().getVersion())
+                .as("phải áp dụng tới migration mới nhất trên đĩa")
+                .isEqualTo(highestVersionOnDisk(flyway));
 
         try (Connection c = DriverManager.getConnection(schemaUrl(), user, password)) {
             // --- P0-3 guard: MỌI giá trị WalletTxnType phải có trong cột ENUM ---
@@ -175,11 +179,46 @@ class FlywayMigrationTest {
             assertThat(hasColumn(c, "ticket_status_history", "ticket_id")).isTrue();
             assertThat(hasColumn(c, "session_status_history", "session_id")).isTrue();
 
-            // Lịch PT theo ngày cụ thể, không còn day_of_week.
-            assertThat(columnType(c, "pt_availabilities", "slot_date"))
-                    .as("pt_availabilities.slot_date must be a DATE").isEqualTo("date");
-            assertThat(columnType(c, "pt_availabilities", "day_of_week"))
-                    .as("pt_availabilities must not repeat weekly").isNull();
+            // --- V85-V91: Gym xếp ca, PT xin nghỉ ---
+            // Bảng lịch PT tự khai đã rời khỏi mô hình (V90 rename sang legacy).
+            assertThat(tableExists(c, "pt_availabilities"))
+                    .as("pt_availabilities must be retired by V90").isFalse();
+
+            // Ca gắn CHI NHÁNH và có độ dài slot — giờ kết thúc của buổi do ca quyết.
+            assertThat(columnType(c, "gym_shifts", "gym_branch_id"))
+                    .as("gym_shifts.gym_branch_id").isNotNull();
+            assertThat(columnType(c, "gym_shifts", "slot_minutes"))
+                    .as("gym_shifts.slot_minutes").isNotNull();
+            assertThat(columnType(c, "gym_shifts", "days_of_week"))
+                    .as("gym_shifts.days_of_week").isNotNull();
+
+            // Roster materialize theo NGÀY, không lưu quy tắc lặp.
+            assertThat(columnType(c, "pt_shift_assignments", "work_date"))
+                    .as("pt_shift_assignments.work_date must be a DATE").isEqualTo("date");
+            assertThat(hasIndex(c, "pt_shift_assignments", "idx_pt_shift_pt_date"))
+                    .as("PtSlotValidator lookup index").isTrue();
+
+            // Đơn nghỉ + bảng con danh sách ca (scope = SHIFT phủ nhiều ca).
+            for (String column : List.of("scope", "status", "reason", "reviewed_by", "reject_reason")) {
+                assertThat(columnType(c, "pt_leave_requests", column))
+                        .as("pt_leave_requests." + column).isNotNull();
+            }
+            assertThat(tableExists(c, "pt_leave_request_shifts"))
+                    .as("pt_leave_request_shifts").isTrue();
+
+            // Quyết định §4.1: buổi mất PT chờ khách quyết — KHÔNG thêm SessionStatus mới.
+            assertThat(columnType(c, "session_pt_cancellations", "former_slot_start"))
+                    .as("session_pt_cancellations.former_slot_start").isNotNull();
+
+            // Hạn mức nghỉ cấp Gym (§4.2) và sổ hoàn lẻ phụ phí PT (§4.1).
+            assertThat(columnType(c, "gym_profiles", "leave_quota_enabled"))
+                    .as("gym_profiles.leave_quota_enabled").isNotNull();
+            assertThat(columnType(c, "tickets", "pt_refunded_amount"))
+                    .as("tickets.pt_refunded_amount — bất biến tiền của hoàn lẻ").isNotNull();
+
+            // V91: chốt chặn đặt trùng slot ở tầng DB, không chỉ ở PtSlotValidator.
+            assertThat(hasIndex(c, "training_sessions", "uk_session_pt_slot"))
+                    .as("unique (pt, session_date, pt_slot_start)").isTrue();
 
             // Index của các đường đọc nóng — thiếu là full scan mỗi lần mở lịch/chạy job.
             assertThat(hasIndex(c, "training_sessions", "idx_sessions_branch_date"))
@@ -228,9 +267,12 @@ class FlywayMigrationTest {
             // --- V77-V81: mô hình booking đã biến mất hoàn toàn ---
             // Đây là chốt chặn thật của P4: ddl-auto=validate chỉ bắt được entity
             // thừa cột, KHÔNG bắt được bảng cũ còn sót lại trong schema.
+            // gym_services KHÔNG có trong danh sách này: V81 drop bảng cũ nhưng V82
+            // dựng lại nó như một khái niệm khác (dịch vụ kèm vé). Bản trước liệt
+            // kê nó ở đây và đã sai âm thầm từ khi V82 ra đời.
             for (String table : List.of("bookings", "booking_status_history", "customer_packages",
                     "session_notes", "waitlist_entries", "blocked_times", "availability_slots",
-                    "training_packages", "gym_services")) {
+                    "training_packages")) {
                 assertThat(tableExists(c, table)).as("legacy table " + table + " must be gone").isFalse();
             }
 
@@ -315,10 +357,17 @@ class FlywayMigrationTest {
 
             assertThat(result.success)
                     .as("V81 phải chạy lại được trên schema đã áp dụng dở").isTrue();
-            assertThat(result.migrationsExecuted).as("đúng một migration còn lại").isEqualTo(1);
+            // Đếm động số migration từ V81 trở lên: ghim con số 1 ở đây cũng đã
+            // sai từ khi V82 xuất hiện. Điều cần khẳng định là "chạy lại được
+            // và không bỏ sót bản nào", không phải "còn đúng một bản".
+            assertThat(result.migrationsExecuted)
+                    .as("mọi migration từ V81 trở lên phải chạy hết")
+                    .isEqualTo(countMigrationsFrom(81));
 
             try (Connection c = DriverManager.getConnection(url, user, password)) {
-                for (String table : List.of("bookings", "customer_packages", "gym_services",
+                // gym_services bị bỏ khỏi danh sách vì V82 dựng lại nó — xem chú
+                // thích ở allMigrationsApplyCleanlyAndSchemaMatchesEntities.
+                for (String table : List.of("bookings", "customer_packages",
                         "training_packages", "blocked_times", "availability_slots")) {
                     assertThat(tableExists(c, schema, table))
                             .as("chạy lại vẫn phải dọn sạch " + table).isFalse();
@@ -451,5 +500,27 @@ class FlywayMigrationTest {
 
     private static boolean hasColumn(Connection c, String table, String column) throws SQLException {
         return columnType(c, table, column) != null;
+    }
+
+    /** Version lớn nhất trong classpath:db/migration — nguồn duy nhất, không ghim hằng số. */
+    private static MigrationVersion highestVersionOnDisk(Flyway flyway) {
+        return Arrays.stream(flyway.info().all())
+                .map(info -> info.getVersion())
+                .filter(java.util.Objects::nonNull)
+                .max(MigrationVersion::compareTo)
+                .orElseThrow(() -> new IllegalStateException("no migrations on classpath"));
+    }
+
+    /** Số migration có version >= mốc — dùng để đếm phần còn lại của một lần chạy dở. */
+    private static int countMigrationsFrom(int minVersion) {
+        var flyway = Flyway.configure()
+                .dataSource(schemaUrl(), user, password)
+                .locations("classpath:db/migration")
+                .load();
+        return (int) Arrays.stream(flyway.info().all())
+                .map(info -> info.getVersion())
+                .filter(java.util.Objects::nonNull)
+                .filter(v -> v.compareTo(MigrationVersion.fromVersion(String.valueOf(minVersion))) >= 0)
+                .count();
     }
 }

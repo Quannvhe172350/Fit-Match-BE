@@ -1,9 +1,11 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.ticket.SessionPtCancellationDto;
 import com.fitmatch.dto.ticket.TrainingSessionResponse;
 import com.fitmatch.dto.ticket.UpdateSessionDateRequest;
 import com.fitmatch.dto.ticket.UpdateSessionPtRequest;
+import com.fitmatch.service.SessionPtCancellationService;
 import com.fitmatch.service.TicketSchedulingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -37,6 +39,7 @@ import java.util.List;
 public class SessionController {
 
     private final TicketSchedulingService schedulingService;
+    private final SessionPtCancellationService cancellationService;
     private final com.fitmatch.service.TicketReviewService reviewService;
 
     @Operation(summary = "Lịch tập của tôi trong một khoảng ngày",
@@ -96,6 +99,32 @@ public class SessionController {
             @Valid @RequestBody com.fitmatch.dto.review.TicketReviewRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Review created",
                 reviewService.reviewPt(userDetails.getUsername(), id, request)));
+    }
+
+    @Operation(summary = "Buổi tập bị PT xin nghỉ, đang chờ tôi quyết định",
+            description = "Actor: **Customer**. Buổi mà PT đã được duyệt nghỉ: khách chọn PT thay "
+                    + "thế (PUT /api/sessions/{id}/pt) hoặc nhận hoàn phụ phí HLV của ngày đó. "
+                    + "estimatedRefund = 0 nghĩa là không còn tiền hoàn được (voucher/điểm đã phủ "
+                    + "hết vé) — chỉ còn đường chọn HLV thay thế.")
+    @GetMapping("/pt-cancellations")
+    public ResponseEntity<ApiResponse<List<SessionPtCancellationDto>>> myPtCancellations(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(ApiResponse.success(
+                cancellationService.myPending(userDetails.getUsername())));
+    }
+
+    @Operation(summary = "Nhận hoàn phụ phí HLV thay vì chọn HLV khác",
+            description = "Actor: **Customer** (chủ vé). Hoàn ĐÚNG phụ phí HLV của MỘT ngày, đã "
+                    + "chiết theo tỉ lệ voucher/điểm đã dùng — vé vẫn dùng được cả ngày nên tiền vé "
+                    + "không bị hoàn. Tiền vào ví khách. "
+                    + "Lỗi: 409 buổi không có yêu cầu nào đang chờ quyết định, hoặc tiền của vé "
+                    + "không còn ở trạng thái giữ; 404 buổi không thuộc bạn.")
+    @PostMapping("/{id}/pt-cancellation/refund")
+    public ResponseEntity<ApiResponse<SessionPtCancellationDto>> refundPtCancellation(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("PT surcharge refunded",
+                cancellationService.refund(userDetails.getUsername(), id)));
     }
 
     @Operation(summary = "Check-in buổi tập có PT",

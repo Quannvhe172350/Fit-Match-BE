@@ -115,8 +115,9 @@ public class GymPtController {
                 service.updateStatus(userDetails.getUsername(), id, request.getStatus())));
     }
 
-    // Lịch rảnh của PT giờ do CHÍNH PT khai theo ngày cụ thể
-    // (GET/PUT /api/pt/availability/daily) — gym không cấu hình hộ nữa.
+    // V85 đảo chủ thể sở hữu lịch: GYM khai ca cho chi nhánh
+    // (GymShiftController) rồi xếp PT vào ca (POST /api/gym/pts/{ptId}/shifts,
+    // GymLeaveRequestController). PT không tự khai lịch nữa, chỉ xin nghỉ.
 
     // ==================== UC-022: Assignments ====================
 

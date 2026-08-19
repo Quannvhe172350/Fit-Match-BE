@@ -172,7 +172,9 @@ public class WalletServiceImpl implements WalletService {
                     amount, ticketId);
             return;
         }
-        Wallet gym = walletRepository.findByGymProfile_Id(gymProfileId)
+        // Cùng lý do với lockGym: đọc có khoá để không lệ thuộc ảnh chụp
+        // REPEATABLE READ của transaction đang chạy.
+        Wallet gym = walletRepository.lockByGymProfileId(gymProfileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet for gym", gymProfileId));
         // lockPair theo id tăng dần — giữ nguyên thứ tự khoá để không deadlock với
         // các luồng khác cũng chạm hai ví.
@@ -230,10 +232,21 @@ public class WalletServiceImpl implements WalletService {
         record(w, WalletTxnType.COMMISSION, commission, ticketId, "Platform commission withheld");
     }
 
+    /**
+     * Khoá ví của gym bằng MỘT truy vấn có khoá, không tìm id bằng truy vấn
+     * thường trước.
+     *
+     * <p>Bản cũ đọc {@code findByGymProfile_Id} rồi mới {@code lockById}, và
+     * lần thanh toán ĐẦU TIÊN của mỗi gym luôn hỏng vì thế: ví được tạo ở
+     * transaction REQUIRES_NEW của {@code WalletCreator}, commit xong thì
+     * transaction ngoài (REPEATABLE READ của MariaDB) vẫn đọc theo ảnh chụp
+     * lấy từ trước đó nên KHÔNG thấy dòng vừa commit — trong khi truy vấn có
+     * khoá luôn đọc bản mới nhất. Hệ quả cũ: webhook báo có tiền nhưng
+     * "Wallet for gym not found", vé kẹt PENDING_PAYMENT và tiền không được giữ.
+     */
     private Wallet lockGym(Long gymProfileId) {
-        Wallet w = walletRepository.findByGymProfile_Id(gymProfileId)
+        return walletRepository.lockByGymProfileId(gymProfileId)
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet for gym", gymProfileId));
-        return walletRepository.lockById(w.getId()).orElseThrow();
     }
 
     private Wallet lock(Wallet wallet) {

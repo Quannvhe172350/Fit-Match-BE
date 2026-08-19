@@ -18,6 +18,7 @@ import com.fitmatch.repository.PtProfileRepository;
 import com.fitmatch.repository.UserRepository;
 import com.fitmatch.service.AuditService;
 import com.fitmatch.service.GymPtManagementService;
+import com.fitmatch.service.PtShiftRosterService;
 import com.fitmatch.service.support.GymProfileResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     private final com.fitmatch.service.support.RatingAggregator ratingAggregator;
     private final com.fitmatch.repository.DisputeRepository disputeRepository;
+    private final PtShiftRosterService ptShiftRosterService;
     private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
 
     /** Mọi phản hồi PT đều đi qua đây để bảng PT của gym không có ô ảnh trống. */
@@ -189,6 +191,16 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
         profile.setStatus(status);
         profile.setActive(status == PtStatus.ACTIVE);
         ptProfileRepository.save(profile);
+
+        // Edge case §7.4 (V85): PT tắt thì ca tương lai phải ngừng sinh slot,
+        // nếu không khách vẫn thấy PT trong lưới rồi mới nhận lỗi lúc submit.
+        // Tắt MỀM để khi Gym bật lại PT thì lịch cũ còn đó mà xếp lại có chủ đích.
+        if (status != PtStatus.ACTIVE) {
+            int deactivated = ptShiftRosterService.deactivateFutureShifts(ptId);
+            if (deactivated > 0) {
+                log.info("PT {} deactivated -> {} future shift row(s) disabled", ptId, deactivated);
+            }
+        }
 
         auditService.record(AuditActions.PT_STATUS_CHANGE, "PtProfile", ptId,
                 "Status set to " + status + " by gym " + gymUsername);
