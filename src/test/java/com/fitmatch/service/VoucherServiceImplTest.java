@@ -95,7 +95,51 @@ class VoucherServiceImplTest {
 
         assertThatThrownBy(() -> service.requireUsable("NOPE"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Voucher not found");
+                .hasMessageContaining("không tồn tại");
+    }
+
+    // ---------- checkUsable: bản không ném lỗi cho màn báo giá ----------
+
+    /**
+     * Đây là bảo chứng của bug 500-khi-nhập-mã-sai: checkUsable chạy chung
+     * transaction với màn báo giá, chỉ cần nó ném ra một ngoại lệ là Spring đánh
+     * dấu transaction rollback-only và request vỡ 500 lúc commit, dù caller đã bắt.
+     * Nên nó phải trả lý do, tuyệt đối không ném.
+     */
+    @Test
+    void checkUsable_neverThrows_forEveryInvalidCase() {
+        Voucher inactive = percentVoucher();
+        inactive.setActive(false);
+        Voucher expired = percentVoucher();
+        expired.setValidTo(LocalDateTime.now().minusDays(1));
+        Voucher notYet = percentVoucher();
+        notYet.setValidFrom(LocalDateTime.now().plusDays(1));
+        Voucher usedUp = percentVoucher();
+        usedUp.setUsageLimit(5);
+        usedUp.setUsedCount(5);
+
+        when(voucherRepository.findByCodeIgnoreCase("NOPE")).thenReturn(Optional.empty());
+        when(voucherRepository.findByCodeIgnoreCase("INACTIVE")).thenReturn(Optional.of(inactive));
+        when(voucherRepository.findByCodeIgnoreCase("EXPIRED")).thenReturn(Optional.of(expired));
+        when(voucherRepository.findByCodeIgnoreCase("NOTYET")).thenReturn(Optional.of(notYet));
+        when(voucherRepository.findByCodeIgnoreCase("USEDUP")).thenReturn(Optional.of(usedUp));
+
+        for (String code : new String[]{"NOPE", "INACTIVE", "EXPIRED", "NOTYET", "USEDUP"}) {
+            VoucherService.UsableCheck check = service.checkUsable(code);
+            assertThat(check.voucher()).as("voucher cho mã %s", code).isNull();
+            assertThat(check.message()).as("lý do cho mã %s", code).isNotBlank();
+        }
+    }
+
+    @Test
+    void checkUsable_validCode_returnsVoucherWithoutMessage() {
+        when(voucherRepository.findByCodeIgnoreCase("SALE10")).thenReturn(Optional.of(percentVoucher()));
+
+        VoucherService.UsableCheck check = service.checkUsable("SALE10");
+
+        assertThat(check.voucher()).isNotNull();
+        assertThat(check.voucher().getCode()).isEqualTo("SALE10");
+        assertThat(check.message()).isNull();
     }
 
     @Test
@@ -106,7 +150,7 @@ class VoucherServiceImplTest {
 
         assertThatThrownBy(() -> service.requireUsable("SALE10"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("inactive");
+                .hasMessageContaining("ngừng áp dụng");
     }
 
     @Test
@@ -117,7 +161,7 @@ class VoucherServiceImplTest {
 
         assertThatThrownBy(() -> service.requireUsable("SALE10"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("expired");
+                .hasMessageContaining("hết hạn");
     }
 
     @Test
@@ -129,7 +173,7 @@ class VoucherServiceImplTest {
 
         assertThatThrownBy(() -> service.requireUsable("SALE10"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("usage limit");
+                .hasMessageContaining("hết lượt");
     }
 
     // ---------- tiêu / trả lượt ----------

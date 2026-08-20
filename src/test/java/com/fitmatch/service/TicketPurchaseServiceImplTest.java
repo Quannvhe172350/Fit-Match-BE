@@ -116,19 +116,27 @@ class TicketPurchaseServiceImplTest {
         assertThat(quote.getDayCount()).isEqualTo(10);
     }
 
-    /** Mã sai ở màn báo giá KHÔNG được ném lỗi — khách vẫn phải thấy giá vé. */
+    /**
+     * Mã sai ở màn báo giá KHÔNG được ném lỗi — khách vẫn phải thấy giá vé.
+     *
+     * <p>Phải hỏi qua {@code checkUsable}, KHÔNG được bắt ngoại lệ của
+     * {@code requireUsable}: cả hai đều @Transactional nên ngoại lệ ném ra từ
+     * requireUsable đánh dấu transaction rollback-only, bắt xong vẫn vỡ 500 lúc
+     * commit. Test này khoá lại đường gọi đúng — verify bên dưới đảm bảo
+     * requireUsable không bị dùng nhầm ở màn báo giá.
+     */
     @Test
     void quote_invalidVoucher_returnsMessageInsteadOfFailing() {
-        when(voucherService.requireUsable("SAI"))
-                .thenThrow(new BusinessException(com.fitmatch.common.enums.ErrorCode.INVALID_STATE,
-                        "Voucher has expired"));
+        when(voucherService.checkUsable("SAI"))
+                .thenReturn(new VoucherService.UsableCheck(null, "Mã giảm giá đã hết hạn"));
         TicketQuoteRequest req = request(false);
         req.setVoucherCode("SAI");
 
         TicketQuoteResponse quote = service.quote(USERNAME, req);
 
-        assertThat(quote.getVoucherMessage()).contains("expired");
+        assertThat(quote.getVoucherMessage()).contains("hết hạn");
         assertThat(quote.getPayableAmount()).isEqualByComparingTo(BigDecimal.valueOf(1_000_000));
+        verify(voucherService, never()).requireUsable(any());
     }
 
     /** Ở bước MUA thì ngược lại: mã sai phải chặn, không được âm thầm thu đủ giá. */
