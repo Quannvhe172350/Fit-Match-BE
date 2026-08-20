@@ -25,6 +25,9 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class VoucherServiceImpl implements VoucherService {
 
+    /** Hiển thị dưới ô nhập mã ở màn báo giá, nên viết bằng tiếng Việt. */
+    private static final String VOUCHER_NOT_FOUND = "Mã giảm giá không tồn tại";
+
     private final VoucherRepository voucherRepository;
 
     @Override
@@ -111,9 +114,22 @@ public class VoucherServiceImpl implements VoucherService {
     @Transactional(readOnly = true)
     public Voucher requireUsable(String code) {
         Voucher voucher = voucherRepository.findByCodeIgnoreCase(code.trim())
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "Voucher not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, VOUCHER_NOT_FOUND));
         assertUsable(voucher);
         return voucher;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UsableCheck checkUsable(String code) {
+        // Không ném lỗi ở đây — kể cả BusinessException — vì phương thức này chạy
+        // chung transaction với caller (màn báo giá). Xem VoucherService#checkUsable.
+        Voucher voucher = voucherRepository.findByCodeIgnoreCase(code.trim()).orElse(null);
+        if (voucher == null) {
+            return new UsableCheck(null, VOUCHER_NOT_FOUND);
+        }
+        String reason = unusableReason(voucher);
+        return reason != null ? new UsableCheck(null, reason) : new UsableCheck(voucher, null);
     }
 
     @Override
@@ -145,17 +161,33 @@ public class VoucherServiceImpl implements VoucherService {
     // ---------- helpers ----------
 
     private void assertUsable(Voucher v) {
+        String reason = unusableReason(v);
+        if (reason != null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, reason);
+        }
+    }
+
+    /**
+     * Lý do voucher không dùng được, null nếu dùng được. Tách khỏi
+     * {@link #assertUsable(Voucher)} để {@link #checkUsable(String)} dùng lại
+     * đúng bộ thông báo mà không phải ném rồi bắt ngoại lệ.
+     *
+     * <p>Các chuỗi này hiển thị thẳng dưới ô nhập mã ở màn báo giá nên viết bằng
+     * tiếng Việt, giống thông báo "chưa đạt giá trị tối thiểu" ở TicketPurchaseServiceImpl.
+     */
+    private String unusableReason(Voucher v) {
         LocalDateTime now = LocalDateTime.now();
-        if (!v.isActive()) throw new BusinessException(ErrorCode.INVALID_STATE, "Voucher is inactive");
+        if (!v.isActive()) return "Mã giảm giá đã ngừng áp dụng";
         if (v.getValidFrom() != null && now.isBefore(v.getValidFrom())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "Voucher is not yet valid");
+            return "Mã giảm giá chưa đến ngày áp dụng";
         }
         if (v.getValidTo() != null && now.isAfter(v.getValidTo())) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "Voucher has expired");
+            return "Mã giảm giá đã hết hạn";
         }
         if (v.getUsageLimit() != null && v.getUsedCount() >= v.getUsageLimit()) {
-            throw new BusinessException(ErrorCode.INVALID_STATE, "Voucher usage limit reached");
+            return "Mã giảm giá đã hết lượt sử dụng";
         }
+        return null;
     }
 
     private void validateConfig(VoucherRequest r) {

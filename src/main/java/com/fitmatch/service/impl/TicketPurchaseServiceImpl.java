@@ -82,14 +82,17 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
 
         // Voucher không hợp lệ ở màn báo giá KHÔNG được ném lỗi: khách gõ sai mã
         // thì vẫn phải thấy giá vé, chỉ kèm lời giải thích dưới ô nhập.
+        //
+        // Phải hỏi bằng checkUsable chứ KHÔNG bắt BusinessException của
+        // requireUsable: requireUsable cũng @Transactional nên ngoại lệ ném ra từ
+        // đó đánh dấu transaction dùng chung là rollback-only, bắt xong chạy tiếp
+        // vẫn vỡ UnexpectedRollbackException lúc commit → 500 cho mọi mã sai.
         Voucher voucher = null;
         String voucherMessage = null;
         if (hasText(request.getVoucherCode())) {
-            try {
-                voucher = voucherService.requireUsable(request.getVoucherCode());
-            } catch (BusinessException e) {
-                voucherMessage = e.getMessage();
-            }
+            VoucherService.UsableCheck check = voucherService.checkUsable(request.getVoucherCode());
+            voucher = check.voucher();
+            voucherMessage = check.message();
         }
 
         int balance = loyaltyService.availablePoints(customerUsername);
