@@ -45,6 +45,29 @@ public class PtPublicProfileResponse {
     private String gymName;
 
     /**
+     * Các chi nhánh PT thật sự phụ trách (câu 24: phân công neo vào chi nhánh).
+     *
+     * <p>Vé gắn CHI NHÁNH, còn PT chỉ dạy ở chi nhánh mình được phân công — mua vé
+     * sai chi nhánh là không bao giờ gặp được PT này trong lưới xếp lịch, mà lúc đó
+     * tiền đã trả. Trả kèm ở đây để nút "Đặt lịch với PT này" chọn đúng chi nhánh
+     * NGAY từ đầu, thay vì hỏi khách một danh sách mà phần lớn là lựa chọn sai.
+     *
+     * <p>Chỉ có ở API chi tiết, KHÔNG có ở danh sách tìm kiếm: card không dùng tới
+     * mà thêm vào là một truy vấn phân công cho mỗi PT trên mỗi trang.
+     */
+    private List<BranchRef> branches;
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BranchRef {
+        private Long id;
+        private String name;
+    }
+
+    /**
      * Bug 14 (UC-019/021): badge "Xác thực" phải data-driven — PT được coi là
      * xác thực khi đang ACTIVE và thuộc gym đã được duyệt (mô hình gym chịu
      * trách nhiệm; platform verification PT đã gỡ — 410).

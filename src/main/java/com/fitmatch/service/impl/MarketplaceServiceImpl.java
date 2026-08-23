@@ -91,6 +91,16 @@ public class MarketplaceServiceImpl implements MarketplaceService {
         var rating = ratingAggregator.forPt(ptProfileId);
         var response = PtPublicProfileResponse.of(profile, certs, rating.average(), rating.count());
         response.setAvatarUrl(ptAvatarResolver.urlOf(ptProfileId));
+        // Chi nhánh PT phụ trách: bỏ phân công đã tắt và chi nhánh đã ngừng hoạt
+        // động — chỗ không còn hoạt động thì không bán vé được, đưa ra chỉ dẫn
+        // khách tới một lựa chọn chết.
+        response.setBranches(ptAssignmentRepository.findByPtProfile_Id(ptProfileId).stream()
+                .filter(com.fitmatch.entity.PtAssignment::isActive)
+                .map(com.fitmatch.entity.PtAssignment::getGymBranch)
+                .filter(branch -> branch != null && branch.isActive())
+                .map(branch -> PtPublicProfileResponse.BranchRef.builder()
+                        .id(branch.getId()).name(branch.getName()).build())
+                .toList());
         return response;
     }
 

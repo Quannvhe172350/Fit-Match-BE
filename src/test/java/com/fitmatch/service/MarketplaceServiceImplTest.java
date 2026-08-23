@@ -37,6 +37,12 @@ class MarketplaceServiceImplTest {
     @Mock private com.fitmatch.service.support.RatingAggregator ratingAggregator;
     @Mock private com.fitmatch.config.GeocodingProperties geocodingProperties;
     @Mock private com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
+    /*
+     * Phải khai ở đây dù phần lớn test không stub: @InjectMocks truyền null cho
+     * tham số constructor nào không có mock, nên getPtDetail (đang đọc phân công
+     * chi nhánh của PT) sẽ NPE. Không stub thì Mockito trả danh sách rỗng.
+     */
+    @Mock private com.fitmatch.repository.PtAssignmentRepository ptAssignmentRepository;
     @InjectMocks private MarketplaceServiceImpl service;
 
     @Test
@@ -92,6 +98,47 @@ class MarketplaceServiceImplTest {
         when(ptAvatarResolver.urlOf(1L)).thenReturn(null);
 
         assertThat(service.getPtDetail(1L).getAvatarUrl()).isNull();
+    }
+
+    /**
+     * Chi nhánh PT phụ trách phải đi kèm hồ sơ công khai: vé gắn chi nhánh, mua
+     * sai chi nhánh là không bao giờ gặp được PT này ở bước xếp lịch. Phân công đã
+     * tắt và chi nhánh đã ngừng hoạt động thì không được đưa ra — chỗ đó không bán
+     * vé được, dẫn khách tới là dẫn vào chỗ chết.
+     */
+    @Test
+    void getPtDetail_carriesActiveBranchesOnly() {
+        PtProfile p = PtProfile.builder().id(1L).displayName("Coach").build();
+        when(ptProfileRepository.findByIdAndStatusAndGymProfile_VerificationStatusAndGymProfile_ActiveTrue(
+                1L, PtStatus.ACTIVE, VerificationStatus.APPROVED))
+                .thenReturn(Optional.of(p));
+        when(ptCertificationRepository.findByPtProfile_Id(1L)).thenReturn(List.of());
+        when(ratingAggregator.forPt(1L)).thenReturn(
+                new com.fitmatch.service.support.RatingAggregator.Rating(java.math.BigDecimal.ZERO, 0));
+        when(ptAssignmentRepository.findByPtProfile_Id(1L)).thenReturn(List.of(
+                assignment(true, branch(10L, "Quận 1", true)),
+                assignment(true, branch(11L, "Chi nhánh đã đóng", false)),
+                assignment(false, branch(12L, "Phân công đã tắt", true))));
+
+        var branches = service.getPtDetail(1L).getBranches();
+
+        assertThat(branches).hasSize(1);
+        assertThat(branches.get(0).getId()).isEqualTo(10L);
+        assertThat(branches.get(0).getName()).isEqualTo("Quận 1");
+    }
+
+    private static com.fitmatch.entity.GymBranch branch(Long id, String name, boolean active) {
+        var b = new com.fitmatch.entity.GymBranch();
+        b.setId(id);
+        b.setName(name);
+        b.setActive(active);
+        return b;
+    }
+
+    private static com.fitmatch.entity.PtAssignment assignment(
+            boolean active, com.fitmatch.entity.GymBranch branch) {
+        return com.fitmatch.entity.PtAssignment.builder()
+                .gymBranch(branch).active(active).build();
     }
 
     @Test

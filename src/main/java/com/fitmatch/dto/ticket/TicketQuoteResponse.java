@@ -22,9 +22,23 @@ public class TicketQuoteResponse {
     private boolean withPt;
 
     /**
-     * Giá gốc = price + ptSurchargePerDay * dayCount (nếu chọn PT) + servicesAmount.
+     * Giá gốc = baseAmount + ptSurchargeAmount + servicesAmount, chưa trừ giảm giá.
      */
     private BigDecimal totalAmount;
+
+    /**
+     * Tiền của riêng tấm vé (giá niêm yết, chưa phụ phí PT, chưa dịch vụ) — dòng
+     * đầu của bảng kê. FE KHÔNG được tự suy ra bằng phép trừ: cứ chia lại tiền ở
+     * client là có ngày lệch với số server thu.
+     */
+    private BigDecimal baseAmount;
+
+    /**
+     * Phụ phí PT của cả vé, ĐÃ nhân số ngày (câu 6: phụ phí tính theo từng ngày).
+     * 0 khi khách không chọn PT hoặc loại vé không cấu hình phụ phí. Nằm trong
+     * totalAmount, tách ra để khách thấy vì sao tổng cao hơn giá niêm yết.
+     */
+    private BigDecimal ptSurchargeAmount;
 
     /** V82: tổng tiền dịch vụ kèm theo, đã nằm trong totalAmount. */
     private BigDecimal servicesAmount;
