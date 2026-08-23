@@ -21,6 +21,14 @@ import java.util.Map;
  * dịch nghiệp vụ commit (tránh "thông báo ma" khi rollback) — xem
  * {@link NotificationEventListener}. Mọi lỗi gửi được nuốt ở tầng NotificationService.
  *
+ * <p>{@code link} là ĐƯỜNG DẪN CỦA FE, không phải endpoint API: hộp thư render
+ * thẳng {@code <Link href={item.link}>}, nên một đường dẫn không có trang là một
+ * cú 404 giáng vào người vừa nhận thông báo. Mô hình vé đã xoá các route
+ * {@code /tickets/*}, {@code /sessions/*}, {@code /gym/tickets},
+ * {@code /gym/profile}, {@code /gym/leave-requests} nhưng thông báo vẫn trỏ vào
+ * đó. Thêm hay sửa link ở đây thì phải đối chiếu route thật trong
+ * {@code Fit-Match-FE/src/app}; NotificationDispatcherLinkTest canh phần này.
+ *
  * UC-075 (V52): mỗi sự kiện có CODE khớp bảng notification_templates — admin chỉnh
  * title/body qua /api/admin/notification-templates; văn bản trong code là mặc định
  * (fallback khi template tắt/thiếu). Đổi placeholder ở đây thì cập nhật cột
@@ -83,7 +91,7 @@ public class NotificationDispatcher {
                 "Kết quả duyệt hồ sơ phòng gym",
                 "Hồ sơ phòng gym của bạn: " + decision
                         + (note != null && !note.isBlank() ? " — " + note : "") + ".",
-                "/gym/profile",
+                "/gym/verification",
                 Map.of("decision", s(decision), "note", s(note)));
     }
 
@@ -134,12 +142,14 @@ public class NotificationDispatcher {
         dispatch("TICKET_PAID_CUSTOMER", t.getCustomer(), NotificationCategory.PAYMENT,
                 "Vé đã kích hoạt",
                 "Vé \"" + t.getTicketType().getName() + "\" đã sẵn sàng. Chọn ngày tập để bắt đầu.",
-                "/tickets/" + t.getId(), vars);
+                "/schedule?ticketId=" + t.getId() + "&mode=book", vars);
+        // Gym chưa có trang danh sách vé đã bán; bảng điều khiển /gym là chỗ duy
+        // nhất liệt kê vé mới (5 vé gần nhất). Link cũ /gym/tickets là 404.
         dispatch("TICKET_PAID_GYM", gymUser(t), NotificationCategory.PAYMENT,
                 "Có vé mới được bán",
                 "Khách vừa mua vé \"" + t.getTicketType().getName() + "\" tại "
                         + t.getGymBranch().getName() + ".",
-                "/gym/tickets", vars);
+                "/gym", vars);
     }
 
     /** Hết hạn cửa sổ thanh toán — vé bị huỷ, khách phải biết vì sao. */
@@ -148,7 +158,7 @@ public class NotificationDispatcher {
                 "Vé đã huỷ do quá hạn thanh toán",
                 "Vé \"" + t.getTicketType().getName() + "\" bị huỷ vì chưa nhận được thanh toán. "
                         + "Điểm thưởng và lượt voucher (nếu có) đã được hoàn lại.",
-                "/tickets", Map.of("ticketId", s(t.getId())));
+                "/profile/tickets", Map.of("ticketId", s(t.getId())));
     }
 
     /** Chuyển khoản không khớp (thiếu tiền / vào sau khi hết hạn) — khách phải biết. */
@@ -156,7 +166,7 @@ public class NotificationDispatcher {
         dispatch("TICKET_PAYMENT_FAILED", t.getCustomer(), NotificationCategory.PAYMENT,
                 "Thanh toán vé chưa thành công",
                 "Vé \"" + t.getTicketType().getName() + "\" chưa được kích hoạt: " + reason + ".",
-                "/tickets/" + t.getId(),
+                "/profile/tickets",
                 Map.of("ticketId", s(t.getId()), "reason", s(reason)));
     }
 
@@ -208,13 +218,20 @@ public class NotificationDispatcher {
                 Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
     }
 
-    /** Câu 31/33: gym xác nhận PT có đến kèm ảnh — khách thấy bằng chứng. */
+    /**
+     * Câu 31/33: gym xác nhận PT có đến kèm ảnh — khách thấy bằng chứng.
+     *
+     * <p>Mọi thông báo cấp BUỔI TẬP đều về {@code /schedule}: không có route
+     * {@code /sessions/{id}}, và lịch đặt là nơi duy nhất khách xem chi tiết
+     * buổi, chọn HLV thay thế hay dời ngày. {@code /profile/sessions} cũng chỉ
+     * redirect về đây.
+     */
     public void ptSessionConfirmed(TrainingSession session) {
         dispatch("SESSION_PT_CONFIRMED", session.getTicket().getCustomer(),
                 NotificationCategory.BOOKING,
                 "Phòng gym đã xác nhận buổi tập có PT",
                 "Buổi " + session.getSessionDate() + " đã được phòng gym xác nhận kèm ảnh.",
-                "/sessions/" + session.getId(),
+                "/schedule",
                 Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
     }
 
@@ -233,7 +250,7 @@ public class NotificationDispatcher {
                 "Vé sắp hết hạn",
                 "Vé \"" + t.getTicketType().getName() + "\" còn " + daysLeft
                         + " ngày là hết hạn. Đặt lịch ngay để không mất quyền dùng.",
-                "/tickets/" + t.getId(),
+                "/schedule?ticketId=" + t.getId() + "&mode=book",
                 Map.of("ticketId", s(t.getId()), "daysLeft", s(daysLeft)));
     }
 
@@ -243,16 +260,18 @@ public class NotificationDispatcher {
                 "Vé đã hết hạn",
                 "Vé \"" + t.getTicketType().getName() + "\" đã quá hạn sử dụng ngày "
                         + t.getExpiresAt().toLocalDate() + " và không còn hoàn tiền được.",
-                "/tickets/" + t.getId(), Map.of("ticketId", s(t.getId())));
+                "/profile/tickets", Map.of("ticketId", s(t.getId())));
     }
 
     /** Vé đã dùng hết — mở đánh giá phòng gym (câu 17). */
     public void ticketUsedUp(Ticket t) {
+        // Đưa thẳng tới chỗ viết đánh giá, đúng việc thông báo đang mời làm —
+        // cùng đích với nút "Đánh giá" ở màn Vé của tôi.
         dispatch("TICKET_USED_UP", t.getCustomer(), NotificationCategory.BOOKING,
                 "Bạn đã dùng hết vé",
                 "Vé \"" + t.getTicketType().getName() + "\" đã hoàn tất. "
                         + "Bạn có thể đánh giá phòng gym ngay bây giờ.",
-                "/tickets/" + t.getId(), Map.of("ticketId", s(t.getId())));
+                "/profile/reviews", Map.of("ticketId", s(t.getId())));
     }
 
     /** Hoàn tiền đã thực thi — nói rõ luôn số buổi bị huỷ kèm (câu 12). */
@@ -262,7 +281,7 @@ public class NotificationDispatcher {
                 + (cancelledSessions > 0
                         ? " " + cancelledSessions + " buổi tập đã đặt bị huỷ theo." : "");
         dispatch("TICKET_REFUND_EXECUTED", t.getCustomer(), NotificationCategory.PAYMENT,
-                "Yêu cầu hoàn tiền đã được duyệt", body, "/tickets/" + t.getId(),
+                "Yêu cầu hoàn tiền đã được duyệt", body, "/profile/tickets",
                 Map.of("ticketId", s(t.getId()), "amount", s(amount),
                         "cancelledSessions", s(cancelledSessions)));
     }
@@ -274,7 +293,7 @@ public class NotificationDispatcher {
                 "Yêu cầu hoàn " + amount + " đ cho vé \"" + t.getTicketType().getName()
                         + "\" đã bị từ chối: " + note
                         + ". Nếu chưa đồng ý, bạn có thể mở tranh chấp cho vé này.",
-                "/tickets/" + t.getId(),
+                "/profile/tickets",
                 Map.of("ticketId", s(t.getId()), "amount", s(amount), "note", s(note)));
     }
 
@@ -337,7 +356,7 @@ public class NotificationDispatcher {
                 "PT của buổi ngày " + session.getSessionDate() + " tạm thời không thể phục vụ"
                         + (reason != null && !reason.isBlank() ? " (" + reason + ")" : "")
                         + ". Vui lòng chọn PT khác cho buổi này.",
-                "/sessions/" + session.getId(),
+                "/schedule",
                 Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate()),
                         "reason", s(reason)));
     }
@@ -366,7 +385,7 @@ public class NotificationDispatcher {
                 ptName + " xin nghỉ từ " + request.getFromDate() + " đến " + request.getToDate()
                         + " (" + request.getType() + "): " + request.getReason()
                         + ". Vào duyệt đơn để chốt lịch.",
-                "/gym/leave-requests",
+                "/gym/schedule",
                 Map.of("ptName", s(ptName), "fromDate", s(request.getFromDate()),
                         "toDate", s(request.getToDate()), "type", s(request.getType()),
                         "reason", s(request.getReason())));
@@ -407,7 +426,7 @@ public class NotificationDispatcher {
                 "HLV " + ptName + " không thể phụ trách buổi ngày " + session.getSessionDate()
                         + " lúc " + slotStart + ". Bạn có thể chọn HLV khác hoặc nhận hoàn "
                         + refundAmount + " đ phụ phí HLV của ngày này.",
-                "/sessions/" + session.getId(),
+                "/schedule",
                 Map.of("ptName", s(ptName), "date", s(session.getSessionDate()),
                         "slotStart", s(slotStart), "refundAmount", s(refundAmount)));
     }
