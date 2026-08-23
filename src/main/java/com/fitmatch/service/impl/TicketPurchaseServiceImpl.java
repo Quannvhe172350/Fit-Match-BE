@@ -109,6 +109,8 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                 .dayCount(type.getDayCount())
                 .withPt(request.isWithPt())
                 .totalAmount(pricing.totalAmount())
+                .baseAmount(pricing.baseAmount())
+                .ptSurchargeAmount(pricing.ptSurchargeAmount())
                 .servicesAmount(pricing.servicesAmount())
                 .services(services.stream()
                         .map(s -> TicketQuoteResponse.ServiceLine.builder()

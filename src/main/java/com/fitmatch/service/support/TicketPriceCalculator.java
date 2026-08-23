@@ -35,9 +35,17 @@ public class TicketPriceCalculator {
     /**
      * Kết quả tính giá, dùng chung cho cả /tickets/quote (hiển thị trước khi mua)
      * và /tickets/purchase (ghi vào vé) để hai đường không bao giờ lệch nhau.
+     *
+     * <p>{@code baseAmount}, {@code ptSurchargeAmount} và {@code servicesAmount} là
+     * ba khoản cấu thành nên tổng — luôn đúng đẳng thức
+     * {@code totalAmount = baseAmount + ptSurchargeAmount + servicesAmount}. Tách
+     * ở đây để màn checkout kê được từng dòng mà không phải tự trừ ra: chỗ nào FE
+     * chia lại tiền cũng là chỗ có thể lệch với số server thật sự thu.
      */
     public record TicketPricing(
             BigDecimal totalAmount,
+            BigDecimal baseAmount,
+            BigDecimal ptSurchargeAmount,
             BigDecimal servicesAmount,
             BigDecimal voucherDiscount,
             int loyaltyPointsUsed,
@@ -75,11 +83,11 @@ public class TicketPriceCalculator {
         if (services.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "servicesAmount must be >= 0");
         }
-        BigDecimal total = price;
+        BigDecimal ptSurcharge = BigDecimal.ZERO;
         if (withPt && ptSurchargePerDay != null && ptSurchargePerDay.compareTo(BigDecimal.ZERO) > 0) {
-            total = total.add(ptSurchargePerDay.multiply(BigDecimal.valueOf(dayCount)));
+            ptSurcharge = ptSurchargePerDay.multiply(BigDecimal.valueOf(dayCount));
         }
-        total = total.add(services);
+        BigDecimal total = price.add(ptSurcharge).add(services);
 
         // Voucher trước, điểm thưởng sau: điểm chỉ phủ phần còn thiếu nên khách
         // không "đốt" điểm vào phần đã được voucher giảm.
@@ -101,7 +109,8 @@ public class TicketPriceCalculator {
         }
 
         BigDecimal payable = remaining.max(BigDecimal.ZERO).setScale(0, RoundingMode.HALF_UP);
-        return new TicketPricing(total, services, voucher, pointsUsed, loyaltyDiscount, payable);
+        return new TicketPricing(total, price, ptSurcharge, services, voucher, pointsUsed,
+                loyaltyDiscount, payable);
     }
 
     /** Ghi kết quả tính giá vào vé (dùng ở /tickets/purchase). */

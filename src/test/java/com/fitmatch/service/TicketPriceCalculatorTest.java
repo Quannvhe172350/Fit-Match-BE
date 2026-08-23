@@ -157,4 +157,42 @@ class TicketPriceCalculatorTest {
                 vnd(-1), null, 0))
                 .isInstanceOf(BusinessException.class);
     }
+
+    // ---------- Tách khoản cho bảng kê ở màn checkout ----------
+
+    /**
+     * Bảng kê chỉ cộng đúng khi ba khoản dựng lại được tổng. Trước đây màn checkout
+     * chỉ nhận tổng nên nó in tổng dưới nhãn tên vé rồi liệt kê dịch vụ bên dưới,
+     * đọc ra thành "vé + dịch vụ" lớn hơn số phải trả.
+     */
+    @Test
+    void breakdown_sumsBackToTotal() {
+        TicketPricing p = calculator.calculate(vnd(1_000_000), vnd(200_000), 10, true,
+                vnd(300_000), null, 0);
+
+        assertThat(p.baseAmount()).isEqualByComparingTo(vnd(1_000_000));
+        assertThat(p.ptSurchargeAmount()).isEqualByComparingTo(vnd(2_000_000));
+        assertThat(p.servicesAmount()).isEqualByComparingTo(vnd(300_000));
+        assertThat(p.baseAmount().add(p.ptSurchargeAmount()).add(p.servicesAmount()))
+                .isEqualByComparingTo(p.totalAmount());
+    }
+
+    /** Không chọn PT thì dòng phụ phí phải là 0 để FE ẩn hẳn, không hiện "+ 0đ". */
+    @Test
+    void breakdown_withoutPt_hasZeroSurcharge() {
+        TicketPricing p = calculator.calculate(vnd(150_000), vnd(200_000), 1, false, null, 0);
+
+        assertThat(p.baseAmount()).isEqualByComparingTo(vnd(150_000));
+        assertThat(p.ptSurchargeAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    /** Chọn PT nhưng loại vé không cấu hình phụ phí: cũng phải là 0, không null. */
+    @Test
+    void breakdown_withPtButNoSurchargeConfigured_hasZeroSurcharge() {
+        TicketPricing p = calculator.calculate(vnd(500_000), null, 5, true, null, 0);
+
+        assertThat(p.baseAmount()).isEqualByComparingTo(vnd(500_000));
+        assertThat(p.ptSurchargeAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(p.totalAmount()).isEqualByComparingTo(vnd(500_000));
+    }
 }
