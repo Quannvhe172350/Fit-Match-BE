@@ -68,12 +68,27 @@ public class TicketController {
                 purchaseService.purchase(userDetails.getUsername(), request)));
     }
 
-    @Operation(summary = "Vé của tôi", description = "Actor: **Customer**. Lọc theo status nếu cần.")
+    /**
+     * Vé mới mua phải nằm trên cùng. Trước đây không có sort mặc định nào, nên thứ
+     * tự do DB quyết (thực tế là theo khoá chính tăng dần) — vé vừa mua rơi xuống
+     * cuối danh sách, đúng cái vé khách đang cần trả tiền hoặc xếp lịch.
+     *
+     * <p>Sắp theo {@code createdAt} chứ không phải {@code purchasedAt}:
+     * purchasedAt chỉ được ghi khi thanh toán xong nên vé PENDING_PAYMENT có giá
+     * trị null, mà null trong sort DESC của MariaDB đi xuống cuối — lại đúng cái
+     * vé cần xử lý nhất. Thêm {@code id} làm khoá phụ cho trường hợp hai vé cùng
+     * mốc thời gian.
+     */
+    @Operation(summary = "Vé của tôi",
+            description = "Actor: **Customer**. Lọc theo status nếu cần. Mặc định sắp theo ngày tạo, "
+                    + "mới nhất trước.")
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<PageResponse<TicketResponse>>> myTickets(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(required = false) TicketStatus status,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @PageableDefault(size = 20, sort = {"createdAt", "id"},
+                    direction = org.springframework.data.domain.Sort.Direction.DESC)
+            Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
                 purchaseService.myTickets(userDetails.getUsername(), status, pageable)));
     }

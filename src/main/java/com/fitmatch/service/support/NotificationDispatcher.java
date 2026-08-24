@@ -235,6 +235,28 @@ public class NotificationDispatcher {
                 Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
     }
 
+    /**
+     * Câu 36: buổi tập xong là mốc mở đánh giá HLV — mời ngay lúc người tập còn
+     * nhớ rõ, đừng để họ tự phát hiện ra là mình được đánh giá.
+     *
+     * <p>Chỉ gửi khi buổi CÓ HLV: buổi tự tập không có ai để chấm. Khác với đánh
+     * giá phòng gym (mở khi dùng hết vé, một lần cho cả vé), cái này mở theo TỪNG
+     * buổi nên một vé gói 10 ngày có PT sẽ mời 10 lần — mỗi buổi một HLV khác nhau
+     * là chuyện bình thường.
+     */
+    public void sessionDoneReviewPt(TrainingSession session) {
+        if (session.getPtProfile() == null) return;
+        String ptName = session.getPtProfile().getDisplayName();
+        dispatch("SESSION_DONE_REVIEW_PT", session.getTicket().getCustomer(),
+                NotificationCategory.REVIEW,
+                "Đánh giá HLV buổi vừa tập?",
+                "Buổi ngày " + session.getSessionDate() + " với HLV " + ptName
+                        + " đã hoàn thành. Chấm điểm buổi tập này để HLV và người tập sau đều "
+                        + "biết mình đang chọn ai.",
+                "/schedule",
+                Map.of("ptName", s(ptName), "date", s(session.getSessionDate())));
+    }
+
     /** Tiền vé đã về ví khả dụng của gym (số ròng sau hoa hồng). */
     public void ticketSettlementReleased(Ticket t, java.math.BigDecimal netAmount) {
         dispatch("TICKET_SETTLEMENT_RELEASED", gymUser(t), NotificationCategory.PAYMENT,

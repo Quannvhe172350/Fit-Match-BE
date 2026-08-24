@@ -67,6 +67,9 @@ public class TicketMaintenanceServiceImpl implements TicketMaintenanceService {
             // hay có mặt đều DONE, và không còn NO_SHOW nào để phân biệt.
             sessionLifecycle.transition(session, SessionStatus.DONE, "Ngày tập đã trôi qua");
             sessionRepository.save(session);
+            // Câu 36: buổi xong là mốc mở đánh giá HLV. Mời ngay tại đây, cùng lúc
+            // với lần chuyển trạng thái — không có chỗ nào khác biết buổi vừa xong.
+            notificationDispatcher.sessionDoneReviewPt(session);
             touched.add(session.getTicket());
         }
         for (Ticket ticket : touched) {

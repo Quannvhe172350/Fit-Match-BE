@@ -64,6 +64,11 @@ public class TicketResponse {
 
     private TicketStatus status;
     private String statusReason;
+    /**
+     * Ngày TẠO vé — mốc duy nhất luôn có. purchasedAt chỉ có sau khi thanh toán
+     * thành công, nên vé chờ thanh toán không có gì để hiển thị nếu chỉ dựa vào nó.
+     */
+    private LocalDateTime createdAt;
     private LocalDateTime purchasedAt;
     private LocalDateTime expiresAt;
     private LocalDate startDate;
@@ -133,6 +138,7 @@ public class TicketResponse {
                 .payableAmount(t.getPayableAmount())
                 .status(t.getStatus())
                 .statusReason(t.getStatusReason())
+                .createdAt(t.getCreatedAt())
                 .purchasedAt(t.getPurchasedAt())
                 .expiresAt(t.getExpiresAt())
                 .startDate(t.getStartDate())

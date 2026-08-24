@@ -92,6 +92,7 @@ class NotificationDispatcherLinkTest {
         dispatcher.ptSessionConfirmed(session);
         dispatcher.ptSuspendedAffectsSession(session, "đình chỉ");
         dispatcher.sessionPtCancelled(session, "Coach", LocalTime.of(7, 0), BigDecimal.TEN);
+        dispatcher.sessionDoneReviewPt(sessionWithPt(ticket));
 
         for (String link : publishedLinks()) {
             assertThat(routeOf(link))
@@ -121,6 +122,19 @@ class NotificationDispatcherLinkTest {
         dispatcher.sessionPtCancelled(session, "Coach", LocalTime.of(7, 0), BigDecimal.TEN);
 
         assertThat(publishedLinks()).containsOnly("/schedule");
+    }
+
+    /**
+     * Buổi tự tập không có ai để chấm: không mời đánh giá HLV. Guard nằm trong
+     * dispatcher, nên phải kiểm ở đây — chỗ gọi (TicketMaintenanceService) mock
+     * dispatcher nên không thấy được nhánh này.
+     */
+    @Test
+    void sessionWithoutPt_doesNotInviteReview() {
+        dispatcher.sessionDoneReviewPt(session(ticket()));
+
+        org.mockito.Mockito.verify(eventPublisher, org.mockito.Mockito.never())
+                .publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
     }
 
     // ---------- hạ tầng ----------
@@ -164,6 +178,17 @@ class NotificationDispatcherLinkTest {
                 .payableAmount(BigDecimal.valueOf(1_000_000))
                 .expiresAt(LocalDateTime.of(2026, 9, 30, 23, 59))
                 .build();
+    }
+
+    /** Buổi có HLV — mời đánh giá HLV chỉ gửi khi buổi thật sự có người dạy. */
+    private static TrainingSession sessionWithPt(Ticket ticket) {
+        TrainingSession s = session(ticket);
+        com.fitmatch.entity.PtProfile pt = new com.fitmatch.entity.PtProfile();
+        pt.setId(9L);
+        pt.setDisplayName("Coach Minh");
+        pt.setUser(user("pt"));
+        s.setPtProfile(pt);
+        return s;
     }
 
     private static TrainingSession session(Ticket ticket) {

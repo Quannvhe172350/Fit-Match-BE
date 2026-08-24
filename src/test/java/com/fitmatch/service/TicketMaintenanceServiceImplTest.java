@@ -95,6 +95,25 @@ class TicketMaintenanceServiceImplTest {
         verify(sessionLifecycle).transition(eq(s), eq(SessionStatus.DONE), any());
     }
 
+    /**
+     * Câu 36: buổi có HLV xong thì mời khách đánh giá HLV ngay tại mốc đó. Trước
+     * đây không có thông báo nào ở đây, nên đánh giá PT tồn tại trong API mà khách
+     * không có cách nào biết là mình được đánh giá.
+     */
+    @Test
+    void completeElapsedSessions_sessionWithPt_invitesPtReview() {
+        Ticket t = ticket(TicketStatus.ACTIVE, 3);
+        TrainingSession s = session(t, 1L, SessionStatus.SCHEDULED);
+        s.setPtProfile(com.fitmatch.entity.PtProfile.builder().id(5L).displayName("Coach").build());
+        when(sessionRepository.findByStatusAndSessionDateBefore(eq(SessionStatus.SCHEDULED), any()))
+                .thenReturn(List.of(s));
+        when(sessionRepository.findByTicket_IdOrderByDayIndexAsc(100L)).thenReturn(List.of(s));
+
+        service.completeElapsedSessions();
+
+        verify(notificationDispatcher).sessionDoneReviewPt(s);
+    }
+
     /** Vé còn ngày chưa đặt thì CHƯA dùng hết — khách vẫn còn quyền tới hạn vé. */
     @Test
     void completeElapsedSessions_ticketWithUnbookedDays_staysActive() {
