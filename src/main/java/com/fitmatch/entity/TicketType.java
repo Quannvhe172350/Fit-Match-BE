@@ -73,6 +73,17 @@ public class TicketType extends BaseEntity {
     @Column(name = "day_count", nullable = false)
     private Integer dayCount;
 
+    /**
+     * Độ dài MỖI BUỔI tập của vé, tính bằng phút. Null = không ràng buộc: nhận
+     * mọi ca, độ dài do ca của gym quyết (hành vi trước V93).
+     *
+     * <p>Có giá trị thì lúc xếp lịch chỉ nhận khung giờ dài ĐÚNG bằng ngần này —
+     * gym bán "gói 90 phút" mà khách đặt được ca 60 phút thì con số trên vé chỉ
+     * là chữ trang trí.
+     */
+    @Column(name = "minutes_per_day")
+    private Integer minutesPerDay;
+
     /** Giá vé KHÔNG kèm PT — đây là giá niêm yết trên marketplace. */
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal price;

@@ -43,7 +43,15 @@ public interface ReviewService {
     RatingSummaryResponse ptRatingSummary(Long ptProfileId);
 
     // ----- Gym (UC-023) -----
-    PageResponse<ReviewResponse> gymReviews(String gymUsername, Pageable pageable);
+    /**
+     * Đánh giá của gym mình. {@code targetType} null = lấy tất cả (giữ nguyên
+     * hành vi cũ); GYM = chỉ đánh giá phòng gym; PT = chỉ đánh giá huấn luyện
+     * viên. Hai loại này chấm hai thứ khác hẳn nhau nên trộn chung một danh sách
+     * thì gym không đọc được gì.
+     */
+    PageResponse<ReviewResponse> gymReviews(String gymUsername,
+                                            com.fitmatch.common.enums.ReviewTargetType targetType,
+                                            Pageable pageable);
 
     // ----- Moderator/Admin (UC-071) -----
     PageResponse<ReviewReportResponse> reports(ReportStatus status, Pageable pageable);

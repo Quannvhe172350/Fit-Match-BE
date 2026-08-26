@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -36,6 +37,17 @@ public class TicketTypeRequest {
     /** Vé DAY bỏ trống hoặc để 1; vé PACKAGE bắt buộc >= 2. Service tự chuẩn hoá. */
     @Positive(message = "Day count must be positive")
     private Integer dayCount;
+
+    /**
+     * Độ dài mỗi buổi tập, tính bằng PHÚT. Bỏ trống = không ràng buộc (nhận mọi
+     * ca). Có giá trị thì khách chỉ đặt được ca dài đúng ngần này.
+     *
+     * <p>Trần 8 tiếng: quá mốc đó thì không còn là một buổi tập mà là cả ngày mở
+     * cửa, và chắc chắn là gõ nhầm đơn vị (nhập giờ vào ô phút).
+     */
+    @Positive(message = "Minutes per day must be positive")
+    @Max(value = 480, message = "Minutes per day must be <= 480")
+    private Integer minutesPerDay;
 
     @NotNull(message = "Price is required")
     @DecimalMin(value = "0.0", message = "Price must be >= 0")

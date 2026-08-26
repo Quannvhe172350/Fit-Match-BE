@@ -84,6 +84,13 @@ public class Ticket extends BaseEntity {
     private Integer dayCount;
 
     /**
+     * Snapshot độ dài mỗi buổi (phút) lúc mua. Null = vé không ràng buộc độ dài.
+     * Gym sửa loại vé sau đó không đổi được luật của tấm vé đã bán.
+     */
+    @Column(name = "minutes_per_day")
+    private Integer minutesPerDay;
+
+    /**
      * Khách đã trả phụ phí PT cho vé này. Phụ phí tính theo VÉ (tất cả các ngày),
      * nên bỏ PT khỏi một ngày lẻ không sinh hoàn tiền.
      */

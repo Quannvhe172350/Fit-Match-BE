@@ -36,6 +36,9 @@ public class TicketResponse {
 
     private TicketKind kind;
     private Integer dayCount;
+
+    /** Độ dài mỗi buổi (phút). Null = không ràng buộc, độ dài do ca của gym quyết. */
+    private Integer minutesPerDay;
     private boolean withPt;
 
     private BigDecimal unitPrice;
@@ -124,6 +127,7 @@ public class TicketResponse {
                 .gymBranchName(t.getGymBranch().getName())
                 .kind(t.getKind())
                 .dayCount(t.getDayCount())
+                .minutesPerDay(t.getMinutesPerDay())
                 .withPt(t.isWithPt())
                 .unitPrice(t.getUnitPrice())
                 .ptSurchargePerDay(t.getPtSurchargePerDay())

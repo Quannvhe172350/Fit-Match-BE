@@ -88,7 +88,8 @@ class TicketSchedulingServiceImplTest {
                 PtProfile.builder().id(PT_ID).displayName("PT A").build()));
         // V85: validator trả khung giờ đã phân giải TỪ CA, không còn trả entity
         // pt_availabilities (bảng đã bị gỡ khỏi mô hình).
-        when(ptSlotValidator.resolveSlot(any(), any(), any(), any(), any())).thenReturn(
+        // V93: tham số cuối là độ dài buổi vé yêu cầu (null = vé không ràng buộc).
+        when(ptSlotValidator.resolveSlot(any(), any(), any(), any(), any(), any())).thenReturn(
                 new PtSlotValidator.ResolvedSlot(null, SLOT, LocalTime.of(19, 0)));
     }
 
@@ -199,7 +200,7 @@ class TicketSchedulingServiceImplTest {
         service.schedule(USERNAME, TICKET_ID,
                 ScheduleTicketRequest.builder().date(LocalDate.now().plusDays(1)).build());
 
-        verify(ptSlotValidator, never()).resolveSlot(any(), any(), any(), any(), any());
+        verify(ptSlotValidator, never()).resolveSlot(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -237,7 +238,8 @@ class TicketSchedulingServiceImplTest {
 
         service.updateDate(USERNAME, 500L, newDate);
 
-        verify(ptSlotValidator).resolveSlot(PT_ID, branch.getId(), newDate, SLOT, 500L);
+        verify(ptSlotValidator).resolveSlot(PT_ID, branch.getId(), newDate, SLOT, 500L,
+                t.getMinutesPerDay());
         assertThat(s.getPtSlotEnd()).isEqualTo(LocalTime.of(19, 0));
     }
 

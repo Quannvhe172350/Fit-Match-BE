@@ -16,6 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,12 +31,16 @@ public class GymReviewController {
 
     @Operation(
             summary = "UC-023/069 — Đánh giá của gym tôi (mọi trạng thái)",
-            description = "Actor: **Gym Operator**. Gồm cả review bị ẩn/gỡ để theo dõi chất lượng PT/dịch vụ; nội dung không phản hồi được, chỉ báo cáo vi phạm qua POST /api/reviews/{id}/report.")
+            description = "Actor: **Gym Operator**. Gồm cả review bị ẩn/gỡ để theo dõi chất lượng PT/dịch vụ; "
+                    + "nội dung không phản hồi được, chỉ báo cáo vi phạm qua POST /api/reviews/{id}/report. "
+                    + "targetType=GYM lấy đánh giá phòng gym, targetType=PT lấy đánh giá huấn luyện viên; "
+                    + "bỏ trống = cả hai.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> myGymReviews(
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) com.fitmatch.common.enums.ReviewTargetType targetType,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                reviewService.gymReviews(userDetails.getUsername(), pageable)));
+                reviewService.gymReviews(userDetails.getUsername(), targetType, pageable)));
     }
 }

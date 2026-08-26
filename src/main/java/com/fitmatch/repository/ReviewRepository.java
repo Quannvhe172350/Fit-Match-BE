@@ -1,6 +1,7 @@
 package com.fitmatch.repository;
 
 import com.fitmatch.common.enums.ReviewStatus;
+import com.fitmatch.common.enums.ReviewTargetType;
 import com.fitmatch.entity.Review;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,21 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     /** Review của các gym do một operator sở hữu (mọi trạng thái) — cho gym theo dõi chất lượng. */
     Page<Review> findByGymProfile_User_UsernameOrderByIdDesc(String gymUsername, Pageable pageable);
+
+    /**
+     * Cùng danh sách trên nhưng tách theo LOẠI đánh giá. Đánh giá PT cũng lưu
+     * gymProfile (để hiện đúng ngữ cảnh phòng tập), nên danh sách không lọc trộn
+     * lẫn hai thứ khác hẳn nhau: chấm phòng gym và chấm từng huấn luyện viên.
+     * targetType null = dữ liệu trước V76, đều là đánh giá gym.
+     */
+    @Query("select r from Review r where r.gymProfile.user.username = :username "
+            + "and (r.targetType = :targetType "
+            + "     or (:targetType = com.fitmatch.common.enums.ReviewTargetType.GYM "
+            + "         and r.targetType is null)) "
+            + "order by r.id desc")
+    Page<Review> findOwnedByType(@Param("username") String username,
+                                 @Param("targetType") ReviewTargetType targetType,
+                                 Pageable pageable);
 
     /** UC-071: điểm TB + số lượng review VISIBLE của một gym (chỉ tính công khai). */
     /**

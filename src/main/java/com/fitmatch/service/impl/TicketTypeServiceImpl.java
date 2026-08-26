@@ -49,6 +49,7 @@ public class TicketTypeServiceImpl implements TicketTypeService {
                 .description(request.getDescription())
                 .kind(request.getKind())
                 .dayCount(normalizeDayCount(request))
+                .minutesPerDay(request.getMinutesPerDay())
                 .price(request.getPrice())
                 .ptSurchargePerDay(request.getPtSurchargePerDay())
                 .status(CatalogStatus.PUBLISHED)
@@ -75,6 +76,8 @@ public class TicketTypeServiceImpl implements TicketTypeService {
         type.setDescription(request.getDescription());
         type.setKind(request.getKind());
         type.setDayCount(normalizeDayCount(request));
+        // Sửa loại vé chỉ đổi luật cho vé bán TỪ ĐÂY: vé đã bán giữ snapshot riêng.
+        type.setMinutesPerDay(request.getMinutesPerDay());
         type.setPrice(request.getPrice());
         type.setPtSurchargePerDay(request.getPtSurchargePerDay());
         replaceBranches(type, type.getGymProfile(), request.getBranchIds());

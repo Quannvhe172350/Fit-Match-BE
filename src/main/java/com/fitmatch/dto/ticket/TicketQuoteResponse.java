@@ -19,6 +19,13 @@ public class TicketQuoteResponse {
 
     private String ticketTypeName;
     private Integer dayCount;
+
+    /**
+     * Độ dài mỗi buổi (phút). Null = không ràng buộc. Hiện ở bảng kê để khách
+     * biết mình mua buổi bao lâu TRƯỚC khi trả tiền, không phải tới lúc xếp lịch
+     * mới phát hiện chỉ chọn được ca 60 phút.
+     */
+    private Integer minutesPerDay;
     private boolean withPt;
 
     /**

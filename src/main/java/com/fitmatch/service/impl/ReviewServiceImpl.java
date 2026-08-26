@@ -275,8 +275,12 @@ public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.Ti
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ReviewResponse> gymReviews(String gymUsername, Pageable pageable) {
-        return toPage(reviewRepository.findByGymProfile_User_UsernameOrderByIdDesc(gymUsername, pageable));
+    public PageResponse<ReviewResponse> gymReviews(String gymUsername,
+                                                   com.fitmatch.common.enums.ReviewTargetType targetType,
+                                                   Pageable pageable) {
+        return toPage(targetType == null
+                ? reviewRepository.findByGymProfile_User_UsernameOrderByIdDesc(gymUsername, pageable)
+                : reviewRepository.findOwnedByType(gymUsername, targetType, pageable));
     }
 
     @Override

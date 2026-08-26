@@ -90,6 +90,54 @@ class PtSlotValidatorTest {
                 .thenReturn(List.of());
     }
 
+    // ---------- V93: độ dài buổi ghi trên vé ----------
+
+    /**
+     * Vé quy định mỗi buổi 90 phút mà ca chỉ có slot 60 phút -> từ chối, kèm cả
+     * hai con số. Không có ràng buộc này thì con số trên vé chỉ là chữ trang trí:
+     * khách mua "gói 90 phút" rồi đặt được toàn ca 60 phút.
+     */
+    @Test
+    void ticketRequiresLongerSession_rejected() {
+        assertThatThrownBy(() ->
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 90))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("90 phút")
+                .hasMessageContaining("60 phút");
+    }
+
+    /** Khớp đúng độ dài thì đặt bình thường. */
+    @Test
+    void ticketMatchesSlotLength_accepted() {
+        PtSlotValidator.ResolvedSlot resolved =
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 60);
+
+        assertThat(resolved.endTime()).isEqualTo(LocalTime.of(19, 0));
+    }
+
+    /**
+     * Ca DÀI HƠN vé cũng bị từ chối: vé 60 phút mà ca 120 phút thì khách chiếm
+     * trọn khung hai tiếng của PT trong khi chỉ trả tiền một tiếng.
+     */
+    @Test
+    void slotLongerThanTicket_rejected() {
+        eveningShift.setSlotMinutes(120);
+
+        assertThatThrownBy(() ->
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 60))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("120 phút");
+    }
+
+    /** Vé không khai độ dài -> giữ nguyên hành vi trước V93, nhận mọi ca. */
+    @Test
+    void ticketWithoutRequiredMinutes_acceptsAnySlot() {
+        PtSlotValidator.ResolvedSlot resolved =
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, null);
+
+        assertThat(resolved.endTime()).isEqualTo(LocalTime.of(19, 0));
+    }
+
     /** Giờ kết thúc do CA quyết (slotMinutes), không còn do PT khai. */
     @Test
     void allConditionsMet_returnsSlotEndFromShift() {

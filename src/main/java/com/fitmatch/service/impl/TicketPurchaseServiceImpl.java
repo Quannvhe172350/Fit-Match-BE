@@ -107,6 +107,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
         return TicketQuoteResponse.builder()
                 .ticketTypeName(type.getName())
                 .dayCount(type.getDayCount())
+                .minutesPerDay(type.getMinutesPerDay())
                 .withPt(request.isWithPt())
                 .totalAmount(pricing.totalAmount())
                 .baseAmount(pricing.baseAmount())
@@ -155,6 +156,7 @@ public class TicketPurchaseServiceImpl implements TicketPurchaseService {
                 // đều không làm sai vé này.
                 .kind(type.getKind())
                 .dayCount(type.getDayCount())
+                .minutesPerDay(type.getMinutesPerDay())
                 .withPt(request.isWithPt())
                 .unitPrice(type.getPrice())
                 .ptSurchargePerDay(request.isWithPt() ? type.getPtSurchargePerDay() : null)

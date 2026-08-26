@@ -123,7 +123,10 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
         if (session.getPtProfile() != null) {
             PtSlotValidator.ResolvedSlot slot = ptSlotValidator.resolveSlot(
                     session.getPtProfile().getId(), ticket.getGymBranch().getId(),
-                    date, session.getPtSlotStart(), session.getId());
+                    date, session.getPtSlotStart(), session.getId(),
+                    // Ngày mới có thể thuộc ca khác với slotMinutes khác — vé quy
+                    // định bao nhiêu phút thì ngày mới cũng phải đúng ngần ấy.
+                    ticket.getMinutesPerDay());
             session.setPtSlotEnd(slot.endTime());
         }
         session.setSessionDate(date);
@@ -255,7 +258,8 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
                     "slotStart is required when a PT is selected");
         }
         PtSlotValidator.ResolvedSlot slot = ptSlotValidator.resolveSlot(
-                ptId, ticket.getGymBranch().getId(), date, slotStart, session.getId());
+                ptId, ticket.getGymBranch().getId(), date, slotStart, session.getId(),
+                ticket.getMinutesPerDay());
         PtProfile pt = ptProfileRepository.findById(ptId)
                 .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
 

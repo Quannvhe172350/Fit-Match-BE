@@ -75,6 +75,21 @@ public class PtSlotValidator {
      */
     public ResolvedSlot resolveSlot(Long ptId, Long branchId, LocalDate date,
                                     LocalTime slotStart, Long excludeSessionId) {
+        return resolveSlot(ptId, branchId, date, slotStart, excludeSessionId, null);
+    }
+
+    /**
+     * V93: {@code requiredMinutes} = độ dài buổi ghi trên VÉ. Null = không ràng
+     * buộc (hành vi cũ, độ dài do ca quyết).
+     *
+     * <p>Đòi khớp ĐÚNG chứ không phải "ca dài hơn là được": ca 120 phút mà vé chỉ
+     * mua 60 phút thì khách chiếm trọn khung của PT trong hai tiếng, gym mất một
+     * suất bán. Gym muốn bán buổi 90 phút thì khai ca 90 phút — độ dài slot vốn
+     * đã là thứ gym tự đặt ở {@code gym_shifts.slot_minutes}.
+     */
+    public ResolvedSlot resolveSlot(Long ptId, Long branchId, LocalDate date,
+                                    LocalTime slotStart, Long excludeSessionId,
+                                    Integer requiredMinutes) {
         List<String> reasons = new ArrayList<>();
 
         PtProfile pt = ptProfileRepository.findById(ptId).orElseThrow(() ->
@@ -95,6 +110,14 @@ public class PtSlotValidator {
             }
             if (isTaken(ptId, date, slotStart, excludeSessionId)) {
                 reasons.add("Khung giờ này của PT đã có người đặt");
+            }
+            if (requiredMinutes != null) {
+                long slotMinutes = java.time.Duration
+                        .between(slot.startTime(), slot.endTime()).toMinutes();
+                if (slotMinutes != requiredMinutes) {
+                    reasons.add("Vé này quy định mỗi buổi " + requiredMinutes
+                            + " phút, khung giờ vừa chọn dài " + slotMinutes + " phút");
+                }
             }
         }
 
