@@ -17,6 +17,16 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
 
     List<TrainingSession> findByTicket_IdOrderByDayIndexAsc(Long ticketId);
 
+    /**
+     * V94: một vé đã có buổi nào ở đúng ngày này chưa (bỏ qua chính buổi đang
+     * sửa). Dùng khi dời ngày của vé GÓI — hai ngày của cùng một vé rơi vào một
+     * ngày là vô nghĩa, mà unique key {@code uk_session_ticket_day} không bắt
+     * được vì nó khoá theo (vé, day_index) chứ không theo ngày.
+     */
+    boolean existsByTicket_IdAndSessionDateAndStatusNotAndIdNot(
+            Long ticketId, java.time.LocalDate sessionDate,
+            com.fitmatch.common.enums.SessionStatus excludedStatus, Long excludedId);
+
     Optional<TrainingSession> findByIdAndTicket_Customer_Username(Long id, String username);
 
     Optional<TrainingSession> findByIdAndTicket_GymProfile_User_Username(Long id, String username);

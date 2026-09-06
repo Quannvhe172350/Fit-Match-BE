@@ -166,7 +166,7 @@ class SessionSchedulingValidatorTest {
                 .hasMessageContaining("ít nhất một ngày");
     }
 
-    // --- dời lịch (câu 2/37) ---
+    // --- dời lịch (câu 2/37, nới cho vé gói ở V94) ---
 
     private TrainingSession session(LocalDate date, SessionStatus status) {
         return TrainingSession.builder().id(5L).sessionDate(date).status(status).build();
@@ -178,13 +178,29 @@ class SessionSchedulingValidatorTest {
                 session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(5), TODAY);
     }
 
+    /**
+     * V94: vé GÓI cũng dời được một ngày. Luật "n ngày liên tiếp" (câu 27) là luật
+     * của lúc ĐẶT; giữ nó mãi về sau nghĩa là người mua gói 10 ngày bận đúng một
+     * hôm thì mất trắng hôm đó.
+     */
     @Test
-    void reschedule_packageTicket_rejected() {
+    void reschedule_packageTicket_passes() {
+        validator.assertReschedulable(ticket(TicketKind.PACKAGE, 10, TicketStatus.ACTIVE),
+                session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(5), TODAY);
+    }
+
+    /** Hai ngày của CÙNG một vé rơi vào một ngày là vô nghĩa — vé dùng được cả ngày. */
+    @Test
+    void reschedule_ontoAnotherDayOfSameTicket_rejected() {
+        when(trainingSessionRepository.existsByTicket_IdAndSessionDateAndStatusNotAndIdNot(
+                anyLong(), any(), any(), anyLong()))
+                .thenReturn(true);
+
         assertThatThrownBy(() -> validator.assertReschedulable(
                 ticket(TicketKind.PACKAGE, 10, TicketStatus.ACTIVE),
                 session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(5), TODAY))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Vé gói không đổi được lịch");
+                .hasMessageContaining("đã có một ngày tập vào");
     }
 
     /** Mốc huỷ/đổi là 00:00 ngày tập — hôm nay là ngày tập thì đã khoá. */

@@ -37,6 +37,13 @@ public class TrainingSessionResponse {
     private String evidenceUrl;
 
     /**
+     * V94: số tiền đã hoàn khi khách huỷ đúng buổi này. Null = chưa huỷ; 0 =
+     * huỷ quá muộn nên không được hoàn — lịch phải nói ra con số đó, nếu không
+     * khách chỉ thấy một ngày biến mất mà không biết mình được lại bao nhiêu.
+     */
+    private java.math.BigDecimal cancelRefundAmount;
+
+    /**
      * Chỉ điền ở lịch dạy của PT ({@link #forPt}). Buổi tập vốn chỉ mang
      * {@code ticketId}, mà PT nhìn "vé #123" thì không biết mình dạy ai; còn ở
      * lịch của chính khách thì tên đó là tên họ, thêm vào chỉ tốn chỗ.
@@ -57,6 +64,7 @@ public class TrainingSessionResponse {
                 .checkedInAt(s.getCheckedInAt())
                 .ptConfirmedAt(s.getPtConfirmedAt())
                 .evidenceUrl(s.getEvidenceUrl())
+                .cancelRefundAmount(s.getCancelRefundAmount())
                 .build();
     }
 

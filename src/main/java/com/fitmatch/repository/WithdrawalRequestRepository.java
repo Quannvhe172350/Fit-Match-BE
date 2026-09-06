@@ -19,6 +19,9 @@ public interface WithdrawalRequestRepository extends JpaRepository<WithdrawalReq
 
     Page<WithdrawalRequest> findByStatus(WithdrawalStatus status, Pageable pageable);
 
+    /** V94: số lệnh rút đang chờ duyệt — nguồn của chấm đỏ trên menu admin. */
+    long countByStatus(WithdrawalStatus status);
+
     /** V61 — lệnh rút của một ví cụ thể; dùng chung cho cả ba loại chủ ví. */
     Page<WithdrawalRequest> findByWallet_IdOrderByIdDesc(Long walletId, Pageable pageable);
 

@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -49,6 +50,8 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
     private final SessionLifecycle sessionLifecycle;
     private final NotificationDispatcher notificationDispatcher;
     private final SessionPtCancellationService ptCancellationService;
+    private final com.fitmatch.service.support.SessionCancelRefundCalculator cancelRefundCalculator;
+    private final com.fitmatch.service.WalletService walletService;
 
     @Override
     @Transactional
@@ -98,10 +101,15 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
     @Override
     @Transactional(readOnly = true)
     public List<TrainingSessionResponse> mySessions(String customerUsername, LocalDate from, LocalDate to) {
+        // Buổi khách TỰ HUỶ vẫn hiện: ngày đó đã tiêu một ngày của vé (khách đã
+        // nhận tiền hoàn), nên nếu giấu đi thì thẻ vé báo "đã xếp 3/10" mà lịch
+        // chỉ có 2 buổi — người xem không có cách nào truy ra ngày thứ ba đi đâu.
+        // CANCELLED (huỷ kéo theo khi hoàn cả vé) thì vẫn ẩn: vé đó đã chết.
         return sessionRepository
                 .findByTicket_Customer_UsernameAndSessionDateBetweenAndStatusInOrderBySessionDateAsc(
                         customerUsername, from, to,
-                        List.of(SessionStatus.SCHEDULED, SessionStatus.DONE))
+                        List.of(SessionStatus.SCHEDULED, SessionStatus.DONE,
+                                SessionStatus.CANCELLED_BY_CUSTOMER))
                 .stream().map(TrainingSessionResponse::of).toList();
     }
 
@@ -270,6 +278,115 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
     }
 
     /** Buổi chỉ sửa được khi còn SCHEDULED và ngày tập chưa tới (mốc 00:00). */
+    @Override
+    @Transactional(readOnly = true)
+    public com.fitmatch.dto.ticket.SessionCancellationQuote cancelQuote(String customerUsername,
+                                                                        Long sessionId) {
+        TrainingSession session = requireOwnedSession(customerUsername, sessionId);
+        return quoteOf(session, cancelBlocker(session));
+    }
+
+    @Override
+    @Transactional
+    public com.fitmatch.dto.ticket.SessionCancellationQuote cancel(String customerUsername,
+                                                                    Long sessionId, String reason) {
+        TrainingSession session = requireOwnedSession(customerUsername, sessionId);
+        String blocker = cancelBlocker(session);
+        if (blocker != null) {
+            throw new BusinessException(ErrorCode.INVALID_STATE, blocker);
+        }
+
+        Ticket ticket = session.getTicket();
+        var quote = cancelRefundCalculator.quote(session);
+        BigDecimal refund = quote.amount();
+
+        /*
+         * Ghi sổ TRƯỚC khi chuyển tiền, cùng thứ tự với SessionPtCancellationServiceImpl:
+         * đây là con số mà PartialRefundCalculator trừ đi khi hoàn cả vé về sau, và
+         * là chốt chặn duy nhất giữ cho tổng hoàn không vượt số khách đã trả —
+         * WalletService không bắt được vì nó kiểm held_balance TỔNG của gym.
+         *
+         * Tiền chỉ rút ra được khi vé còn ở HELD. Vé đã rời HELD (đã quyết toán
+         * cho gym) thì không còn gì để hoàn: chặn ở cancelBlocker chứ không để
+         * WalletService ném ra một lỗi số dư khó hiểu.
+         */
+        if (refund.signum() > 0) {
+            ticket.setSessionRefundedAmount(
+                    nvl(ticket.getSessionRefundedAmount()).add(refund));
+            ticketRepository.save(ticket);
+            walletService.refundToCustomerForTicket(ticket.getGymProfile().getId(),
+                    ticket.getCustomer(), ticket.getId(), refund);
+        }
+
+        session.setCancelRefundAmount(refund);
+        sessionLifecycle.transition(session, SessionStatus.CANCELLED_BY_CUSTOMER,
+                "Khách huỷ, báo trước " + quote.hoursAhead() + "h — hoàn "
+                        + quote.percent() + "% (" + refund + " đ)"
+                        + (reason == null || reason.isBlank() ? "" : ". Lý do: " + clip(reason)));
+        sessionRepository.save(session);
+
+        notificationDispatcher.sessionCancelledByCustomer(session, refund, quote.percent(),
+                quote.hoursAhead());
+        log.info("Customer {} cancelled session {} ({}h ahead) — refunded {}",
+                customerUsername, sessionId, quote.hoursAhead(), refund);
+        // Trả về ĐÚNG báo giá vừa dùng để chuyển tiền, không tính lại: tính lại
+        // đọc đồng hồ lần thứ hai, và một mốc vừa trôi qua giữa hai lần đọc sẽ
+        // làm thông báo cho khách nói một con số khác con số thật sự vào ví.
+        return com.fitmatch.dto.ticket.SessionCancellationQuote.of(session.getId(), quote,
+                cancelRefundCalculator.tiersFor(ticket), null);
+    }
+
+    private com.fitmatch.dto.ticket.SessionCancellationQuote quoteOf(TrainingSession session,
+                                                                     String blocker) {
+        return com.fitmatch.dto.ticket.SessionCancellationQuote.of(session.getId(),
+                cancelRefundCalculator.quote(session),
+                cancelRefundCalculator.tiersFor(session.getTicket()),
+                blocker);
+    }
+
+    /**
+     * Vì sao buổi này KHÔNG huỷ được — null nghĩa là huỷ được.
+     *
+     * <p>Trả về chuỗi thay vì ném: cùng một phép kiểm phục vụ hai chỗ — báo giá
+     * (cần lý do để hiện ra) và huỷ thật (cần ném 409). Viết hai lần thì sớm
+     * muộn hai bên cũng nói khác nhau.
+     *
+     * <p>Ngày tập ĐANG DIỄN RA vẫn huỷ được, chỉ là hoàn 0% theo mốc — khác với
+     * dời lịch (khoá cứng ở 00:00). Chặn hẳn thì khách bận đột xuất buổi sáng
+     * không có cách nào báo cho gym biết, và ô lịch treo mãi ở SCHEDULED.
+     */
+    private String cancelBlocker(TrainingSession session) {
+        Ticket ticket = session.getTicket();
+        if (session.getStatus() != SessionStatus.SCHEDULED) {
+            return "Buổi tập không còn ở trạng thái đặt trước (hiện: " + session.getStatus() + ")";
+        }
+        if (session.getSessionDate().isBefore(LocalDate.now())) {
+            return "Buổi tập đã qua ngày " + session.getSessionDate();
+        }
+        if (ticket.getStatus() != com.fitmatch.common.enums.TicketStatus.ACTIVE) {
+            return "Vé không ở trạng thái sử dụng được (hiện: " + ticket.getStatus() + ")";
+        }
+        if (ticket.getSettlementStatus() != com.fitmatch.common.enums.SettlementStatus.HELD) {
+            return "Tiền của vé đang ở trạng thái " + ticket.getSettlementStatus()
+                    + " nên không hoàn được. Vui lòng liên hệ phòng gym.";
+        }
+        return null;
+    }
+
+    private static BigDecimal nvl(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    /**
+     * Lý do huỷ được ghép vào ghi chú lịch sử, mà cả {@code status_reason} lẫn
+     * {@code session_status_history.reason} đều dừng ở 500 ký tự. Controller đã
+     * chặn ở 300, nhưng cắt lại ở đây để một lời gọi nội bộ nào đó về sau không
+     * biến một chuỗi dài thành lỗi ghi CSDL giữa lúc đang chuyển tiền.
+     */
+    private static String clip(String reason) {
+        return reason.length() <= 300 ? reason : reason.substring(0, 300);
+    }
+
     private void assertEditableSession(TrainingSession session) {
         if (session.getStatus() != SessionStatus.SCHEDULED) {
             throw new BusinessException(ErrorCode.INVALID_STATE,

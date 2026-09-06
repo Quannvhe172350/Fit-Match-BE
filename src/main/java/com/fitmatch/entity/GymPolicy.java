@@ -49,4 +49,22 @@ public class GymPolicy extends BaseEntity {
 
     @Column(name = "house_rules", length = 2000)
     private String houseRules;
+
+    /**
+     * V94 — luật huỷ MỘT NGÀY TẬP, dạng máy tính được. {@link #cancellationPolicy}
+     * ở trên vẫn là văn bản cho người đọc; ba cột này mới là thứ quyết định số
+     * tiền. Báo trước sớm hơn mốc đầu = hoàn 100%, sớm hơn mốc sau = hoàn
+     * {@link #cancelPartialRefundPercent}%, muộn hơn nữa = không hoàn.
+     */
+    @Column(name = "cancel_full_refund_hours", nullable = false)
+    @Builder.Default
+    private Integer cancelFullRefundHours = 24;
+
+    @Column(name = "cancel_partial_refund_hours", nullable = false)
+    @Builder.Default
+    private Integer cancelPartialRefundHours = 12;
+
+    @Column(name = "cancel_partial_refund_percent", nullable = false, precision = 5, scale = 2)
+    @Builder.Default
+    private java.math.BigDecimal cancelPartialRefundPercent = new java.math.BigDecimal("50.00");
 }

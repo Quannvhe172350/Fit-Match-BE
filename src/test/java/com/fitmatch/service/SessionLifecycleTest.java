@@ -90,6 +90,32 @@ class SessionLifecycleTest {
     void statusSet_hasNoNoShow() {
         assertThat(SessionStatus.values())
                 .containsExactlyInAnyOrder(
-                        SessionStatus.SCHEDULED, SessionStatus.DONE, SessionStatus.CANCELLED);
+                        SessionStatus.SCHEDULED, SessionStatus.DONE, SessionStatus.CANCELLED,
+                        SessionStatus.CANCELLED_BY_CUSTOMER);
+    }
+
+    /** V94: khách tự huỷ được một ngày đang đặt trước. */
+    @Test
+    void scheduled_canMoveToCancelledByCustomer() {
+        TrainingSession s = session(SessionStatus.SCHEDULED);
+
+        lifecycle.transition(s, SessionStatus.CANCELLED_BY_CUSTOMER, "Khách huỷ");
+
+        assertThat(s.getStatus()).isEqualTo(SessionStatus.CANCELLED_BY_CUSTOMER);
+    }
+
+    /**
+     * Đã huỷ và đã nhận tiền thì không quay lại được — kể cả đường hoàn CẢ vé
+     * cũng không được đẩy tiếp sang CANCELLED, vì ngày đó đã thanh toán xong.
+     */
+    @Test
+    void cancelledByCustomer_isTerminal() {
+        TrainingSession s = session(SessionStatus.CANCELLED_BY_CUSTOMER);
+
+        assertThat(lifecycle.canTransition(
+                SessionStatus.CANCELLED_BY_CUSTOMER, SessionStatus.CANCELLED)).isFalse();
+        assertThatThrownBy(() ->
+                lifecycle.transition(s, SessionStatus.CANCELLED, "Vé được hoàn tiền"))
+                .isInstanceOf(BusinessException.class);
     }
 }

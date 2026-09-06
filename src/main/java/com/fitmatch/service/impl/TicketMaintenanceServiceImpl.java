@@ -95,7 +95,12 @@ public class TicketMaintenanceServiceImpl implements TicketMaintenanceService {
         if (sessions.size() < ticket.getDayCount()) {
             return;
         }
-        if (sessions.stream().anyMatch(s -> s.getStatus() != SessionStatus.DONE)) {
+        // V94: ngày khách tự huỷ cũng là trạng thái KẾT THÚC — nó vẫn tiêu một
+        // ngày của vé (khách đã nhận tiền hoàn của ngày đó) nên phải tính vào
+        // "đã dùng hết"; coi nó là chưa xong thì vé không bao giờ USED_UP và
+        // tiền của gym kẹt trong escrow vĩnh viễn.
+        if (sessions.stream().anyMatch(s -> s.getStatus() != SessionStatus.DONE
+                && s.getStatus() != SessionStatus.CANCELLED_BY_CUSTOMER)) {
             return;
         }
         ticketLifecycle.transition(ticket, TicketStatus.USED_UP, "Đã dùng hết số ngày của vé");

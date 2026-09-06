@@ -31,4 +31,15 @@ public interface PtAssignmentRepository extends JpaRepository<PtAssignment, Long
     @org.springframework.data.jpa.repository.Query(
             "select a.ptProfile.id from PtAssignment a where a.gymBranch.id = :branchId")
     List<Long> findPtIdsByBranchId(@org.springframework.data.repository.query.Param("branchId") Long branchId);
+
+    /**
+     * Phân công của NHIỀU PT trong một truy vấn — bảng PT của gym hiện chi nhánh
+     * cho từng dòng, hỏi lẻ từng PT là N+1 ngay trên màn hình mở nhiều nhất của gym.
+     * {@code join fetch} vì chỉ dùng đúng id + tên chi nhánh.
+     */
+    @org.springframework.data.jpa.repository.Query(
+            "select a from PtAssignment a join fetch a.gymBranch b "
+                    + "where a.ptProfile.id in :ptIds order by b.name asc")
+    List<PtAssignment> findByPtProfileIds(
+            @org.springframework.data.repository.query.Param("ptIds") java.util.Collection<Long> ptIds);
 }

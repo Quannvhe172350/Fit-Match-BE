@@ -110,6 +110,21 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
         policy.setCancellationPolicy(request.getCancellationPolicy());
         policy.setNoShowPolicy(request.getNoShowPolicy());
         policy.setHouseRules(request.getHouseRules());
+        /*
+         * Ba mốc huỷ: chỉ ghi đè khi form GỬI LÊN. Bốn ô văn bản ở trên gán thẳng
+         * vì null ở đó nghĩa là "xoá nội dung", còn null ở đây nghĩa là "form đời
+         * cũ không có ô này" — gán thẳng sẽ âm thầm xoá chính sách tiền của gym.
+         */
+        if (request.getCancelFullRefundHours() != null) {
+            policy.setCancelFullRefundHours(request.getCancelFullRefundHours());
+        }
+        if (request.getCancelPartialRefundHours() != null) {
+            policy.setCancelPartialRefundHours(request.getCancelPartialRefundHours());
+        }
+        if (request.getCancelPartialRefundPercent() != null) {
+            policy.setCancelPartialRefundPercent(request.getCancelPartialRefundPercent());
+        }
+        assertCancelTiersOrdered(policy);
         policy = gymPolicyRepository.save(policy);
         log.info("Gym {} upserted policies", username);
         return GymPolicyResponse.of(policy);
@@ -121,6 +136,22 @@ public class GymOperationsConfigServiceImpl implements GymOperationsConfigServic
         GymPolicy policy = gymPolicyRepository.findByGymProfile_User_Username(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Gym policy for user", username));
         return GymPolicyResponse.of(policy);
+    }
+
+    /**
+     * Mốc hoàn 100% phải SỚM HƠN (số giờ lớn hơn hoặc bằng) mốc hoàn một phần.
+     * Đảo ngược thì bậc "hoàn một phần" không bao giờ với tới được — huỷ 6h
+     * trước mà hoàn 100%, huỷ 20h trước lại hoàn 50%: một chính sách thưởng cho
+     * người báo muộn, và không ai cố ý cấu hình như vậy.
+     */
+    private void assertCancelTiersOrdered(GymPolicy policy) {
+        Integer full = policy.getCancelFullRefundHours();
+        Integer partial = policy.getCancelPartialRefundHours();
+        if (full != null && partial != null && full < partial) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "Mốc hoàn 100% (" + full + "h) phải sớm hơn hoặc bằng mốc hoàn một phần ("
+                            + partial + "h)");
+        }
     }
 
     private GymBranch requireOwnedBranch(String username, Long branchId) {

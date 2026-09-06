@@ -150,6 +150,16 @@ public class Ticket extends BaseEntity {
     @Builder.Default
     private BigDecimal ptRefundedAmount = BigDecimal.ZERO;
 
+    /**
+     * V94: tổng đã hoàn lẻ vì khách HUỶ NGÀY TẬP. Tách khỏi
+     * {@link #ptRefundedAmount} vì hai khoản khác hẳn nhau — bên kia là phụ phí
+     * HLV của một ngày khách vẫn tập, bên này là giá trị cả ngày khách đã bỏ.
+     * {@code PartialRefundCalculator} trừ CẢ HAI khi hoàn cả vé.
+     */
+    @Column(name = "session_refunded_amount", nullable = false, precision = 12, scale = 2)
+    @Builder.Default
+    private BigDecimal sessionRefundedAmount = BigDecimal.ZERO;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default

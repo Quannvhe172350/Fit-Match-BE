@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -65,12 +66,16 @@ public class GymPtController {
 
     @Operation(
             summary = "UC-019 — Danh sách PT của Gym",
-            description = "Actor: **Gym Operator**. Liệt kê PT thuộc Gym, phân trang.")
+            description = "Actor: **Gym Operator**. Liệt kê PT thuộc Gym, phân trang. Mỗi PT kèm "
+                    + "danh sách chi nhánh được phân công. `branchId` thu hẹp về PT phụ trách đúng "
+                    + "chi nhánh đó. Lỗi: 404 chi nhánh không thuộc Gym.")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<GymPtResponse>>> list(
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) Long branchId,
             @PageableDefault(size = 20) Pageable pageable) {
-        return ResponseEntity.ok(ApiResponse.success(service.list(userDetails.getUsername(), pageable)));
+        return ResponseEntity.ok(ApiResponse.success(
+                service.list(userDetails.getUsername(), branchId, pageable)));
     }
 
     @Operation(

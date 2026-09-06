@@ -20,6 +20,11 @@ public class GymPolicyResponse {
     private String noShowPolicy;
     private String houseRules;
 
+    /** V94 — mốc hoàn tiền khi khách huỷ ngày tập. Xem GymPolicyRequest. */
+    private Integer cancelFullRefundHours;
+    private Integer cancelPartialRefundHours;
+    private java.math.BigDecimal cancelPartialRefundPercent;
+
     public static GymPolicyResponse of(GymPolicy p) {
         return GymPolicyResponse.builder()
                 .id(p.getId())
@@ -27,6 +32,9 @@ public class GymPolicyResponse {
                 .cancellationPolicy(p.getCancellationPolicy())
                 .noShowPolicy(p.getNoShowPolicy())
                 .houseRules(p.getHouseRules())
+                .cancelFullRefundHours(p.getCancelFullRefundHours())
+                .cancelPartialRefundHours(p.getCancelPartialRefundHours())
+                .cancelPartialRefundPercent(p.getCancelPartialRefundPercent())
                 .build();
     }
 }

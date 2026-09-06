@@ -12,6 +12,9 @@ public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long
 
     Page<ReviewReport> findByStatusOrderByIdDesc(ReportStatus status, Pageable pageable);
 
+    /** V94: số tố cáo đánh giá còn mở — nguồn của chấm đỏ trên menu admin. */
+    long countByStatus(ReportStatus status);
+
     /**
      * Bug S2-07: dùng khi KHÔNG lọc theo trạng thái. Giữ nguyên thứ tự id giảm dần
      * như bản có lọc để hai chế độ hiển thị cùng một trật tự.
