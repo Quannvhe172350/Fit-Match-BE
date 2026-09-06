@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static com.fitmatch.common.enums.SessionStatus.CANCELLED;
+import static com.fitmatch.common.enums.SessionStatus.CANCELLED_BY_CUSTOMER;
 import static com.fitmatch.common.enums.SessionStatus.DONE;
 import static com.fitmatch.common.enums.SessionStatus.SCHEDULED;
 
@@ -31,9 +32,12 @@ import static com.fitmatch.common.enums.SessionStatus.SCHEDULED;
 public class SessionLifecycle {
 
     private static final Map<SessionStatus, Set<SessionStatus>> ALLOWED = Map.of(
-            SCHEDULED, Set.of(DONE, CANCELLED),
+            SCHEDULED, Set.of(DONE, CANCELLED, CANCELLED_BY_CUSTOMER),
             DONE, Set.of(),
-            CANCELLED, Set.of()
+            CANCELLED, Set.of(),
+            // Khách đã huỷ và đã nhận tiền: không quay lại được. Huỷ cả vé về sau
+            // cũng KHÔNG đẩy tiếp sang CANCELLED — ngày này đã thanh toán xong.
+            CANCELLED_BY_CUSTOMER, Set.of()
     );
 
     private final SessionStatusHistoryRepository historyRepository;

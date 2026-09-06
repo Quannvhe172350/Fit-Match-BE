@@ -1,6 +1,7 @@
 package com.fitmatch.controller;
 
 import com.fitmatch.common.response.ApiResponse;
+import com.fitmatch.dto.ticket.SessionCancellationQuote;
 import com.fitmatch.dto.ticket.SessionPtCancellationDto;
 import com.fitmatch.dto.ticket.TrainingSessionResponse;
 import com.fitmatch.dto.ticket.UpdateSessionDateRequest;
@@ -55,8 +56,10 @@ public class SessionController {
     }
 
     @Operation(summary = "Dời ngày tập",
-            description = "Actor: **Customer** (chủ vé). CHỈ vé DAY — vé gói gọi vào nhận 409. "
-                    + "Hạn đổi là 00:00 của ngày tập.")
+            description = "Actor: **Customer** (chủ vé). Áp dụng cho CẢ vé DAY lẫn vé gói (V94 — "
+                    + "trước đây vé gói nhận 409). Hạn đổi là 00:00 của ngày tập; ngày mới phải "
+                    + "trong hạn dùng vé và không trùng một ngày khác của chính vé đó. Buổi có PT "
+                    + "thì ngày mới phải còn đúng khung giờ đó, nếu không nhận 409.")
     @PutMapping("/{id}/date")
     public ResponseEntity<ApiResponse<TrainingSessionResponse>> updateDate(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -125,6 +128,52 @@ public class SessionController {
             @PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("PT surcharge refunded",
                 cancellationService.refund(userDetails.getUsername(), id)));
+    }
+
+    @Operation(summary = "Huỷ buổi này thì được hoàn bao nhiêu",
+            description = "Actor: **Customer** (chủ vé). Hỏi TRƯỚC khi huỷ — số tiền phụ thuộc vào "
+                    + "lúc hỏi, nên bắt khách bấm huỷ rồi mới biết mất bao nhiêu là đặt câu hỏi sau "
+                    + "khi đã trả lời. Buổi không huỷ được thì trả `cancellable=false` kèm lý do, "
+                    + "KHÔNG phải lỗi. 404 buổi không thuộc bạn.")
+    @GetMapping("/{id}/cancel-quote")
+    public ResponseEntity<ApiResponse<SessionCancellationQuote>> cancelQuote(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(
+                schedulingService.cancelQuote(userDetails.getUsername(), id)));
+    }
+
+    @Operation(summary = "Huỷ một ngày tập",
+            description = "Actor: **Customer** (chủ vé). Hoàn theo mốc báo trước do phòng gym cấu "
+                    + "hình (mặc định: sớm hơn 24h hoàn 100%, sớm hơn 12h hoàn 50%, muộn hơn không "
+                    + "hoàn). Tiền vào ví khách. Ngày đã huỷ KHÔNG trả lại cho vé — khách đã nhận "
+                    + "tiền của đúng ngày đó. Lỗi: 409 buổi đã qua ngày, không còn SCHEDULED, vé "
+                    + "không dùng được, hoặc tiền của vé không còn ở trạng thái giữ; 404 buổi không "
+                    + "thuộc bạn.")
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<SessionCancellationQuote>> cancel(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) CancelSessionRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Session cancelled",
+                schedulingService.cancel(userDetails.getUsername(), id,
+                        request == null ? null : request.getReason())));
+    }
+
+    /**
+     * Lý do huỷ là TUỲ CHỌN: bắt buộc chỉ tạo ra một ô ai cũng gõ cho xong.
+     *
+     * <p>Trần 300 chứ không 500: lý do được ghép vào ghi chú lịch sử cùng với số
+     * giờ báo trước và số tiền hoàn, mà cột {@code session_status_history.reason}
+     * chỉ có 500 ký tự — nhận đủ 500 ở đây là để dành sẵn một lỗi ghi CSDL.
+     */
+    @lombok.Getter
+    @lombok.Setter
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class CancelSessionRequest {
+        @jakarta.validation.constraints.Size(max = 300, message = "reason must be at most 300 characters")
+        private String reason;
     }
 
     @Operation(summary = "Check-in buổi tập có PT",

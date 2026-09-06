@@ -46,9 +46,14 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class SessionSchedulingValidator {
 
-    /** Buổi còn chiếm một ngày của vé; buổi CANCELLED trả lại ngày đó. */
+    /**
+     * Buổi còn chiếm một ngày của vé. Chỉ {@code CANCELLED} (huỷ kéo theo khi
+     * hoàn cả vé) mới trả lại ngày; ngày khách TỰ huỷ thì không, vì khách đã
+     * nhận tiền hoàn của đúng ngày đó (V94).
+     */
     public static final Set<SessionStatus> CONSUMING_STATUSES =
-            Set.of(SessionStatus.SCHEDULED, SessionStatus.DONE);
+            Set.of(SessionStatus.SCHEDULED, SessionStatus.DONE,
+                    SessionStatus.CANCELLED_BY_CUSTOMER);
 
     private final TrainingSessionRepository trainingSessionRepository;
     private final OperatingHourRepository operatingHourRepository;
@@ -112,8 +117,19 @@ public class SessionSchedulingValidator {
     }
 
     /**
-     * Câu 2/37: chỉ vé DAY được dời ngày. Vé PACKAGE gọi vào đây là 409 —
-     * n ngày liên tiếp không còn liên tiếp nếu rút một ngày ra giữa.
+     * Dời MỘT ngày tập sang ngày khác.
+     *
+     * <p>V94 bỏ ràng buộc "chỉ vé DAY": trước đây vé PACKAGE gọi vào đây luôn
+     * nhận 409 với lý do n ngày phải LIÊN TIẾP (câu 27). Nhưng luật liên tiếp là
+     * luật của lúc ĐẶT — server tự sinh đủ n ngày liền nhau từ ngày bắt đầu để
+     * khách không phải bấm n lần. Bắt nó đúng mãi về sau nghĩa là người mua gói
+     * 10 ngày bận đúng một hôm thì mất trắng hôm đó: không dời được, và (trước
+     * V94) cũng không huỷ được. Đó chính là "chưa lưu lịch khi dời lịch" trong
+     * bảng rà soát — nút không có, thao tác không đi tới đâu.
+     *
+     * <p>Cái KHÔNG nới: hạn 00:00 ngày tập, hạn dùng vé, và ngày mới không được
+     * trùng một ngày khác của CHÍNH vé đó (hai ngày một vé trong một ngày là vô
+     * nghĩa — vé vốn có giá trị cả ngày).
      */
     public void assertReschedulable(Ticket ticket, TrainingSession session, LocalDate newDate) {
         assertReschedulable(ticket, session, newDate, LocalDateTime.now());
@@ -131,8 +147,9 @@ public class SessionSchedulingValidator {
         LocalDate today = now.toLocalDate();
         List<String> reasons = new ArrayList<>(ticketIssues(ticket, today));
 
-        if (ticket.getKind() == TicketKind.PACKAGE) {
-            reasons.add("Vé gói không đổi được lịch từng ngày");
+        if (trainingSessionRepository.existsByTicket_IdAndSessionDateAndStatusNotAndIdNot(
+                ticket.getId(), newDate, SessionStatus.CANCELLED, session.getId())) {
+            reasons.add("Vé này đã có một ngày tập vào " + newDate);
         }
         if (session.getStatus() != SessionStatus.SCHEDULED) {
             reasons.add("Buổi tập không còn ở trạng thái đặt trước (hiện: " + session.getStatus() + ")");

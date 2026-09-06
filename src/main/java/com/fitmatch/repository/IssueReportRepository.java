@@ -16,4 +16,7 @@ public interface IssueReportRepository extends JpaRepository<IssueReport, Long> 
     Page<IssueReport> findByCreatedBy(String createdBy, Pageable pageable);
 
     Page<IssueReport> findByStatus(ReportStatus status, Pageable pageable);
+
+    /** V94: số báo cáo vấn đề còn mở — nguồn của chấm đỏ trên menu admin. */
+    long countByStatus(ReportStatus status);
 }

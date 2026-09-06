@@ -55,6 +55,73 @@ public class ShiftSlotResolver {
     }
 
     /**
+     * Chuỗi slot LIỀN MẠCH đủ {@code requiredMinutes} phút, bắt đầu lúc
+     * {@code start} — có thể VẮT QUA nhiều ca.
+     *
+     * <p>Trước đây một buổi luôn nằm gọn trong đúng một slot của đúng một ca, nên
+     * gym muốn bán buổi 2 tiếng thì buộc phải khai hẳn một ca slot 120 phút. Ở đây
+     * buổi trở thành một CHUỖI slot: 120 phút có thể là hai slot 60 phút liền
+     * nhau, và hai slot đó được phép thuộc hai ca khác nhau.
+     *
+     * <p>Điều kiện "hai ca liền nhau" không cần kiểm riêng — nó rơi ra từ chính
+     * vòng lặp: con trỏ chạy tới hết ca A rồi hỏi "ca nào phủ đúng mốc này". Ca B
+     * bắt đầu đúng lúc ca A kết thúc thì trả lời được; có khe hở ở giữa thì không
+     * ca nào phủ và chuỗi đứt.
+     *
+     * <p>Hai ca có thể có {@code slotMinutes} khác nhau (ca sáng 60, ca chiều 90):
+     * mỗi bước lấy đúng độ dài slot của ca đang đứng, nên tổng vẫn khớp tuyệt đối
+     * hoặc chuỗi hỏng — không có chuyện thừa thiếu vài phút.
+     *
+     * @param shifts          các ca PT làm việc trong ngày đó (mọi chi nhánh gọi
+     *                        vào đây đều đã lọc sẵn); ca không hoạt động phải
+     *                        được loại TRƯỚC khi truyền vào
+     * @param requiredMinutes tổng thời lượng cần; {@code null} = đúng MỘT slot,
+     *                        giữ nguyên hành vi cũ cho vé không quy định độ dài
+     * @return chuỗi slot theo thứ tự thời gian, hoặc {@code null} nếu không ghép
+     *         đủ (lệch lưới, hết ca giữa chừng, hoặc tổng không khớp tuyệt đối)
+     */
+    public List<Slot> chainFrom(Collection<GymShift> shifts, LocalTime start,
+                                Integer requiredMinutes) {
+        List<Slot> chain = new ArrayList<>();
+        LocalTime cursor = start;
+        int accumulated = 0;
+
+        while (true) {
+            Slot slot = slotAt(shifts, cursor);
+            if (slot == null) {
+                return null;
+            }
+            chain.add(slot);
+            accumulated += (int) Duration.between(slot.start(), slot.end()).toMinutes();
+            cursor = slot.end();
+
+            if (requiredMinutes == null || accumulated == requiredMinutes) {
+                return chain;
+            }
+            // Vượt quá là hỏng, không phải "gần đúng": vé 90 phút mà ghép ra 120
+            // phút thì khách chiếm không của PT nửa tiếng, gym mất một suất bán.
+            if (accumulated > requiredMinutes) {
+                return null;
+            }
+            // Ca không vắt nửa đêm nên cursor luôn tăng; chạm 00:00 là hết ngày.
+            if (cursor.equals(LocalTime.MIDNIGHT)) {
+                return null;
+            }
+        }
+    }
+
+    /** Slot bắt đầu đúng {@code start} trong một trong các ca đã cho, hoặc null. */
+    private Slot slotAt(Collection<GymShift> shifts, LocalTime start) {
+        for (GymShift shift : shifts) {
+            LocalTime end = slotEndOrNull(shift, start);
+            if (end != null) {
+                return new Slot(shift, start, end);
+            }
+        }
+        return null;
+    }
+
+    /**
      * Giờ kết thúc của slot bắt đầu lúc {@code slotStart} trong ca này, hoặc
      * null nếu {@code slotStart} không nằm đúng lưới slot của ca.
      */

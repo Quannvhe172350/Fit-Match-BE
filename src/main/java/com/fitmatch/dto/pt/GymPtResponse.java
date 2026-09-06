@@ -8,6 +8,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.List;
+
 /**
  * Hồ sơ PT dưới góc nhìn Gym quản lý (UC-019..021).
  */
@@ -33,6 +35,27 @@ public class GymPtResponse {
     private PtStatus status;
     private String suspensionReason;
     private Long gymProfileId;
+
+    /**
+     * Chi nhánh PT được phân công (câu 24 — chi nhánh là đích phân công duy nhất).
+     *
+     * <p>Không có trường này thì bảng PT của gym trả lời được "gym có ai" nhưng
+     * không trả lời được "ai đang ở chi nhánh nào" — mà đó mới là câu gym hỏi khi
+     * xếp người. Nạp theo lô ở service, không lazy-load từng dòng.
+     */
+    private List<BranchRef> branches;
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class BranchRef {
+        private Long id;
+        private String name;
+        /** Chi nhánh đã tắt vẫn hiện — PT cũ còn dính ở đó là thông tin gym cần thấy. */
+        private boolean active;
+    }
 
     public static GymPtResponse of(PtProfile p) {
         return GymPtResponse.builder()

@@ -24,6 +24,9 @@ public interface PaymentTransactionRepository extends JpaRepository<PaymentTrans
 
     Page<PaymentTransaction> findByReconStatus(ReconStatus reconStatus, Pageable pageable);
 
+    /** V94: số giao dịch chưa khớp được vào vé — nguồn của chấm đỏ trên menu admin. */
+    long countByReconStatus(ReconStatus reconStatus);
+
     Page<PaymentTransaction> findByAnomaly(PaymentTxnAnomaly anomaly, Pageable pageable);
 
     Page<PaymentTransaction> findByReconStatusAndAnomaly(ReconStatus reconStatus,

@@ -29,13 +29,13 @@ public class ShiftConflictFinder {
 
     private final TrainingSessionRepository sessionRepository;
 
-    /** Buổi SCHEDULED của PT nằm trong khung giờ của ca, đúng ngày đó. */
+    /** Buổi SCHEDULED của PT có giờ CHẠM vào ca này, đúng ngày đó. */
     public List<TrainingSession> sessionsInShift(Long ptId, LocalDate date, GymShift shift) {
         return sessionRepository
                 .findByPtProfile_IdAndSessionDateAndStatusIn(ptId, date, List.of(SessionStatus.SCHEDULED))
                 .stream()
-                .filter(s -> s.getPtSlotStart() != null)
-                .filter(s -> withinShift(s.getPtSlotStart(), shift))
+                .filter(s -> s.getPtSlotStart() != null && s.getPtSlotEnd() != null)
+                .filter(s -> touchesShift(s.getPtSlotStart(), s.getPtSlotEnd(), shift))
                 .toList();
     }
 
@@ -50,12 +50,16 @@ public class ShiftConflictFinder {
     }
 
     /**
-     * Giờ bắt đầu của buổi có rơi vào ca không. So theo giờ BẮT ĐẦU chứ không
-     * so trọn khoảng: một buổi luôn nằm gọn trong ca sinh ra nó, và ca không
-     * chồng nhau nên không có chuyện một giờ thuộc hai ca.
+     * Khoảng giờ của buổi có GIAO với ca này không.
+     *
+     * <p>Trước đây chỉ so giờ BẮT ĐẦU, với lý do "một buổi luôn nằm gọn trong ca
+     * sinh ra nó". Bất biến đó đã mất: buổi nay là một CHUỖI slot và được phép
+     * vắt qua nhiều ca liền nhau. So theo giờ bắt đầu thì buổi 11:00–13:00 (ca
+     * sáng nối ca chiều) sẽ vô hình với ca chiều — gym xoá ca chiều hoặc gỡ phân
+     * ca mà không bị chặn, và nửa sau của buổi đó mất PT trong im lặng.
      */
-    public boolean withinShift(LocalTime slotStart, GymShift shift) {
-        return !slotStart.isBefore(shift.getStartTime()) && slotStart.isBefore(shift.getEndTime());
+    public boolean touchesShift(LocalTime start, LocalTime end, GymShift shift) {
+        return start.isBefore(shift.getEndTime()) && shift.getStartTime().isBefore(end);
     }
 
     public ConflictingSessionDto toDto(TrainingSession s) {

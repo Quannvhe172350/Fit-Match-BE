@@ -34,8 +34,8 @@ import java.util.Set;
  * <ol>
  *   <li>PT đang ACTIVE;</li>
  *   <li>PT được phân công vào đúng chi nhánh của vé (câu 24);</li>
- *   <li>PT có CA tại chi nhánh đó, đúng ngày đó, và khung giờ khách chọn nằm
- *       đúng lưới slot của ca;</li>
+ *   <li>PT có CA tại chi nhánh đó, đúng ngày đó, phủ ĐỦ thời lượng buổi tính từ
+ *       giờ khách chọn — chuỗi slot được phép vắt qua nhiều ca liền nhau;</li>
  *   <li>không có đơn nghỉ APPROVED nào phủ lên khung giờ đó;</li>
  *   <li>khung giờ chưa bị buổi tập nào khác chiếm.</li>
  * </ol>
@@ -55,7 +55,13 @@ public class PtSlotValidator {
      * trị trả về cho caller chép endTime": caller chỉ cần hai mốc giờ, không
      * cần một entity đã bị gỡ khỏi mô hình.
      */
-    public record ResolvedSlot(GymShift shift, LocalTime startTime, LocalTime endTime) {
+    public record ResolvedSlot(GymShift shift, LocalTime startTime, LocalTime endTime,
+                               List<ShiftSlotResolver.Slot> slots) {
+
+        /** Buổi có vắt qua nhiều ca không — dùng cho log và ghi chú lịch sử. */
+        public boolean spansMultipleShifts() {
+            return slots.stream().map(sl -> sl.shift().getId()).distinct().count() > 1;
+        }
     }
 
     private final PtProfileRepository ptProfileRepository;
@@ -101,23 +107,21 @@ public class PtSlotValidator {
             reasons.add("PT không phụ trách chi nhánh này");
         }
 
-        ResolvedSlot slot = findSlot(ptId, branchId, date, slotStart);
+        ResolvedSlot slot = findSlot(ptId, branchId, date, slotStart, requiredMinutes);
         if (slot == null) {
-            reasons.add("PT không có ca làm việc phủ khung giờ " + slotStart + " ngày " + date);
+            reasons.add(requiredMinutes == null
+                    ? "PT không có ca làm việc phủ khung giờ " + slotStart + " ngày " + date
+                    : "PT không có ca làm việc phủ đủ " + requiredMinutes + " phút liền mạch từ "
+                            + slotStart + " ngày " + date);
         } else {
+            // Nghỉ phải kiểm trên MỌI slot của chuỗi: buổi hai tiếng vắt qua hai
+            // ca mà PT chỉ nghỉ ca sau thì tiếng đầu vẫn trống — kiểm mỗi slot
+            // đầu sẽ cho đặt trọn hai tiếng vào khoảng PT không có mặt.
             if (isOnApprovedLeave(ptId, date, slot)) {
                 reasons.add("PT đã được duyệt nghỉ vào khung giờ này");
             }
-            if (isTaken(ptId, date, slotStart, excludeSessionId)) {
+            if (overlapsExistingSession(ptId, date, slot, excludeSessionId)) {
                 reasons.add("Khung giờ này của PT đã có người đặt");
-            }
-            if (requiredMinutes != null) {
-                long slotMinutes = java.time.Duration
-                        .between(slot.startTime(), slot.endTime()).toMinutes();
-                if (slotMinutes != requiredMinutes) {
-                    reasons.add("Vé này quy định mỗi buổi " + requiredMinutes
-                            + " phút, khung giờ vừa chọn dài " + slotMinutes + " phút");
-                }
             }
         }
 
@@ -129,36 +133,96 @@ public class PtSlotValidator {
     }
 
     /**
-     * Ca của PT tại chi nhánh đó phủ đúng {@code slotStart} — hoặc null. Một PT
-     * có thể có nhiều ca trong ngày (sáng + tối), nên phải duyệt hết.
+     * Chuỗi slot của PT tại chi nhánh đó, bắt đầu đúng {@code slotStart} và đủ
+     * {@code requiredMinutes} — hoặc null. Chuỗi được phép vắt qua nhiều ca liền
+     * nhau; xem {@link ShiftSlotResolver#chainFrom}.
+     *
+     * <p>Lọc ca theo CHI NHÁNH trước khi ghép: PT có thể làm ở hai cơ sở trong
+     * cùng một ngày, và vé chỉ dùng được ở đúng chi nhánh của nó — ghép lẫn ca
+     * chi nhánh khác vào là bán một buổi khách không thể tới tập.
      */
-    public ResolvedSlot findSlot(Long ptId, Long branchId, LocalDate date, LocalTime slotStart) {
-        for (PtShiftAssignment assignment : shiftAssignmentRepository.findActiveByPtAndDate(ptId, date)) {
-            GymShift shift = assignment.getGymShift();
-            if (!shift.isActive() || !shift.getGymBranch().getId().equals(branchId)) {
-                continue;
-            }
-            LocalTime end = slotResolver.slotEndOrNull(shift, slotStart);
-            if (end != null) {
-                return new ResolvedSlot(shift, slotStart, end);
-            }
+    public ResolvedSlot findSlot(Long ptId, Long branchId, LocalDate date,
+                                 LocalTime slotStart, Integer requiredMinutes) {
+        List<GymShift> shifts = shiftsOfDay(ptId, branchId, date);
+        List<ShiftSlotResolver.Slot> chain =
+                slotResolver.chainFrom(shifts, slotStart, requiredMinutes);
+        if (chain == null || chain.isEmpty()) {
+            return null;
         }
-        return null;
+        return new ResolvedSlot(chain.get(0).shift(), slotStart,
+                chain.get(chain.size() - 1).end(), chain);
     }
 
-    /** Có đơn nghỉ ĐÃ DUYỆT nào phủ khung giờ này không. */
+    /** Ca đang hoạt động của PT tại chi nhánh đó trong ngày. */
+    public List<GymShift> shiftsOfDay(Long ptId, Long branchId, LocalDate date) {
+        List<GymShift> shifts = new ArrayList<>();
+        for (PtShiftAssignment assignment : shiftAssignmentRepository.findActiveByPtAndDate(ptId, date)) {
+            GymShift shift = assignment.getGymShift();
+            if (shift.isActive() && shift.getGymBranch().getId().equals(branchId)) {
+                shifts.add(shift);
+            }
+        }
+        return shifts;
+    }
+
+    /**
+     * Có đơn nghỉ ĐÃ DUYỆT nào phủ chuỗi này không — kiểm TỪNG slot, vì đơn nghỉ
+     * theo phạm vi CA chỉ phủ đúng ca của nó, mà chuỗi thì có thể nằm ở hai ca.
+     */
     public boolean isOnApprovedLeave(Long ptId, LocalDate date, ResolvedSlot slot) {
         List<PtLeaveRequest> leaves = leaveRequestRepository.findOverlapping(
                 ptId, Set.of(LeaveStatus.APPROVED), date, date);
-        return slotResolver.anyLeaveCovers(leaves, date,
-                slot.startTime(), slot.endTime(), slot.shift());
+        return slot.slots().stream().anyMatch(part ->
+                slotResolver.anyLeaveCovers(leaves, date, part.start(), part.end(), part.shift()));
     }
 
-    /** Dùng cho lưới ngày x giờ ở FE: ô đã có người đặt thì hiển thị mờ. */
+    /**
+     * Chuỗi này có đè lên buổi nào đang giữ chỗ của PT không.
+     *
+     * <p>So GIAO KHOẢNG chứ không so bằng giờ bắt đầu như trước: từ khi buổi có
+     * thể dài hơn một slot, hai buổi đè nhau mà lệch giờ bắt đầu là chuyện có
+     * thật — buổi 08:00–10:00 và buổi 09:00–10:00 không trùng mốc bắt đầu nhưng
+     * PT thì không thể dạy cả hai.
+     */
+    public boolean overlapsExistingSession(Long ptId, LocalDate date, ResolvedSlot slot,
+                                           Long excludeSessionId) {
+        return trainingSessionRepository
+                .findByPtProfile_IdAndSessionDateAndStatusIn(ptId, date, HOLDING_STATUSES).stream()
+                .filter(s -> excludeSessionId == null || !excludeSessionId.equals(s.getId()))
+                .filter(s -> s.getPtSlotStart() != null)
+                .anyMatch(s -> blocks(slot.startTime(), slot.endTime(),
+                        s.getPtSlotStart(), s.getPtSlotEnd()));
+    }
+
+    /**
+     * Buổi đã có (từ {@code otherStart} tới {@code otherEnd}) có chặn khoảng
+     * đang xét không.
+     *
+     * <p>{@code otherEnd} null là dữ liệu hỏng — không bao giờ xảy ra ở đường ghi
+     * bình thường vì {@code applyPt} luôn đặt cả hai mốc. Khi gặp thì CHẶN dựa
+     * trên mỗi giờ bắt đầu, không phải bỏ qua: một dòng thiếu dữ liệu mà được
+     * coi như chỗ trống thì lỗi dữ liệu biến thành lỗi đặt trùng, và PT là người
+     * lãnh hậu quả.
+     */
+    private boolean blocks(LocalTime start, LocalTime end, LocalTime otherStart, LocalTime otherEnd) {
+        if (otherEnd == null) {
+            return !otherStart.isBefore(start) && otherStart.isBefore(end);
+        }
+        return slotResolver.overlaps(start, end, otherStart, otherEnd);
+    }
+
+    /**
+     * Ô lưới bắt đầu lúc {@code slotStart} đã bị chiếm chưa — bản cho FE, nơi
+     * mỗi ô là MỘT slot nên so bằng giờ bắt đầu là đủ và rẻ hơn.
+     */
     public boolean isTaken(Long ptId, LocalDate date, LocalTime slotStart, Long excludeSessionId) {
         return trainingSessionRepository
                 .findByPtProfile_IdAndSessionDateAndStatusIn(ptId, date, HOLDING_STATUSES).stream()
                 .filter(s -> excludeSessionId == null || !excludeSessionId.equals(s.getId()))
-                .anyMatch(s -> slotStart.equals(s.getPtSlotStart()));
+                .filter(s -> s.getPtSlotStart() != null)
+                .anyMatch(s -> s.getPtSlotEnd() == null
+                        ? slotStart.equals(s.getPtSlotStart())
+                        : !slotStart.isBefore(s.getPtSlotStart())
+                                && slotStart.isBefore(s.getPtSlotEnd()));
     }
 }

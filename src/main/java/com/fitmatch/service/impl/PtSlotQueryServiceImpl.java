@@ -26,7 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,8 +64,9 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PtSlotCellDto> search(Long branchId, LocalDate date, LocalTime startTime) {
-        return buildCells(branchId, null, date, date).stream()
+    public List<PtSlotCellDto> search(Long branchId, LocalDate date, LocalTime startTime,
+                                      Integer minutes) {
+        return buildCells(branchId, null, date, date, minutes).stream()
                 .filter(c -> startTime.equals(c.getStartTime()))
                 // Chọn giờ trước thì chỉ hiện PT thật sự còn trống — ô đã kín ở
                 // chiều này là nhiễu, khác với lưới (nơi ô mờ vẫn có ý nghĩa).
@@ -74,7 +76,8 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PtSlotCellDto> grid(Long branchId, Long ptId, LocalDate from, LocalDate to) {
+    public List<PtSlotCellDto> grid(Long branchId, Long ptId, LocalDate from, LocalDate to,
+                                    Integer minutes) {
         if (to.isBefore(from)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "to must not be before from");
         }
@@ -82,7 +85,7 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "Khoảng ngày tối đa " + MAX_RANGE_DAYS + " ngày");
         }
-        return buildCells(branchId, ptId, from, to);
+        return buildCells(branchId, ptId, from, to, minutes);
     }
 
     // ---------- lõi ----------
@@ -94,7 +97,8 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
      * <p>Ba truy vấn cho cả lưới (phân ca, đơn nghỉ, buổi đã đặt) chứ không hỏi
      * theo từng ngày: lưới một tháng của chi nhánh 10 PT là 300+ ô.
      */
-    private List<PtSlotCellDto> buildCells(Long branchId, Long ptId, LocalDate from, LocalDate to) {
+    private List<PtSlotCellDto> buildCells(Long branchId, Long ptId, LocalDate from, LocalDate to,
+                                           Integer minutes) {
         List<Long> ptIds = activePtIdsOfBranch(branchId);
         if (ptId != null) {
             if (!ptIds.contains(ptId)) {
@@ -118,31 +122,59 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
         Map<Long, List<PtLeaveRequest>> leavesByPt = leaveRequestRepository
                 .findOverlappingForPts(ptIds, LeaveStatus.APPROVED, from, to).stream()
                 .collect(Collectors.groupingBy(r -> r.getPtProfile().getId()));
-        Set<String> taken = takenKeys(ptIds, from, to);
+        Map<String, List<Busy>> busy = busyRanges(ptIds, from, to);
+
+        /*
+         * Gom ca theo (PT, ngày) trước khi cắt slot. Bắt buộc từ khi buổi được
+         * phép vắt qua nhiều ca: chuỗi bắt đầu ở ca sáng có thể kết thúc trong ca
+         * chiều, nên không thể xét từng ca một cách độc lập như trước.
+         */
+        Map<String, List<GymShift>> shiftsByPtDate = new LinkedHashMap<>();
+        Map<String, PtShiftAssignment> anyRowOf = new LinkedHashMap<>();
+        for (PtShiftAssignment row : rows) {
+            String k = key(row.getPtProfile().getId(), row.getWorkDate(), null);
+            shiftsByPtDate.computeIfAbsent(k, x -> new ArrayList<>()).add(row.getGymShift());
+            anyRowOf.putIfAbsent(k, row);
+        }
 
         List<PtSlotCellDto> cells = new ArrayList<>();
-        for (PtShiftAssignment row : rows) {
-            GymShift shift = row.getGymShift();
+        for (Map.Entry<String, List<GymShift>> entry : shiftsByPtDate.entrySet()) {
+            PtShiftAssignment row = anyRowOf.get(entry.getKey());
+            List<GymShift> shifts = entry.getValue();
             Long rowPtId = row.getPtProfile().getId();
+            LocalDate date = row.getWorkDate();
             PtProfile pt = profiles.get(rowPtId);
             List<PtLeaveRequest> leaves = leavesByPt.getOrDefault(rowPtId, List.of());
+            List<Busy> busyHere = busy.getOrDefault(key(rowPtId, date, null), List.of());
 
-            for (ShiftSlotResolver.Slot slot : slotResolver.slotsOf(shift)) {
-                // Slot bị nghỉ đã duyệt biến mất khỏi lưới thay vì hiện mờ: ô mờ
-                // mang nghĩa "có người đặt rồi", còn PT nghỉ thì đơn giản là
-                // không có mặt — hiện ra chỉ gây hiểu nhầm là sắp trống.
-                if (slotResolver.anyLeaveCovers(leaves, row.getWorkDate(),
-                        slot.start(), slot.end(), shift)) {
+            for (LocalTime start : candidateStarts(shifts)) {
+                List<ShiftSlotResolver.Slot> chain = slotResolver.chainFrom(shifts, start, minutes);
+                // Không ghép đủ thời lượng từ mốc này -> không phải một khung đặt
+                // được, nên KHÔNG hiện. Hiện ra rồi để BE từ chối là mời một cú
+                // bấm không dẫn tới đâu.
+                if (chain == null || chain.isEmpty()) {
                     continue;
                 }
+                // Slot bị nghỉ đã duyệt biến mất khỏi lưới thay vì hiện mờ: ô mờ
+                // mang nghĩa "có người đặt rồi", còn PT nghỉ thì đơn giản là
+                // không có mặt — hiện ra chỉ gây hiểu nhầm là sắp trống. Chỉ cần
+                // MỘT slot trong chuỗi bị phủ là cả khung hỏng.
+                if (chain.stream().anyMatch(sl -> slotResolver.anyLeaveCovers(
+                        leaves, date, sl.start(), sl.end(), sl.shift()))) {
+                    continue;
+                }
+                LocalTime end = chain.get(chain.size() - 1).end();
                 cells.add(PtSlotCellDto.builder()
                         .ptProfileId(rowPtId)
                         .ptName(pt != null ? pt.getDisplayName() : null)
                         .ptAvgRating(pt != null ? pt.getAvgRating() : null)
-                        .date(row.getWorkDate())
-                        .startTime(slot.start())
-                        .endTime(slot.end())
-                        .taken(taken.contains(key(rowPtId, row.getWorkDate(), slot.start())))
+                        .date(date)
+                        .startTime(start)
+                        .endTime(end)
+                        // Giao khoảng, không so bằng giờ bắt đầu: một buổi dài có
+                        // thể chặn nhiều khung bắt đầu khác nhau.
+                        .taken(busyHere.stream().anyMatch(b ->
+                                slotResolver.overlaps(start, end, b.start(), b.end())))
                         .build());
             }
         }
@@ -166,19 +198,47 @@ public class PtSlotQueryServiceImpl implements PtSlotQueryService {
                 .toList();
     }
 
-    /** Các ô (pt, ngày, giờ) đã bị buổi tập chiếm — một truy vấn cho cả lưới. */
-    private Set<String> takenKeys(List<Long> ptIds, LocalDate from, LocalDate to) {
-        Set<String> keys = new HashSet<>();
-        for (TrainingSession s : sessionRepository
-                .findByPtProfile_IdInAndSessionDateBetweenAndStatusIn(ptIds, from, to, HOLDING)) {
-            if (s.getPtSlotStart() != null && s.getPtProfile() != null) {
-                keys.add(key(s.getPtProfile().getId(), s.getSessionDate(), s.getPtSlotStart()));
-            }
-        }
-        return keys;
+    /** Một khoảng giờ PT đã bận trong ngày. */
+    private record Busy(LocalTime start, LocalTime end) {
     }
 
+    /**
+     * Khoảng giờ đã bị buổi tập chiếm, theo (PT, ngày) — một truy vấn cho cả lưới.
+     *
+     * <p>Giữ nguyên KHOẢNG chứ không quy về giờ bắt đầu như bản cũ: buổi nay có
+     * thể dài hơn một slot, nên một buổi chặn nhiều khung bắt đầu khác nhau chứ
+     * không riêng khung trùng mốc với nó.
+     */
+    private Map<String, List<Busy>> busyRanges(List<Long> ptIds, LocalDate from, LocalDate to) {
+        Map<String, List<Busy>> byPtDate = new HashMap<>();
+        for (TrainingSession s : sessionRepository
+                .findByPtProfile_IdInAndSessionDateBetweenAndStatusIn(ptIds, from, to, HOLDING)) {
+            if (s.getPtSlotStart() == null || s.getPtSlotEnd() == null || s.getPtProfile() == null) {
+                continue;
+            }
+            byPtDate.computeIfAbsent(key(s.getPtProfile().getId(), s.getSessionDate(), null),
+                            x -> new ArrayList<>())
+                    .add(new Busy(s.getPtSlotStart(), s.getPtSlotEnd()));
+        }
+        return byPtDate;
+    }
+
+    /**
+     * Mọi mốc giờ có thể là điểm BẮT ĐẦU trong ngày — hợp của lưới slot mọi ca,
+     * đã sắp và khử trùng. Ca liền nhau có thể sinh cùng một mốc (ca sáng kết
+     * thúc 12:00, ca chiều bắt đầu 12:00), và mốc đó chỉ được xuất hiện một lần.
+     */
+    private List<LocalTime> candidateStarts(List<GymShift> shifts) {
+        return shifts.stream()
+                .flatMap(shift -> slotResolver.slotsOf(shift).stream())
+                .map(ShiftSlotResolver.Slot::start)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /** {@code start} = null khi chỉ cần khoá theo (PT, ngày). */
     private static String key(Long ptId, LocalDate date, LocalTime start) {
-        return ptId + "|" + date + "T" + start;
+        return ptId + "|" + date + (start == null ? "" : "T" + start);
     }
 }

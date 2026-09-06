@@ -30,6 +30,22 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     Page<Review> findByPtProfile_IdAndStatusOrderByIdDesc(Long ptProfileId, ReviewStatus status, Pageable pageable);
 
+    /**
+     * V94: đánh giá của CHÍNH khách, tách theo loại. Cùng lý do với
+     * {@link #findOwnedByType}: đánh giá PT cũng lưu gymProfile nên danh sách
+     * không lọc trộn hai thứ khác hẳn nhau — khách mở trang ra không phân biệt
+     * được mình đang chấm phòng tập hay chấm huấn luyện viên.
+     * targetType null = dữ liệu trước V76, đều là đánh giá gym.
+     */
+    @Query("select r from Review r where r.customer.username = :username "
+            + "and (r.targetType = :targetType "
+            + "     or (:targetType = com.fitmatch.common.enums.ReviewTargetType.GYM "
+            + "         and r.targetType is null)) "
+            + "order by r.id desc")
+    Page<Review> findMineByType(@Param("username") String username,
+                                @Param("targetType") ReviewTargetType targetType,
+                                Pageable pageable);
+
     /** Review của các gym do một operator sở hữu (mọi trạng thái) — cho gym theo dõi chất lượng. */
     Page<Review> findByGymProfile_User_UsernameOrderByIdDesc(String gymUsername, Pageable pageable);
 

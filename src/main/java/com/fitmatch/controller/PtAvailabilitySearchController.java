@@ -41,23 +41,28 @@ public class PtAvailabilitySearchController {
     public ResponseEntity<ApiResponse<List<PtSlotCellDto>>> search(
             @RequestParam Long branchId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime startTime) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime startTime,
+            @RequestParam(required = false) Integer minutes) {
         return ResponseEntity.ok(ApiResponse.success(
-                slotQueryService.search(branchId, date, startTime)));
+                slotQueryService.search(branchId, date, startTime, minutes)));
     }
 
     @Operation(summary = "Lưới ngày x giờ",
             description = "Actor: người dùng đã đăng nhập. Có ptId = lưới của riêng PT đó; bỏ ptId = lưới gộp "
                     + "toàn bộ PT của chi nhánh. Slot sinh từ ca đã xếp; slot bị đơn nghỉ ĐÃ DUYỆT phủ thì "
                     + "không xuất hiện. Ô taken=true là đã có người đặt (FE hiển thị mờ). "
+                    + "`minutes` = thời lượng buổi ghi trên vé: mỗi ô khi đó là một khung có thể "
+                    + "BẮT ĐẦU buổi dài ngần ấy phút, chuỗi slot phía sau được phép vắt qua nhiều "
+                    + "ca liền nhau và endTime là điểm kết thúc của cả chuỗi. Bỏ trống = một slot. "
                     + "Lỗi: 400 khoảng ngày quá 92 ngày; 409 ptId không thuộc chi nhánh.")
     @GetMapping("/grid")
     public ResponseEntity<ApiResponse<List<PtSlotCellDto>>> grid(
             @RequestParam Long branchId,
             @RequestParam(required = false) Long ptId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Integer minutes) {
         return ResponseEntity.ok(ApiResponse.success(
-                slotQueryService.grid(branchId, ptId, from, to)));
+                slotQueryService.grid(branchId, ptId, from, to, minutes)));
     }
 }

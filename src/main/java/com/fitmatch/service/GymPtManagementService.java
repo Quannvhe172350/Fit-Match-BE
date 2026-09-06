@@ -11,8 +11,12 @@ public interface GymPtManagementService {
     /** UC-019: Gym tạo tài khoản (ROLE_PT) + hồ sơ PT dưới quyền quản lý của mình. */
     GymPtResponse createPt(String gymUsername, CreateGymPtRequest request);
 
-    /** UC-019: danh sách PT của Gym (phân trang). */
-    PageResponse<GymPtResponse> list(String gymUsername, Pageable pageable);
+    /**
+     * UC-019: danh sách PT của Gym (phân trang).
+     *
+     * @param branchId lọc theo chi nhánh PT được phân công; null = mọi chi nhánh
+     */
+    PageResponse<GymPtResponse> list(String gymUsername, Long branchId, Pageable pageable);
 
     /** UC-019: chi tiết một PT thuộc Gym. */
     GymPtResponse detail(String gymUsername, Long ptId);

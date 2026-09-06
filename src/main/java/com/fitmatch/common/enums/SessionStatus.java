@@ -18,5 +18,17 @@ public enum SessionStatus {
     DONE,
 
     /** Bị huỷ kéo theo khi vé bị huỷ / hoàn tiền. */
-    CANCELLED
+    CANCELLED,
+
+    /**
+     * Khách tự huỷ đúng ngày này (V94) và đã nhận hoàn theo mốc báo trước.
+     *
+     * <p>Phải TÁCH khỏi {@link #CANCELLED}: ngày bị huỷ kéo theo vé thì vé cũng
+     * chết nên trả lại ngày cho vé là vô hại, còn ngày khách tự huỷ thì vé vẫn
+     * sống và khách đã cầm tiền của ngày đó — trả lại ngày nữa là trả hai lần
+     * cho một ngày. Mọi phép đếm "ngày đã tiêu" đều viết dưới dạng
+     * {@code status <> CANCELLED} nên trạng thái riêng này tự động được tính là
+     * ĐÃ TIÊU, không phải sửa từng chỗ đếm.
+     */
+    CANCELLED_BY_CUSTOMER
 }

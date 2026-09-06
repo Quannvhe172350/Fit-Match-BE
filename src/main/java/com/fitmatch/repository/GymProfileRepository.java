@@ -26,6 +26,9 @@ public interface GymProfileRepository extends JpaRepository<GymProfile, Long>, J
 
     Page<GymProfile> findByVerificationStatus(VerificationStatus status, Pageable pageable);
 
+    /** V94: số hồ sơ gym đang chờ duyệt — nguồn của chấm đỏ trên menu admin. */
+    long countByVerificationStatus(VerificationStatus status);
+
     Optional<GymProfile> findByIdAndVerificationStatusAndActiveTrue(Long id, VerificationStatus status);
 
     /** UC-18 (V55): hồ sơ chưa có toạ độ — đầu vào cho job/endpoint backfill geocoding. */

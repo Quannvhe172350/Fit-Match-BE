@@ -35,6 +35,9 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
 
     Page<Dispute> findByStatusOrderByIdDesc(DisputeStatus status, Pageable pageable);
 
+    /** V94: số tranh chấp còn phải xử lý — nguồn của chấm đỏ trên menu admin. */
+    long countByStatusIn(java.util.Collection<DisputeStatus> statuses);
+
     Page<Dispute> findAllByOrderByIdDesc(Pageable pageable);
 
     /** UC-076: đếm tranh chấp theo trạng thái trong khoảng; gymId null = toàn nền tảng. */

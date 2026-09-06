@@ -22,10 +22,16 @@ import com.fitmatch.service.PtShiftRosterService;
 import com.fitmatch.service.support.GymProfileResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -45,11 +51,33 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
     private final PtShiftRosterService ptShiftRosterService;
     private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
 
-    /** Mọi phản hồi PT đều đi qua đây để bảng PT của gym không có ô ảnh trống. */
+    /**
+     * Mọi phản hồi PT đều đi qua đây để bảng PT của gym không có ô ảnh trống, và
+     * để mọi màn hình đều biết PT đang phụ trách chi nhánh nào.
+     */
     private GymPtResponse withAvatar(PtProfile profile) {
         GymPtResponse response = GymPtResponse.of(profile);
         response.setAvatarUrl(ptAvatarResolver.urlOf(profile.getId()));
+        response.setBranches(branchesByPt(List.of(profile.getId()))
+                .getOrDefault(profile.getId(), List.of()));
         return response;
+    }
+
+    /**
+     * Chi nhánh của từng PT, nạp theo LÔ. Bảng PT của gym là màn hình gym mở
+     * nhiều nhất — hỏi phân công cho từng dòng là N+1 ngay tại đó.
+     */
+    private Map<Long, List<GymPtResponse.BranchRef>> branchesByPt(Collection<Long> ptIds) {
+        if (ptIds.isEmpty()) {
+            return Map.of();
+        }
+        return ptAssignmentRepository.findByPtProfileIds(ptIds).stream()
+                .collect(Collectors.groupingBy(a -> a.getPtProfile().getId(),
+                        Collectors.mapping(a -> GymPtResponse.BranchRef.builder()
+                                .id(a.getGymBranch().getId())
+                                .name(a.getGymBranch().getName())
+                                .active(a.getGymBranch().isActive())
+                                .build(), Collectors.toList())));
     }
 
     @Override
@@ -114,16 +142,41 @@ public class GymPtManagementServiceImpl implements GymPtManagementService {
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<GymPtResponse> list(String gymUsername, Pageable pageable) {
+    public PageResponse<GymPtResponse> list(String gymUsername, Long branchId, Pageable pageable) {
         GymProfile gym = gymProfileResolver.requireApprovedGym(gymUsername);
-        var page = ptProfileRepository.findByGymProfile_Id(gym.getId(), pageable);
-        var avatars = ptAvatarResolver.urlsOf(
-                page.getContent().stream().map(PtProfile::getId).toList());
+        Page<PtProfile> page = pageOfPts(gymUsername, gym, branchId, pageable);
+
+        List<Long> ptIds = page.getContent().stream().map(PtProfile::getId).toList();
+        var avatars = ptAvatarResolver.urlsOf(ptIds);
+        var branches = branchesByPt(ptIds);
         return PageResponse.of(page, p -> {
             GymPtResponse response = GymPtResponse.of(p);
             response.setAvatarUrl(avatars.get(p.getId()));
+            response.setBranches(branches.getOrDefault(p.getId(), List.of()));
             return response;
         });
+    }
+
+    /**
+     * Trang PT, có hoặc không có bộ lọc chi nhánh.
+     *
+     * <p>Chi nhánh phải thuộc CHÍNH gym đang đăng nhập: id của gym khác lọt vào
+     * đây sẽ là một đường đọc phân công của người ta, nên 404 chứ không im lặng
+     * trả rỗng. Chi nhánh có thật mà chưa xếp PT nào thì trả trang rỗng — không
+     * đẩy một danh sách id rỗng vào {@code in ()}.
+     */
+    private Page<PtProfile> pageOfPts(String gymUsername, GymProfile gym, Long branchId,
+                                      Pageable pageable) {
+        if (branchId == null) {
+            return ptProfileRepository.findByGymProfile_Id(gym.getId(), pageable);
+        }
+        gymBranchRepository.findByIdAndGymProfile_User_Username(branchId, gymUsername)
+                .orElseThrow(() -> new ResourceNotFoundException("Gym branch", branchId));
+        List<Long> ptIds = ptAssignmentRepository.findPtIdsByBranchId(branchId);
+        if (ptIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+        return ptProfileRepository.findByGymProfile_IdAndIdIn(gym.getId(), ptIds, pageable);
     }
 
     @Override

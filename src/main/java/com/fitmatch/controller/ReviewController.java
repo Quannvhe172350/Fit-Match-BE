@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -39,15 +40,18 @@ public class ReviewController {
 
     @Operation(
             summary = "UC-069 — Đánh giá của tôi",
-            description = "Actor: **Customer**.")
+            description = "Actor: **Customer**. targetType=GYM lấy đánh giá phòng gym, targetType=PT "
+                    + "lấy đánh giá huấn luyện viên; bỏ trống = cả hai (đối chiếu 'vé/buổi nào đã "
+                    + "đánh giá' cần bản không lọc).")
     @SecurityRequirement(name = "bearerAuth")
     @PreAuthorize("hasRole('CUSTOMER')")
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> mine(
             @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(required = false) com.fitmatch.common.enums.ReviewTargetType targetType,
             @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                reviewService.myReviews(userDetails.getUsername(), pageable)));
+                reviewService.myReviews(userDetails.getUsername(), targetType, pageable)));
     }
 
     // Gửi đánh giá: POST /api/tickets/{id}/review (phòng gym, mở khi dùng hết vé)

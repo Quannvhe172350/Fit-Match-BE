@@ -243,6 +243,12 @@ public class NotificationDispatcher {
      * giá phòng gym (mở khi dùng hết vé, một lần cho cả vé), cái này mở theo TỪNG
      * buổi nên một vé gói 10 ngày có PT sẽ mời 10 lần — mỗi buổi một HLV khác nhau
      * là chuyện bình thường.
+     *
+     * <p>Ngoại lệ của quy ước "thông báo cấp buổi tập về {@code /schedule}" ở
+     * {@link #ptSessionConfirmed}: thông báo này MỜI LÀM một việc, nên phải đưa
+     * tới đúng chỗ làm được việc đó. Thả khách xuống lịch tháng là bắt họ tự nhớ
+     * ra buổi nào rồi đi tìm ô ngày đúng; {@code /profile/reviews} có sẵn danh
+     * sách buổi đang chờ chấm. Cùng đích với {@link #ticketUsedUp}.
      */
     public void sessionDoneReviewPt(TrainingSession session) {
         if (session.getPtProfile() == null) return;
@@ -253,7 +259,7 @@ public class NotificationDispatcher {
                 "Buổi ngày " + session.getSessionDate() + " với HLV " + ptName
                         + " đã hoàn thành. Chấm điểm buổi tập này để HLV và người tập sau đều "
                         + "biết mình đang chọn ai.",
-                "/schedule",
+                "/profile/reviews",
                 Map.of("ptName", s(ptName), "date", s(session.getSessionDate())));
     }
 
@@ -454,6 +460,48 @@ public class NotificationDispatcher {
     }
 
     /** Khách không quyết tới ngày tập — hệ thống tự hoàn để khách không thiệt. */
+    /**
+     * V94: khách huỷ một ngày tập. Báo cả ba phía vì cả ba đều phải làm gì đó —
+     * khách xác nhận số tiền đã về ví, gym thấy một ô lịch vừa trống ra, và HLV
+     * biết khung giờ của mình đã được trả lại (buổi biến mất khỏi lịch dạy mà
+     * không một dòng thông báo nào là cách nhanh nhất để HLV tưởng hệ thống lỗi).
+     */
+    public void sessionCancelledByCustomer(TrainingSession session, BigDecimal refundAmount,
+                                           BigDecimal percent, long hoursAhead) {
+        Ticket t = session.getTicket();
+        Map<String, String> customerVars = Map.of(
+                "date", s(session.getSessionDate()),
+                "refundAmount", s(refundAmount),
+                "percent", s(percent));
+        dispatch("SESSION_CANCELLED_CUSTOMER", t.getCustomer(), NotificationCategory.BOOKING,
+                "Đã huỷ buổi tập ngày " + session.getSessionDate(),
+                "Buổi tập ngày " + session.getSessionDate() + " đã được huỷ. Số tiền hoàn lại: "
+                        + refundAmount + " đ (tương đương " + percent
+                        + "% giá trị một ngày tập) và đã vào ví của bạn.",
+                "/profile/wallet", customerVars);
+
+        dispatch("SESSION_CANCELLED_GYM", gymUser(t), NotificationCategory.BOOKING,
+                "Khách huỷ buổi tập ngày " + session.getSessionDate(),
+                t.getCustomer().getFullName() + " đã huỷ buổi tập ngày "
+                        + session.getSessionDate() + ". Báo trước " + hoursAhead
+                        + " giờ nên hoàn " + percent + "% giá trị ngày tập.",
+                "/gym/calendar",
+                Map.of("customerName", s(t.getCustomer().getFullName()),
+                        "date", s(session.getSessionDate()),
+                        "hours", s(hoursAhead), "percent", s(percent)));
+
+        if (session.getPtProfile() != null) {
+            dispatch("SESSION_CANCELLED_PT", session.getPtProfile().getUser(),
+                    NotificationCategory.BOOKING,
+                    "Buổi dạy ngày " + session.getSessionDate() + " đã bị huỷ",
+                    "Khách đã huỷ buổi tập ngày " + session.getSessionDate() + " lúc "
+                            + session.getPtSlotStart() + ". Khung giờ này của bạn đã được trả lại.",
+                    "/trainer/sessions",
+                    Map.of("date", s(session.getSessionDate()),
+                            "slot", s(session.getPtSlotStart())));
+        }
+    }
+
     public void sessionPtAutoRefunded(TrainingSession session, BigDecimal refundAmount) {
         Ticket ticket = session.getTicket();
         dispatch("SESSION_PT_AUTO_REFUNDED", ticket.getCustomer(), NotificationCategory.BOOKING,

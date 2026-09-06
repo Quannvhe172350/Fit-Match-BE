@@ -21,6 +21,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -111,6 +112,14 @@ public class TrainingSession extends BaseEntity {
     /** Ảnh bằng chứng buổi tập (thay session_notes đã bỏ ở câu 19). */
     @Column(name = "evidence_url", length = 500)
     private String evidenceUrl;
+
+    /**
+     * V94: số tiền đã hoàn khi khách huỷ đúng buổi này. Null = chưa huỷ; 0 =
+     * huỷ quá muộn nên không được hoàn đồng nào — hai chuyện khác nhau, nên
+     * không dùng 0 để biểu diễn "chưa huỷ".
+     */
+    @Column(name = "cancel_refund_amount", precision = 12, scale = 2)
+    private BigDecimal cancelRefundAmount;
 
     /** Chống lost-update khi khách dời lịch trùng lúc job hoàn tất buổi. */
     @Version

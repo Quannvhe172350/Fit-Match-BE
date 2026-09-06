@@ -21,7 +21,7 @@ public interface TicketSchedulingService {
     /** Lịch tập của khách trong một khoảng ngày — dùng cho cảnh báo trùng ngày (câu 29). */
     List<TrainingSessionResponse> mySessions(String customerUsername, LocalDate from, LocalDate to);
 
-    /** Dời ngày — chỉ vé DAY (câu 2/37); vé gói gọi vào sẽ nhận 409. */
+    /** Dời ngày — cả vé DAY lẫn vé gói (V94 nới; xem SessionSchedulingValidator). */
     TrainingSessionResponse updateDate(String customerUsername, Long sessionId, LocalDate date);
 
     /** Đổi khung giờ PT trong cùng ngày, hoặc bổ sung PT cho ngày đang trống (câu 34). */
@@ -32,4 +32,20 @@ public interface TicketSchedulingService {
 
     /** Khách check-in — chỉ buổi có PT. Không đổi trạng thái, không đụng dòng tiền. */
     TrainingSessionResponse checkIn(String customerUsername, Long sessionId);
+
+    /**
+     * V94: huỷ buổi này ngay bây giờ thì được hoàn bao nhiêu — hỏi TRƯỚC khi huỷ.
+     *
+     * <p>Không ném lỗi khi buổi không huỷ được: trả {@code cancellable = false}
+     * kèm lý do, vì FE cần hiện nút ở trạng thái mờ có giải thích chứ không phải
+     * một lỗi đỏ cho một câu hỏi hoàn toàn hợp lệ.
+     */
+    com.fitmatch.dto.ticket.SessionCancellationQuote cancelQuote(String customerUsername, Long sessionId);
+
+    /**
+     * V94: khách huỷ một ngày tập. Hoàn theo mốc báo trước của gym, tiền vào ví
+     * khách, và ngày đó KHÔNG được trả lại cho vé (khách đã cầm tiền của nó).
+     */
+    com.fitmatch.dto.ticket.SessionCancellationQuote cancel(String customerUsername, Long sessionId,
+                                                            String reason);
 }
