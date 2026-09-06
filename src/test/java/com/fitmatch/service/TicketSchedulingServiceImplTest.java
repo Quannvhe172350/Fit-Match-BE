@@ -86,11 +86,15 @@ class TicketSchedulingServiceImplTest {
         when(sessionRepository.findByTicket_IdOrderByDayIndexAsc(TICKET_ID)).thenReturn(List.of());
         when(ptProfileRepository.findById(PT_ID)).thenReturn(Optional.of(
                 PtProfile.builder().id(PT_ID).displayName("PT A").build()));
+        // Đặt lịch khoá hồ sơ PT để tuần tự hoá việc giữ chỗ — xem applyPt.
+        when(ptProfileRepository.lockById(PT_ID)).thenReturn(Optional.of(
+                PtProfile.builder().id(PT_ID).displayName("PT A").build()));
         // V85: validator trả khung giờ đã phân giải TỪ CA, không còn trả entity
         // pt_availabilities (bảng đã bị gỡ khỏi mô hình).
         // V93: tham số cuối là độ dài buổi vé yêu cầu (null = vé không ràng buộc).
+        // Buổi nay là một CHUỖI slot, nên ResolvedSlot mang thêm danh sách slot.
         when(ptSlotValidator.resolveSlot(any(), any(), any(), any(), any(), any())).thenReturn(
-                new PtSlotValidator.ResolvedSlot(null, SLOT, LocalTime.of(19, 0)));
+                new PtSlotValidator.ResolvedSlot(null, SLOT, LocalTime.of(19, 0), List.of()));
     }
 
     private Ticket ticket(TicketKind kind, int dayCount, boolean withPt) {

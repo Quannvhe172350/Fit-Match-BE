@@ -93,17 +93,16 @@ class PtSlotValidatorTest {
     // ---------- V93: độ dài buổi ghi trên vé ----------
 
     /**
-     * Vé quy định mỗi buổi 90 phút mà ca chỉ có slot 60 phút -> từ chối, kèm cả
-     * hai con số. Không có ràng buộc này thì con số trên vé chỉ là chữ trang trí:
-     * khách mua "gói 90 phút" rồi đặt được toàn ca 60 phút.
+     * Vé 90 phút mà ca chỉ có slot 60 phút -> từ chối: 90 không ghép được từ các
+     * slot 60 (một slot thiếu, hai slot thừa). Không có ràng buộc này thì con số
+     * trên vé chỉ là chữ trang trí.
      */
     @Test
-    void ticketRequiresLongerSession_rejected() {
+    void ticketLengthNotReachableFromSlots_rejected() {
         assertThatThrownBy(() ->
                 validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 90))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("90 phút")
-                .hasMessageContaining("60 phút");
+                .hasMessageContaining("90 phút");
     }
 
     /** Khớp đúng độ dài thì đặt bình thường. */
@@ -116,8 +115,9 @@ class PtSlotValidatorTest {
     }
 
     /**
-     * Ca DÀI HƠN vé cũng bị từ chối: vé 60 phút mà ca 120 phút thì khách chiếm
-     * trọn khung hai tiếng của PT trong khi chỉ trả tiền một tiếng.
+     * Slot DÀI HƠN vé vẫn bị từ chối: vé 60 phút mà slot của ca là 120 phút thì
+     * khách chiếm trọn khung hai tiếng của PT trong khi chỉ trả tiền một tiếng.
+     * Ghép chuỗi chỉ cộng THÊM slot, không bao giờ cắt đôi một slot.
      */
     @Test
     void slotLongerThanTicket_rejected() {
@@ -126,7 +126,110 @@ class PtSlotValidatorTest {
         assertThatThrownBy(() ->
                 validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 60))
                 .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("60 phút");
+    }
+
+    // ---------- ghép chuỗi slot: buổi dài hơn một slot ----------
+
+    /** Vé 120 phút, ca slot 60 -> ghép hai slot liền nhau TRONG CÙNG một ca. */
+    @Test
+    void twoSlotsInOneShift_chained() {
+        PtSlotValidator.ResolvedSlot resolved =
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 120);
+
+        assertThat(resolved.endTime()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(resolved.slots()).hasSize(2);
+        assertThat(resolved.spansMultipleShifts()).isFalse();
+    }
+
+    /**
+     * Điểm chính của thay đổi: chuỗi vắt qua RANH GIỚI CA. Ca chiều 16:00-18:00
+     * nối ca tối 18:00-22:00 — đặt 17:00 dài 120 phút thì tiếng đầu ở ca chiều,
+     * tiếng sau ở ca tối.
+     */
+    @Test
+    void chainCrossesShiftBoundary() {
+        GymShift afternoon = shift(6L, LocalTime.of(16, 0), LocalTime.of(18, 0), 60);
+        rosterOf(afternoon, eveningShift);
+
+        PtSlotValidator.ResolvedSlot resolved =
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, LocalTime.of(17, 0), null, 120);
+
+        assertThat(resolved.startTime()).isEqualTo(LocalTime.of(17, 0));
+        assertThat(resolved.endTime()).isEqualTo(LocalTime.of(19, 0));
+        assertThat(resolved.spansMultipleShifts()).isTrue();
+    }
+
+    /** Hai ca có KHE HỞ ở giữa thì không ghép được — chuỗi đứt ở mốc 18:00. */
+    @Test
+    void gapBetweenShifts_breaksChain() {
+        GymShift afternoon = shift(6L, LocalTime.of(16, 0), LocalTime.of(17, 30), 60);
+        rosterOf(afternoon, eveningShift);
+
+        assertThatThrownBy(() ->
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, LocalTime.of(16, 0), null, 120))
+                .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("120 phút");
+    }
+
+    /**
+     * Nghỉ phủ ca SAU thì cả chuỗi hỏng. Chỉ kiểm slot đầu sẽ cho đặt trọn hai
+     * tiếng vào một khoảng mà nửa sau PT không có mặt.
+     */
+    @Test
+    void leaveOnSecondShift_rejectsWholeChain() {
+        GymShift afternoon = shift(6L, LocalTime.of(16, 0), LocalTime.of(18, 0), 60);
+        rosterOf(afternoon, eveningShift);
+        when(leaveRequestRepository.findOverlapping(anyLong(), any(), any(), any()))
+                .thenReturn(List.of(PtLeaveRequest.builder()
+                        .scope(LeaveScope.SHIFT)
+                        .fromDate(DATE).toDate(DATE)
+                        .shifts(Set.of(eveningShift))
+                        .build()));
+
+        assertThatThrownBy(() ->
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, LocalTime.of(17, 0), null, 120))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("duyệt nghỉ");
+    }
+
+    /**
+     * Buổi dài đè lên buổi đã có mà LỆCH giờ bắt đầu -> vẫn phải chặn. Bản cũ so
+     * bằng giờ bắt đầu nên cặp này lọt qua và PT bị đặt hai lần.
+     */
+    @Test
+    void overlappingSessionWithDifferentStart_rejected() {
+        when(trainingSessionRepository.findByPtProfile_IdAndSessionDateAndStatusIn(anyLong(), any(), any()))
+                .thenReturn(List.of(TrainingSession.builder()
+                        .id(99L)
+                        .sessionDate(DATE)
+                        .ptSlotStart(LocalTime.of(19, 0))
+                        .ptSlotEnd(LocalTime.of(20, 0))
+                        .status(SessionStatus.SCHEDULED)
+                        .build()));
+
+        assertThatThrownBy(() ->
+                validator.resolveSlot(PT_ID, BRANCH_ID, DATE, START, null, 120))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("đã có người đặt");
+    }
+
+    private GymShift shift(Long id, LocalTime start, LocalTime end, int slotMinutes) {
+        return GymShift.builder()
+                .id(id)
+                .gymBranch(GymBranch.builder().id(BRANCH_ID).name("Chi nhánh 1").build())
+                .name("Ca " + id)
+                .startTime(start).endTime(end).slotMinutes(slotMinutes)
+                .daysOfWeek("1,2,3,4,5,6,7").active(true)
+                .build();
+    }
+
+    private void rosterOf(GymShift... shifts) {
+        when(shiftAssignmentRepository.findActiveByPtAndDate(PT_ID, DATE))
+                .thenReturn(java.util.Arrays.stream(shifts)
+                        .map(sh -> PtShiftAssignment.builder()
+                                .id(sh.getId()).gymShift(sh).workDate(DATE).active(true).build())
+                        .toList());
     }
 
     /** Vé không khai độ dài -> giữ nguyên hành vi trước V93, nhận mọi ca. */

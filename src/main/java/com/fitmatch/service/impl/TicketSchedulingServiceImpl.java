@@ -265,6 +265,23 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR,
                     "slotStart is required when a PT is selected");
         }
+        /*
+         * KHOÁ hồ sơ PT trước khi kiểm chỗ trống, và giữ tới hết transaction.
+         *
+         * <p>Trước đây chốt chặn cuối cùng là unique index (pt, ngày, giờ bắt đầu)
+         * ở tầng CSDL (V91): hai request đồng thời cùng đọc "chưa ai đặt" rồi
+         * cùng ghi thì một cái vỡ index. Từ khi buổi có thể DÀI HƠN MỘT SLOT,
+         * index đó không còn đủ — hai buổi 08:00–10:00 và 09:00–10:00 đè nhau
+         * nhưng khác giờ bắt đầu nên index cho qua cả hai.
+         *
+         * Kiểm giao khoảng ở tầng ứng dụng chỉ đúng khi hai request không chạy
+         * song song, nên phải tuần tự hoá chúng: khoá này biến "đọc rồi ghi"
+         * thành một thao tác nguyên tử trên từng PT. Khoá theo PT chứ không theo
+         * bảng — hai khách đặt hai PT khác nhau vẫn chạy song song bình thường.
+         */
+        ptProfileRepository.lockById(ptId)
+                .orElseThrow(() -> new ResourceNotFoundException("PT profile", ptId));
+
         PtSlotValidator.ResolvedSlot slot = ptSlotValidator.resolveSlot(
                 ptId, ticket.getGymBranch().getId(), date, slotStart, session.getId(),
                 ticket.getMinutesPerDay());
@@ -273,8 +290,14 @@ public class TicketSchedulingServiceImpl implements TicketSchedulingService {
 
         session.setPtProfile(pt);
         session.setPtSlotStart(slot.startTime());
-        // Giờ kết thúc do CA quyết (slotMinutes) — khách chỉ chọn giờ bắt đầu.
+        // Giờ kết thúc do CHUỖI CA quyết — khách chỉ chọn giờ bắt đầu, còn buổi
+        // dài bao nhiêu thì vé nói (minutesPerDay) và chuỗi slot phải khớp đủ.
         session.setPtSlotEnd(slot.endTime());
+        if (slot.spansMultipleShifts()) {
+            log.info("Session {} spans {} shifts: {}–{}", session.getId(),
+                    slot.slots().stream().map(sl -> sl.shift().getId()).distinct().count(),
+                    slot.startTime(), slot.endTime());
+        }
     }
 
     /** Buổi chỉ sửa được khi còn SCHEDULED và ngày tập chưa tới (mốc 00:00). */
