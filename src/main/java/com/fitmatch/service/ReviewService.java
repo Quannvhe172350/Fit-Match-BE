@@ -27,7 +27,13 @@ public interface ReviewService {
 
     void delete(String customerUsername, Long reviewId);
 
-    PageResponse<ReviewResponse> myReviews(String customerUsername, Pageable pageable);
+    /**
+     * Đánh giá của khách. {@code targetType} null = cả hai loại; GYM/PT tách
+     * riêng vì chấm phòng tập và chấm huấn luyện viên là hai việc khác nhau.
+     */
+    PageResponse<ReviewResponse> myReviews(String customerUsername,
+                                           com.fitmatch.common.enums.ReviewTargetType targetType,
+                                           Pageable pageable);
 
     /** UC-070: bất kỳ actor đã đăng nhập báo cáo một review công khai. */
     void report(String reporterUsername, Long reviewId, ReportRequest request);

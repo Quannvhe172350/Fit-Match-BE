@@ -137,6 +137,20 @@ class NotificationDispatcherLinkTest {
                 .publishEvent(org.mockito.ArgumentMatchers.any(Object.class));
     }
 
+    /**
+     * Ngoại lệ có chủ ý của quy ước "thông báo cấp buổi tập về /schedule": lời
+     * mời đánh giá phải rơi xuống chỗ ĐÁNH GIÁ ĐƯỢC. Thả khách xuống lịch tháng
+     * là bắt họ tự nhớ ra buổi nào rồi đi tìm ô ngày đúng, trong khi
+     * /profile/reviews có sẵn danh sách buổi đang chờ chấm.
+     */
+    @Test
+    void reviewInvites_landOnTheReviewPage() {
+        dispatcher.sessionDoneReviewPt(sessionWithPt(ticket()));
+        dispatcher.ticketUsedUp(ticket());
+
+        assertThat(publishedLinks()).containsOnly("/profile/reviews");
+    }
+
     // ---------- hạ tầng ----------
 
     private List<String> publishedLinks() {

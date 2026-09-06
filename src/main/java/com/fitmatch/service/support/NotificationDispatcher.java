@@ -243,6 +243,12 @@ public class NotificationDispatcher {
      * giá phòng gym (mở khi dùng hết vé, một lần cho cả vé), cái này mở theo TỪNG
      * buổi nên một vé gói 10 ngày có PT sẽ mời 10 lần — mỗi buổi một HLV khác nhau
      * là chuyện bình thường.
+     *
+     * <p>Ngoại lệ của quy ước "thông báo cấp buổi tập về {@code /schedule}" ở
+     * {@link #ptSessionConfirmed}: thông báo này MỜI LÀM một việc, nên phải đưa
+     * tới đúng chỗ làm được việc đó. Thả khách xuống lịch tháng là bắt họ tự nhớ
+     * ra buổi nào rồi đi tìm ô ngày đúng; {@code /profile/reviews} có sẵn danh
+     * sách buổi đang chờ chấm. Cùng đích với {@link #ticketUsedUp}.
      */
     public void sessionDoneReviewPt(TrainingSession session) {
         if (session.getPtProfile() == null) return;
@@ -253,7 +259,7 @@ public class NotificationDispatcher {
                 "Buổi ngày " + session.getSessionDate() + " với HLV " + ptName
                         + " đã hoàn thành. Chấm điểm buổi tập này để HLV và người tập sau đều "
                         + "biết mình đang chọn ai.",
-                "/schedule",
+                "/profile/reviews",
                 Map.of("ptName", s(ptName), "date", s(session.getSessionDate())));
     }
 

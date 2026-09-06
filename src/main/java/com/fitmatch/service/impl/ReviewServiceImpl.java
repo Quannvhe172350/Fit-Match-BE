@@ -219,8 +219,12 @@ public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.Ti
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ReviewResponse> myReviews(String customerUsername, Pageable pageable) {
-        return toPage(reviewRepository.findByCustomer_UsernameOrderByIdDesc(customerUsername, pageable));
+    public PageResponse<ReviewResponse> myReviews(String customerUsername,
+                                                  com.fitmatch.common.enums.ReviewTargetType targetType,
+                                                  Pageable pageable) {
+        return toPage(targetType == null
+                ? reviewRepository.findByCustomer_UsernameOrderByIdDesc(customerUsername, pageable)
+                : reviewRepository.findMineByType(customerUsername, targetType, pageable));
     }
 
     @Override
