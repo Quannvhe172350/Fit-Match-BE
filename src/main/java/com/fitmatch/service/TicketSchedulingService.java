@@ -21,7 +21,7 @@ public interface TicketSchedulingService {
     /** Lịch tập của khách trong một khoảng ngày — dùng cho cảnh báo trùng ngày (câu 29). */
     List<TrainingSessionResponse> mySessions(String customerUsername, LocalDate from, LocalDate to);
 
-    /** Dời ngày — cả vé DAY lẫn vé gói (V94 nới; xem SessionSchedulingValidator). */
+    /** Dời NGÀY — chỉ vé DAY. Vé nhiều ngày chỉ đổi giờ trong ngày, qua {@link #setPt}. */
     TrainingSessionResponse updateDate(String customerUsername, Long sessionId, LocalDate date);
 
     /** Đổi khung giờ PT trong cùng ngày, hoặc bổ sung PT cho ngày đang trống (câu 34). */

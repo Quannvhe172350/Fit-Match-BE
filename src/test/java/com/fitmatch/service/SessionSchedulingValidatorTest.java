@@ -179,13 +179,36 @@ class SessionSchedulingValidatorTest {
     }
 
     /**
-     * V94: vé GÓI cũng dời được một ngày. Luật "n ngày liên tiếp" (câu 27) là luật
-     * của lúc ĐẶT; giữ nó mãi về sau nghĩa là người mua gói 10 ngày bận đúng một
-     * hôm thì mất trắng hôm đó.
+     * Sheet 7: vé nhiều ngày KHÔNG dời được sang ngày khác.
+     *
+     * <p>V94 từng nới cho vé gói đổi ngày tự do và kết quả đúng như luật "n ngày
+     * liên tiếp" (câu 27) cảnh báo: gói 10 ngày bị rải thành 11/9, 26/9, 3/10,
+     * 8/10 — không còn là một gói theo bất kỳ nghĩa nào.
      */
     @Test
-    void reschedule_packageTicket_passes() {
+    void reschedule_packageTicket_toAnotherDate_rejected() {
+        assertThatThrownBy(() -> validator.assertReschedulable(
+                ticket(TicketKind.PACKAGE, 10, TicketStatus.ACTIVE),
+                session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(5), TODAY))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("không dời sang ngày khác");
+    }
+
+    /**
+     * Nhưng GIỮ NGUYÊN ngày thì không bị chặn — vé nhiều ngày vẫn đổi được khung
+     * giờ trong chính ngày đó (đường đi là PUT /sessions/{id}/pt). Chặn cả lời
+     * gọi giữ nguyên ngày chỉ bắt caller phải tự kiểm trước khi gọi.
+     */
+    @Test
+    void reschedule_packageTicket_sameDate_passes() {
         validator.assertReschedulable(ticket(TicketKind.PACKAGE, 10, TicketStatus.ACTIVE),
+                session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(3), TODAY);
+    }
+
+    /** Vé một ngày thì "ngày nào" chính là toàn bộ nội dung của nó — đổi thoải mái. */
+    @Test
+    void reschedule_dayTicket_toAnotherDate_passes() {
+        validator.assertReschedulable(ticket(TicketKind.DAY, 1, TicketStatus.ACTIVE),
                 session(TODAY.plusDays(3), SessionStatus.SCHEDULED), TODAY.plusDays(5), TODAY);
     }
 

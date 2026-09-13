@@ -56,10 +56,11 @@ public class SessionController {
     }
 
     @Operation(summary = "Dời ngày tập",
-            description = "Actor: **Customer** (chủ vé). Áp dụng cho CẢ vé DAY lẫn vé gói (V94 — "
-                    + "trước đây vé gói nhận 409). Hạn đổi là 00:00 của ngày tập; ngày mới phải "
-                    + "trong hạn dùng vé và không trùng một ngày khác của chính vé đó. Buổi có PT "
-                    + "thì ngày mới phải còn đúng khung giờ đó, nếu không nhận 409.")
+            description = "Actor: **Customer** (chủ vé). CHỈ vé DAY đổi được sang ngày khác. Vé "
+                    + "nhiều ngày / vé tháng chỉ đổi được KHUNG GIỜ trong chính ngày đó — dùng "
+                    + "PUT /api/sessions/{id}/pt, gọi vào đây với ngày khác sẽ nhận 409. Hạn đổi là "
+                    + "00:00 của ngày tập; ngày mới phải trong hạn dùng vé và không trùng một ngày "
+                    + "khác của chính vé đó. Buổi có PT thì ngày mới phải còn đúng khung giờ đó.")
     @PutMapping("/{id}/date")
     public ResponseEntity<ApiResponse<TrainingSessionResponse>> updateDate(
             @AuthenticationPrincipal UserDetails userDetails,

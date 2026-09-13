@@ -119,15 +119,26 @@ public class SessionSchedulingValidator {
     /**
      * Dời MỘT ngày tập sang ngày khác.
      *
-     * <p>V94 bỏ ràng buộc "chỉ vé DAY": trước đây vé PACKAGE gọi vào đây luôn
-     * nhận 409 với lý do n ngày phải LIÊN TIẾP (câu 27). Nhưng luật liên tiếp là
-     * luật của lúc ĐẶT — server tự sinh đủ n ngày liền nhau từ ngày bắt đầu để
-     * khách không phải bấm n lần. Bắt nó đúng mãi về sau nghĩa là người mua gói
-     * 10 ngày bận đúng một hôm thì mất trắng hôm đó: không dời được, và (trước
-     * V94) cũng không huỷ được. Đó chính là "chưa lưu lịch khi dời lịch" trong
-     * bảng rà soát — nút không có, thao tác không đi tới đâu.
+     * <p>Ai được đổi NGÀY (sheet 7 mục 2):
      *
-     * <p>Cái KHÔNG nới: hạn 00:00 ngày tập, hạn dùng vé, và ngày mới không được
+     * <ul>
+     *   <li><b>Vé DAY</b> — đổi sang ngày khác thoải mái. Vé một ngày thì "ngày
+     *       nào" chính là toàn bộ nội dung của nó.</li>
+     *   <li><b>Vé nhiều ngày / vé tháng</b> — CHỈ đổi khung giờ trong chính ngày
+     *       đó, không đổi được sang ngày khác. Đổi khung giờ đi đường khác
+     *       ({@code PUT /api/sessions/&#123;id&#125;/pt}) nên không chạm vào đây.</li>
+     * </ul>
+     *
+     * <p>V94 từng nới cho vé gói đổi ngày tự do, và kết quả đúng như luật liên
+     * tiếp (câu 27) đã cảnh báo: một gói 10 ngày bị rải thành 11/9, 26/9, 3/10,
+     * 8/10… — không còn là "gói n ngày liên tiếp" theo bất kỳ nghĩa nào, và gym
+     * mất khả năng dự báo tải. Nay khoá lại đúng phạm vi: cấm đổi NGÀY, không
+     * cấm đổi giờ.
+     *
+     * <p>Chỉ chặn khi ngày THẬT SỰ đổi — gọi với đúng ngày cũ là thao tác rỗng,
+     * ném lỗi ở đó chỉ làm caller phải tự đi kiểm trước khi gọi.
+     *
+     * <p>Cái luôn giữ: hạn 00:00 ngày tập, hạn dùng vé, và ngày mới không được
      * trùng một ngày khác của CHÍNH vé đó (hai ngày một vé trong một ngày là vô
      * nghĩa — vé vốn có giá trị cả ngày).
      */
@@ -147,6 +158,10 @@ public class SessionSchedulingValidator {
         LocalDate today = now.toLocalDate();
         List<String> reasons = new ArrayList<>(ticketIssues(ticket, today));
 
+        if (ticket.getKind() == TicketKind.PACKAGE && !newDate.equals(session.getSessionDate())) {
+            reasons.add("Vé nhiều ngày chỉ đổi được khung giờ trong ngày "
+                    + session.getSessionDate() + ", không dời sang ngày khác được");
+        }
         if (trainingSessionRepository.existsByTicket_IdAndSessionDateAndStatusNotAndIdNot(
                 ticket.getId(), newDate, SessionStatus.CANCELLED, session.getId())) {
             reasons.add("Vé này đã có một ngày tập vào " + newDate);

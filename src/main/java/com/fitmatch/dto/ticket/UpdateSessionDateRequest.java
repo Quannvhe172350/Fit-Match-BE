@@ -9,7 +9,7 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 
-/** Dời ngày tập — cả vé DAY lẫn vé gói (V94). */
+/** Dời ngày tập — chỉ vé DAY; vé nhiều ngày chỉ đổi giờ trong ngày (sheet 7). */
 @Getter
 @Setter
 @Builder
