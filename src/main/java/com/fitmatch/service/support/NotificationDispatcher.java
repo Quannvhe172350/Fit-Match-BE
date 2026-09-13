@@ -15,6 +15,12 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.Map;
 
+import static com.fitmatch.service.support.NotificationFormat.date;
+import static com.fitmatch.service.support.NotificationFormat.dateOf;
+import static com.fitmatch.service.support.NotificationFormat.money;
+import static com.fitmatch.service.support.NotificationFormat.percent;
+import static com.fitmatch.service.support.NotificationFormat.time;
+
 /**
  * Sinh thông báo chuẩn hoá theo sự kiện (UC-075) và giải quyết người nhận từ
   * vé/buổi tập/tranh chấp/đánh giá. Publish {@link NotificationEvent} để gửi SAU KHI giao
@@ -79,7 +85,7 @@ public class NotificationDispatcher {
                 "Tiền hoàn của vé #" + ticketId + " đã vào ví của bạn — "
                         + "có thể tạo lệnh rút về tài khoản ngân hàng bất cứ lúc nào.",
                 "/profile/wallet",
-                Map.of("amount", s(amount), "ticketId", s(ticketId)));
+                Map.of("amount", money(amount), "ticketId", s(ticketId)));
     }
 
     // ----- Gym verification (UC-013/014) -----
@@ -138,7 +144,7 @@ public class NotificationDispatcher {
     public void ticketPaid(Ticket t) {
         Map<String, String> vars = Map.of(
                 "ticketId", s(t.getId()), "ticketName", s(t.getTicketType().getName()),
-                "amount", s(t.getPayableAmount()));
+                "amount", money(t.getPayableAmount()));
         dispatch("TICKET_PAID_CUSTOMER", t.getCustomer(), NotificationCategory.PAYMENT,
                 "Vé đã kích hoạt",
                 "Vé \"" + t.getTicketType().getName() + "\" đã sẵn sàng. Chọn ngày tập để bắt đầu.",
@@ -174,17 +180,17 @@ public class NotificationDispatcher {
     public void sessionBooked(TrainingSession session) {
         Ticket t = session.getTicket();
         Map<String, String> vars = Map.of(
-                "sessionId", s(session.getId()), "date", s(session.getSessionDate()),
+                "sessionId", s(session.getId()), "date", date(session.getSessionDate()),
                 "customerName", s(t.getCustomer().getFullName()));
         dispatch("SESSION_BOOKED_GYM", gymUser(t), NotificationCategory.BOOKING,
                 "Có lịch tập mới",
-                t.getCustomer().getFullName() + " sẽ tập ngày " + session.getSessionDate()
+                t.getCustomer().getFullName() + " sẽ tập ngày " + date(session.getSessionDate())
                         + " tại " + t.getGymBranch().getName() + ".",
                 "/gym/calendar", vars);
         if (session.getPtProfile() != null) {
             dispatch("SESSION_BOOKED_PT", session.getPtProfile().getUser(), NotificationCategory.BOOKING,
                     "Bạn có buổi dạy mới",
-                    "Buổi " + session.getSessionDate() + " lúc " + session.getPtSlotStart()
+                    "Buổi " + date(session.getSessionDate()) + " lúc " + time(session.getPtSlotStart())
                             + " với " + t.getCustomer().getFullName() + ".",
                     "/trainer/sessions", vars);
         }
@@ -194,10 +200,10 @@ public class NotificationDispatcher {
     public void sessionRescheduled(TrainingSession session, java.time.LocalDate oldDate) {
         Ticket t = session.getTicket();
         String body = t.getCustomer().getFullName() + " dời buổi tập từ " + oldDate
-                + " sang " + session.getSessionDate() + ".";
+                + " sang " + date(session.getSessionDate()) + ".";
         Map<String, String> vars = Map.of(
-                "sessionId", s(session.getId()), "oldDate", s(oldDate),
-                "newDate", s(session.getSessionDate()));
+                "sessionId", s(session.getId()), "oldDate", date(oldDate),
+                "newDate", date(session.getSessionDate()));
         dispatch("SESSION_RESCHEDULED_GYM", gymUser(t), NotificationCategory.BOOKING,
                 "Lịch tập được dời", body, "/gym/calendar", vars);
         if (session.getPtProfile() != null) {
@@ -212,10 +218,10 @@ public class NotificationDispatcher {
         Ticket t = session.getTicket();
         dispatch("SESSION_PT_ASSIGNED", session.getPtProfile().getUser(), NotificationCategory.BOOKING,
                 "Bạn được chọn cho một buổi tập",
-                "Buổi " + session.getSessionDate() + " lúc " + session.getPtSlotStart()
+                "Buổi " + date(session.getSessionDate()) + " lúc " + time(session.getPtSlotStart())
                         + " với " + t.getCustomer().getFullName() + ".",
                 "/trainer/sessions",
-                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
+                Map.of("sessionId", s(session.getId()), "date", date(session.getSessionDate())));
     }
 
     /**
@@ -230,9 +236,9 @@ public class NotificationDispatcher {
         dispatch("SESSION_PT_CONFIRMED", session.getTicket().getCustomer(),
                 NotificationCategory.BOOKING,
                 "Phòng gym đã xác nhận buổi tập có PT",
-                "Buổi " + session.getSessionDate() + " đã được phòng gym xác nhận kèm ảnh.",
+                "Buổi " + date(session.getSessionDate()) + " đã được phòng gym xác nhận kèm ảnh.",
                 "/schedule",
-                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate())));
+                Map.of("sessionId", s(session.getId()), "date", date(session.getSessionDate())));
     }
 
     /**
@@ -256,11 +262,11 @@ public class NotificationDispatcher {
         dispatch("SESSION_DONE_REVIEW_PT", session.getTicket().getCustomer(),
                 NotificationCategory.REVIEW,
                 "Đánh giá HLV buổi vừa tập?",
-                "Buổi ngày " + session.getSessionDate() + " với HLV " + ptName
+                "Buổi ngày " + date(session.getSessionDate()) + " với HLV " + ptName
                         + " đã hoàn thành. Chấm điểm buổi tập này để HLV và người tập sau đều "
                         + "biết mình đang chọn ai.",
                 "/profile/reviews",
-                Map.of("ptName", s(ptName), "date", s(session.getSessionDate())));
+                Map.of("ptName", s(ptName), "date", date(session.getSessionDate())));
     }
 
     /** Tiền vé đã về ví khả dụng của gym (số ròng sau hoa hồng). */
@@ -269,7 +275,7 @@ public class NotificationDispatcher {
                 "Tiền đã về ví",
                 "Vé #" + t.getId() + " đã giải ngân " + netAmount + " đ vào số dư khả dụng.",
                 "/gym/wallet",
-                Map.of("ticketId", s(t.getId()), "amount", s(netAmount)));
+                Map.of("ticketId", s(t.getId()), "amount", money(netAmount)));
     }
 
     /** Vé sắp hết hạn mà khách chưa dùng hết — nhắc trước khi mất tiền (câu 32). */
@@ -287,7 +293,7 @@ public class NotificationDispatcher {
         dispatch("TICKET_EXPIRED", t.getCustomer(), NotificationCategory.BOOKING,
                 "Vé đã hết hạn",
                 "Vé \"" + t.getTicketType().getName() + "\" đã quá hạn sử dụng ngày "
-                        + t.getExpiresAt().toLocalDate() + " và không còn hoàn tiền được.",
+                        + dateOf(t.getExpiresAt()) + " và không còn hoàn tiền được.",
                 "/profile/tickets", Map.of("ticketId", s(t.getId())));
     }
 
@@ -310,7 +316,7 @@ public class NotificationDispatcher {
                         ? " " + cancelledSessions + " buổi tập đã đặt bị huỷ theo." : "");
         dispatch("TICKET_REFUND_EXECUTED", t.getCustomer(), NotificationCategory.PAYMENT,
                 "Yêu cầu hoàn tiền đã được duyệt", body, "/profile/tickets",
-                Map.of("ticketId", s(t.getId()), "amount", s(amount),
+                Map.of("ticketId", s(t.getId()), "amount", money(amount),
                         "cancelledSessions", s(cancelledSessions)));
     }
 
@@ -322,7 +328,7 @@ public class NotificationDispatcher {
                         + "\" đã bị từ chối: " + note
                         + ". Nếu chưa đồng ý, bạn có thể mở tranh chấp cho vé này.",
                 "/profile/tickets",
-                Map.of("ticketId", s(t.getId()), "amount", s(amount), "note", s(note)));
+                Map.of("ticketId", s(t.getId()), "amount", money(amount), "note", s(note)));
     }
 
     /** Bên liên quan của một tranh chấp vé: khách, gym, và PT của buổi (nếu có). */
@@ -347,7 +353,7 @@ public class NotificationDispatcher {
         // Câu 34: nói rõ tranh chấp thuộc cấp vé hay cấp buổi — hai thứ này khác
         // nhau cả về số tiền lẫn về việc ai cần trả lời.
         String scope = d.getSession() != null
-                ? "buổi tập ngày " + d.getSession().getSessionDate()
+                ? "buổi tập ngày " + date(d.getSession().getSessionDate())
                 : "vé #" + d.getTicket().getId();
         Map<String, String> vars = Map.of("disputeId", s(d.getId()),
                 "ticketId", s(d.getTicket().getId()), "scope", scope);
@@ -381,11 +387,11 @@ public class NotificationDispatcher {
         Ticket t = session.getTicket();
         dispatch("PT_SUSPENDED_AFFECTS_SESSION", t.getCustomer(), NotificationCategory.BOOKING,
                 "Buổi tập cần chọn lại PT",
-                "PT của buổi ngày " + session.getSessionDate() + " tạm thời không thể phục vụ"
+                "PT của buổi ngày " + date(session.getSessionDate()) + " tạm thời không thể phục vụ"
                         + (reason != null && !reason.isBlank() ? " (" + reason + ")" : "")
                         + ". Vui lòng chọn PT khác cho buổi này.",
                 "/schedule",
-                Map.of("sessionId", s(session.getId()), "date", s(session.getSessionDate()),
+                Map.of("sessionId", s(session.getId()), "date", date(session.getSessionDate()),
                         "reason", s(reason)));
     }
 
@@ -410,12 +416,12 @@ public class NotificationDispatcher {
     public void ptLeaveSubmitted(User gymOwner, String ptName, PtLeaveRequest request) {
         dispatch("PT_LEAVE_SUBMITTED", gymOwner, NotificationCategory.WORKFORCE,
                 "PT gửi đơn xin nghỉ",
-                ptName + " xin nghỉ từ " + request.getFromDate() + " đến " + request.getToDate()
+                ptName + " xin nghỉ từ " + date(request.getFromDate()) + " đến " + date(request.getToDate())
                         + " (" + request.getType() + "): " + request.getReason()
                         + ". Vào duyệt đơn để chốt lịch.",
                 "/gym/schedule",
-                Map.of("ptName", s(ptName), "fromDate", s(request.getFromDate()),
-                        "toDate", s(request.getToDate()), "type", s(request.getType()),
+                Map.of("ptName", s(ptName), "fromDate", date(request.getFromDate()),
+                        "toDate", date(request.getToDate()), "type", s(request.getType()),
                         "reason", s(request.getReason())));
     }
 
@@ -423,10 +429,10 @@ public class NotificationDispatcher {
     public void ptLeaveApproved(User ptUser, PtLeaveRequest request, int affectedSessions) {
         dispatch("PT_LEAVE_APPROVED", ptUser, NotificationCategory.WORKFORCE,
                 "Đơn nghỉ đã được duyệt",
-                "Đơn nghỉ " + request.getFromDate() + " - " + request.getToDate()
+                "Đơn nghỉ " + date(request.getFromDate()) + " - " + date(request.getToDate())
                         + " đã được duyệt. Số buổi tập bị ảnh hưởng: " + affectedSessions + ".",
                 "/trainer/availability",
-                Map.of("fromDate", s(request.getFromDate()), "toDate", s(request.getToDate()),
+                Map.of("fromDate", date(request.getFromDate()), "toDate", date(request.getToDate()),
                         "affected", s(affectedSessions)));
     }
 
@@ -434,10 +440,10 @@ public class NotificationDispatcher {
     public void ptLeaveRejected(User ptUser, PtLeaveRequest request, String reason) {
         dispatch("PT_LEAVE_REJECTED", ptUser, NotificationCategory.WORKFORCE,
                 "Đơn nghỉ bị từ chối",
-                "Đơn nghỉ " + request.getFromDate() + " - " + request.getToDate()
+                "Đơn nghỉ " + date(request.getFromDate()) + " - " + date(request.getToDate())
                         + " bị từ chối: " + reason + ". Lịch ca của bạn giữ nguyên.",
                 "/trainer/availability",
-                Map.of("fromDate", s(request.getFromDate()), "toDate", s(request.getToDate()),
+                Map.of("fromDate", date(request.getFromDate()), "toDate", date(request.getToDate()),
                         "reason", s(reason)));
     }
 
@@ -451,12 +457,12 @@ public class NotificationDispatcher {
         Ticket ticket = session.getTicket();
         dispatch("SESSION_PT_CANCELLED", ticket.getCustomer(), NotificationCategory.BOOKING,
                 "HLV của buổi tập xin nghỉ",
-                "HLV " + ptName + " không thể phụ trách buổi ngày " + session.getSessionDate()
+                "HLV " + ptName + " không thể phụ trách buổi ngày " + date(session.getSessionDate())
                         + " lúc " + slotStart + ". Bạn có thể chọn HLV khác hoặc nhận hoàn "
-                        + refundAmount + " đ phụ phí HLV của ngày này.",
+                        + money(refundAmount) + " phụ phí HLV của ngày này.",
                 "/schedule",
-                Map.of("ptName", s(ptName), "date", s(session.getSessionDate()),
-                        "slotStart", s(slotStart), "refundAmount", s(refundAmount)));
+                Map.of("ptName", s(ptName), "date", date(session.getSessionDate()),
+                        "slotStart", time(slotStart), "refundAmount", money(refundAmount)));
     }
 
     /** Khách không quyết tới ngày tập — hệ thống tự hoàn để khách không thiệt. */
@@ -467,38 +473,38 @@ public class NotificationDispatcher {
      * không một dòng thông báo nào là cách nhanh nhất để HLV tưởng hệ thống lỗi).
      */
     public void sessionCancelledByCustomer(TrainingSession session, BigDecimal refundAmount,
-                                           BigDecimal percent, long hoursAhead) {
+                                           BigDecimal refundPercent, long hoursAhead) {
         Ticket t = session.getTicket();
         Map<String, String> customerVars = Map.of(
-                "date", s(session.getSessionDate()),
-                "refundAmount", s(refundAmount),
-                "percent", s(percent));
+                "date", date(session.getSessionDate()),
+                "refundAmount", money(refundAmount),
+                "percent", percent(refundPercent));
         dispatch("SESSION_CANCELLED_CUSTOMER", t.getCustomer(), NotificationCategory.BOOKING,
-                "Đã huỷ buổi tập ngày " + session.getSessionDate(),
-                "Buổi tập ngày " + session.getSessionDate() + " đã được huỷ. Số tiền hoàn lại: "
-                        + refundAmount + " đ (tương đương " + percent
+                "Đã huỷ buổi tập ngày " + date(session.getSessionDate()),
+                "Buổi tập ngày " + date(session.getSessionDate()) + " đã được huỷ. Số tiền hoàn lại: "
+                        + money(refundAmount) + " (tương đương " + percent(refundPercent)
                         + "% giá trị một ngày tập) và đã vào ví của bạn.",
                 "/profile/wallet", customerVars);
 
         dispatch("SESSION_CANCELLED_GYM", gymUser(t), NotificationCategory.BOOKING,
-                "Khách huỷ buổi tập ngày " + session.getSessionDate(),
+                "Khách huỷ buổi tập ngày " + date(session.getSessionDate()),
                 t.getCustomer().getFullName() + " đã huỷ buổi tập ngày "
-                        + session.getSessionDate() + ". Báo trước " + hoursAhead
-                        + " giờ nên hoàn " + percent + "% giá trị ngày tập.",
+                        + date(session.getSessionDate()) + ". Báo trước " + hoursAhead
+                        + " giờ nên hoàn " + percent(refundPercent) + "% giá trị ngày tập.",
                 "/gym/calendar",
                 Map.of("customerName", s(t.getCustomer().getFullName()),
-                        "date", s(session.getSessionDate()),
-                        "hours", s(hoursAhead), "percent", s(percent)));
+                        "date", date(session.getSessionDate()),
+                        "hours", s(hoursAhead), "percent", percent(refundPercent)));
 
         if (session.getPtProfile() != null) {
             dispatch("SESSION_CANCELLED_PT", session.getPtProfile().getUser(),
                     NotificationCategory.BOOKING,
-                    "Buổi dạy ngày " + session.getSessionDate() + " đã bị huỷ",
-                    "Khách đã huỷ buổi tập ngày " + session.getSessionDate() + " lúc "
-                            + session.getPtSlotStart() + ". Khung giờ này của bạn đã được trả lại.",
+                    "Buổi dạy ngày " + date(session.getSessionDate()) + " đã bị huỷ",
+                    "Khách đã huỷ buổi tập ngày " + date(session.getSessionDate()) + " lúc "
+                            + time(session.getPtSlotStart()) + ". Khung giờ này của bạn đã được trả lại.",
                     "/trainer/sessions",
-                    Map.of("date", s(session.getSessionDate()),
-                            "slot", s(session.getPtSlotStart())));
+                    Map.of("date", date(session.getSessionDate()),
+                            "slot", time(session.getPtSlotStart())));
         }
     }
 
@@ -506,9 +512,9 @@ public class NotificationDispatcher {
         Ticket ticket = session.getTicket();
         dispatch("SESSION_PT_AUTO_REFUNDED", ticket.getCustomer(), NotificationCategory.BOOKING,
                 "Đã hoàn phụ phí HLV của buổi tập",
-                "Buổi ngày " + session.getSessionDate() + " không được chọn HLV thay thế nên "
-                        + refundAmount + " đ phụ phí HLV đã được hoàn vào ví của bạn.",
+                "Buổi ngày " + date(session.getSessionDate()) + " không được chọn HLV thay thế nên "
+                        + money(refundAmount) + " phụ phí HLV đã được hoàn vào ví của bạn.",
                 "/profile/wallet",
-                Map.of("date", s(session.getSessionDate()), "refundAmount", s(refundAmount)));
+                Map.of("date", date(session.getSessionDate()), "refundAmount", money(refundAmount)));
     }
 }
