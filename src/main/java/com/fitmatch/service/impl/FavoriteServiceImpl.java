@@ -31,6 +31,7 @@ public class FavoriteServiceImpl implements FavoriteService {
     private final PtProfileRepository ptProfileRepository;
     private final GymProfileRepository gymProfileRepository;
     private final UserRepository userRepository;
+    private final com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
 
     @Override
     @Transactional
@@ -52,11 +53,20 @@ public class FavoriteServiceImpl implements FavoriteService {
     @Override
     @Transactional(readOnly = true)
     public List<PtPublicProfileResponse> listPtFavorites(String username) {
-        return favoriteRepository.findByUser_UsernameAndType(username, FavoriteType.PT).stream()
+        var profiles = favoriteRepository.findByUser_UsernameAndType(username, FavoriteType.PT).stream()
                 .map(f -> ptProfileRepository.findById(f.getTargetId()).orElse(null))
                 .filter(p -> p != null)
+                .toList();
+        // Ảnh đại diện (media TRAINER/AVATAR) của cả danh sách trong MỘT truy vấn —
+        // cùng nguồn với card marketplace để trang yêu thích không hiện avatar trống.
+        var avatars = ptAvatarResolver.urlsOf(profiles.stream().map(p -> p.getId()).toList());
+        return profiles.stream()
                 // UC-008/010: kèm rating từ cột denorm V51 (không aggregate mỗi request)
-                .map(p -> PtPublicProfileResponse.of(p, List.of(), p.getAvgRating(), p.getRatingCount()))
+                .map(p -> {
+                    var response = PtPublicProfileResponse.of(p, List.of(), p.getAvgRating(), p.getRatingCount());
+                    response.setAvatarUrl(avatars.get(p.getId()));
+                    return response;
+                })
                 .toList();
     }
 

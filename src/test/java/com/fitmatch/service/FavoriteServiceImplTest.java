@@ -34,6 +34,7 @@ class FavoriteServiceImplTest {
     @Mock private PtProfileRepository ptProfileRepository;
     @Mock private GymProfileRepository gymProfileRepository;
     @Mock private UserRepository userRepository;
+    @Mock private com.fitmatch.service.support.PtAvatarResolver ptAvatarResolver;
     @InjectMocks private FavoriteServiceImpl service;
 
     @Test
@@ -64,5 +65,21 @@ class FavoriteServiceImplTest {
     void removePtFavorite_notFound_throws() {
         when(favoriteRepository.deleteByUser_UsernameAndTypeAndTargetId("u", FavoriteType.PT, 9L)).thenReturn(0L);
         assertThatThrownBy(() -> service.removePtFavorite("u", 9L)).isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void listPtFavorites_includesAvatarUrl() {
+        when(favoriteRepository.findByUser_UsernameAndType("u", FavoriteType.PT)).thenReturn(java.util.List.of(
+                Favorite.builder().type(FavoriteType.PT).targetId(1L).build(),
+                Favorite.builder().type(FavoriteType.PT).targetId(2L).build()));
+        when(ptProfileRepository.findById(1L)).thenReturn(Optional.of(PtProfile.builder().id(1L).build()));
+        when(ptProfileRepository.findById(2L)).thenReturn(Optional.of(PtProfile.builder().id(2L).build()));
+        when(ptAvatarResolver.urlsOf(java.util.List.of(1L, 2L))).thenReturn(java.util.Map.of(1L, "https://cdn/pt1.jpg"));
+
+        var result = service.listPtFavorites("u");
+
+        org.assertj.core.api.Assertions.assertThat(result).hasSize(2);
+        org.assertj.core.api.Assertions.assertThat(result.get(0).getAvatarUrl()).isEqualTo("https://cdn/pt1.jpg");
+        org.assertj.core.api.Assertions.assertThat(result.get(1).getAvatarUrl()).isNull();
     }
 }

@@ -43,11 +43,11 @@ public class SessionStatusHistory extends BaseEntity {
     private TrainingSession session;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "from_status", length = 20)
+    @Column(name = "from_status", length = 30)
     private SessionStatus fromStatus;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "to_status", nullable = false, length = 20)
+    @Column(name = "to_status", nullable = false, length = 30)
     private SessionStatus toStatus;
 
     @Column(length = 500)
