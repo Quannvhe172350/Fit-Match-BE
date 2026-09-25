@@ -127,6 +127,23 @@ class SettlementServiceImplTest {
         verify(walletService).moveToPendingForTicket(GYM_ID, TICKET_ID, BigDecimal.valueOf(1_200_000));
     }
 
+    /**
+     * Khoản đã hoàn lẻ từ held (PT nghỉ, khách huỷ buổi) không còn trong ví —
+     * tính cả vào thì mở tranh chấp đóng băng khống và quyết định sau đó dính
+     * INSUFFICIENT_BALANCE.
+     */
+    @Test
+    void heldAmount_excludesPartialRefundsAlreadyPaidOut() {
+        Ticket ticket = heldTicket();
+        ticket.setPtRefundedAmount(BigDecimal.valueOf(100_000));
+        ticket.setSessionRefundedAmount(BigDecimal.valueOf(50_000));
+        when(paymentOrderRepository.findByTicket_Id(TICKET_ID)).thenReturn(Optional.of(
+                PaymentOrder.builder().status(PaymentStatus.PAID)
+                        .amount(BigDecimal.valueOf(1_000_000)).build()));
+
+        assertThat(service.heldAmountOfTicket(ticket)).isEqualByComparingTo(BigDecimal.valueOf(850_000));
+    }
+
     @Test
     void release_usesSnapshotCommissionNotCurrentConfig() {
         Ticket ticket = heldTicket();

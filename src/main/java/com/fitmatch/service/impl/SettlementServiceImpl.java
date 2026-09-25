@@ -114,10 +114,27 @@ public class SettlementServiceImpl implements SettlementService {
         return resolveHeldAmount(ticket);
     }
 
+    /**
+     * Phần của vé CÒN nằm trong held: số đã thanh toán trừ các khoản đã hoàn lẻ
+     * từ held (phụ phí HLV khi PT nghỉ, khách tự huỷ buổi). Không trừ thì con số
+     * này lớn hơn tiền thật của vé — mở tranh chấp sẽ đóng băng khống, và tới
+     * lúc quyết định/quyết toán thì ví gym báo INSUFFICIENT_BALANCE (hoặc tệ hơn,
+     * rút lẹm vào tiền held của vé khác).
+     */
     private BigDecimal resolveHeldAmount(Ticket ticket) {
-        return paymentOrderRepository.findByTicket_Id(ticket.getId())
+        BigDecimal paid = paymentOrderRepository.findByTicket_Id(ticket.getId())
                 .filter(o -> o.getStatus() == PaymentStatus.PAID)
                 .map(PaymentOrder::getAmount)
                 .orElse(ticket.getPayableAmount());
+        if (paid == null) {
+            return null;
+        }
+        BigDecimal alreadyRefunded = nvl(ticket.getPtRefundedAmount())
+                .add(nvl(ticket.getSessionRefundedAmount()));
+        return paid.subtract(alreadyRefunded).max(BigDecimal.ZERO);
+    }
+
+    private static BigDecimal nvl(BigDecimal v) {
+        return v == null ? BigDecimal.ZERO : v;
     }
 }
