@@ -5,7 +5,12 @@ import com.fitmatch.entity.ReviewReport;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
+import java.util.Collection;
+import java.util.Set;
 
 @Repository
 public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long> {
@@ -22,6 +27,13 @@ public interface ReviewReportRepository extends JpaRepository<ReviewReport, Long
     Page<ReviewReport> findAllByOrderByIdDesc(Pageable pageable);
 
     boolean existsByReview_IdAndCreatedByAndStatus(Long reviewId, String createdBy, ReportStatus status);
+
+    /** Trong các review của một trang, những review nào người này đang có báo cáo ở trạng thái cho trước. */
+    @Query("select distinct rr.review.id from ReviewReport rr "
+            + "where rr.createdBy = :createdBy and rr.status = :status and rr.review.id in :reviewIds")
+    Set<Long> findReviewIdsReportedBy(@Param("createdBy") String createdBy,
+                                      @Param("status") ReportStatus status,
+                                      @Param("reviewIds") Collection<Long> reviewIds);
 
     /** P0-0.4: có bất kỳ report nào trỏ tới review — dùng để tránh hard-delete vi phạm FK. */
     boolean existsByReview_Id(Long reviewId);

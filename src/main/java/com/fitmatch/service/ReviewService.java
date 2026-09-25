@@ -39,9 +39,10 @@ public interface ReviewService {
     void report(String reporterUsername, Long reviewId, ReportRequest request);
 
     // ----- Public (UC-009) -----
-    PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, Pageable pageable);
+    /** {@code viewerUsername} null với khách chưa đăng nhập — chỉ dùng để tính {@code reportedByMe}. */
+    PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, String viewerUsername, Pageable pageable);
 
-    PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, Pageable pageable);
+    PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, String viewerUsername, Pageable pageable);
 
     /** UC-009: điểm trung bình + phổ điểm 1..5 sao của một gym (chỉ review VISIBLE). */
     RatingSummaryResponse gymRatingSummary(Long gymProfileId);

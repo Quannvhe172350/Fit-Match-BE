@@ -106,9 +106,12 @@ public class ReviewController {
     @SecurityRequirements
     @GetMapping("/gym/{gymId}")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> gymReviews(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long gymId, @PageableDefault(size = 20) Pageable pageable) {
+        // Endpoint công khai: có token thì JwtAuthFilter vẫn nạp người dùng, chỉ để
+        // tính reportedByMe; khách vãng lai thì null.
         return ResponseEntity.ok(ApiResponse.success(
-                reviewService.visibleForGym(gymId, pageable)));
+                reviewService.visibleForGym(gymId, usernameOrNull(userDetails), pageable)));
     }
 
     @Operation(
@@ -117,9 +120,14 @@ public class ReviewController {
     @SecurityRequirements
     @GetMapping("/pt/{ptId}")
     public ResponseEntity<ApiResponse<PageResponse<ReviewResponse>>> ptReviews(
+            @AuthenticationPrincipal UserDetails userDetails,
             @PathVariable Long ptId, @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(ApiResponse.success(
-                reviewService.visibleForPt(ptId, pageable)));
+                reviewService.visibleForPt(ptId, usernameOrNull(userDetails), pageable)));
+    }
+
+    private static String usernameOrNull(UserDetails userDetails) {
+        return userDetails != null ? userDetails.getUsername() : null;
     }
 
     @Operation(

@@ -72,6 +72,39 @@ class ReviewServiceImplTest {
                 .isEqualTo(ErrorCode.INVALID_STATE);
     }
 
+    /** Nút "Báo cáo vi phạm" đổi thành "Đã báo cáo" thay vì để người dùng gửi rồi nhận 409. */
+    @Test
+    void visibleForPt_marksReviewsTheViewerAlreadyReported() {
+        Review r1 = Review.builder().id(1L).status(ReviewStatus.VISIBLE)
+                .customer(User.builder().username("john").build())
+                .gymProfile(GymProfile.builder().id(5L).gymName("Gym A").build()).rating(4).build();
+        Review r2 = Review.builder().id(2L).status(ReviewStatus.VISIBLE)
+                .customer(User.builder().username("john").build())
+                .gymProfile(GymProfile.builder().id(5L).gymName("Gym A").build()).rating(2).build();
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(reviewRepository.findByPtProfile_IdAndStatusOrderByIdDesc(7L, ReviewStatus.VISIBLE, pageable))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(r1, r2), pageable, 2));
+        when(mediaService.listForEntities(any(), any(), any())).thenReturn(java.util.Map.of());
+        when(reviewReportRepository.findReviewIdsReportedBy("bob", ReportStatus.OPEN, java.util.List.of(1L, 2L)))
+                .thenReturn(java.util.Set.of(2L));
+
+        var content = service.visibleForPt(7L, "bob", pageable).getContent();
+
+        assertThat(content).extracting(ReviewResponse::isReportedByMe).containsExactly(false, true);
+    }
+
+    @Test
+    void visibleForPt_guest_neverQueriesReports() {
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(reviewRepository.findByPtProfile_IdAndStatusOrderByIdDesc(7L, ReviewStatus.VISIBLE, pageable))
+                .thenReturn(org.springframework.data.domain.Page.empty(pageable));
+        when(mediaService.listForEntities(any(), any(), any())).thenReturn(java.util.Map.of());
+
+        service.visibleForPt(7L, null, pageable);
+
+        verify(reviewReportRepository, never()).findReviewIdsReportedBy(any(), any(), any());
+    }
+
     @Test
     void moderate_setsStatusAndAudits() {
         Review review = Review.builder().id(1L).status(ReviewStatus.VISIBLE)

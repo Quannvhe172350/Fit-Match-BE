@@ -33,12 +33,22 @@ public class ReviewResponse {
     private ReviewStatus status;
     private List<MediaResponse> images;
     private LocalDateTime createdAt;
+    /**
+     * Người đang xem đã có báo cáo OPEN cho review này chưa — FE dựa vào đây để
+     * đổi nút "Báo cáo vi phạm" thành "Đã báo cáo" thay vì để người dùng gửi rồi
+     * mới nhận 409. Luôn false với khách chưa đăng nhập.
+     */
+    private boolean reportedByMe;
 
     public static ReviewResponse of(Review r) {
         return of(r, List.of());
     }
 
     public static ReviewResponse of(Review r, List<MediaResponse> images) {
+        return of(r, images, false);
+    }
+
+    public static ReviewResponse of(Review r, List<MediaResponse> images, boolean reportedByMe) {
         return ReviewResponse.builder()
                 .id(r.getId())
                 .ticketId(r.getTicket() != null ? r.getTicket().getId() : null)
@@ -54,6 +64,7 @@ public class ReviewResponse {
                 .status(r.getStatus())
                 .images(images != null ? images : List.of())
                 .createdAt(r.getCreatedAt())
+                .reportedByMe(reportedByMe)
                 .build();
     }
 }

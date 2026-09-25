@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -73,10 +74,22 @@ public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.Ti
      * {@link #imagesOf} cho từng dòng sẽ thành N+1 ngay trên trang chi tiết gym.
      */
     private PageResponse<ReviewResponse> toPage(Page<Review> page) {
+        return toPage(page, null);
+    }
+
+    /**
+     * Như {@link #toPage(Page)} nhưng đánh dấu thêm {@code reportedByMe} cho
+     * người đang xem — cũng một truy vấn cho cả trang, không N+1.
+     */
+    private PageResponse<ReviewResponse> toPage(Page<Review> page, String viewerUsername) {
         List<Long> ids = page.getContent().stream().map(Review::getId).toList();
         Map<Long, List<MediaResponse>> images = mediaService.listForEntities(
                 MediaEntityType.REVIEW, ids, MediaImageType.REVIEW_IMAGE);
-        return PageResponse.of(page, r -> ReviewResponse.of(r, images.get(r.getId())));
+        Set<Long> reported = viewerUsername == null || ids.isEmpty()
+                ? Set.of()
+                : reviewReportRepository.findReviewIdsReportedBy(viewerUsername, ReportStatus.OPEN, ids);
+        return PageResponse.of(page, r -> ReviewResponse.of(
+                r, images.get(r.getId()), reported.contains(r.getId())));
     }
 
     /**
@@ -248,17 +261,19 @@ public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.Ti
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, Pageable pageable) {
+    public PageResponse<ReviewResponse> visibleForGym(Long gymProfileId, String viewerUsername,
+                                                      Pageable pageable) {
         // Chỉ đánh giá GYM: đánh giá PT có gymProfile nhưng thuộc về trang PT.
         return toPage(reviewRepository.findVisibleGymReviews(
-                gymProfileId, ReviewStatus.VISIBLE, pageable));
+                gymProfileId, ReviewStatus.VISIBLE, pageable), viewerUsername);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, Pageable pageable) {
+    public PageResponse<ReviewResponse> visibleForPt(Long ptProfileId, String viewerUsername,
+                                                     Pageable pageable) {
         return toPage(reviewRepository.findByPtProfile_IdAndStatusOrderByIdDesc(
-                ptProfileId, ReviewStatus.VISIBLE, pageable));
+                ptProfileId, ReviewStatus.VISIBLE, pageable), viewerUsername);
     }
 
     @Override
@@ -284,7 +299,7 @@ public class ReviewServiceImpl implements ReviewService, com.fitmatch.service.Ti
                                                    Pageable pageable) {
         return toPage(targetType == null
                 ? reviewRepository.findByGymProfile_User_UsernameOrderByIdDesc(gymUsername, pageable)
-                : reviewRepository.findOwnedByType(gymUsername, targetType, pageable));
+                : reviewRepository.findOwnedByType(gymUsername, targetType, pageable), gymUsername);
     }
 
     @Override
