@@ -7,6 +7,7 @@ import com.fitmatch.entity.Dispute;
 import com.fitmatch.entity.Ticket;
 import com.fitmatch.exception.BusinessException;
 import com.fitmatch.repository.TicketRepository;
+import com.fitmatch.service.SettlementService;
 import com.fitmatch.service.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,12 +28,13 @@ import java.time.LocalDateTime;
 public class DisputeFinancialApplier {
 
     private final WalletService walletService;
+    private final SettlementService settlementService;
     private final TicketRepository ticketRepository;
     private final NotificationDispatcher notificationDispatcher;
 
     public void apply(Dispute dispute, DisputeResolution resolution, BigDecimal refundAmount) {
         Ticket ticket = dispute.getTicket();
-        BigDecimal held = dispute.getFrozenAmount() != null ? dispute.getFrozenAmount() : BigDecimal.ZERO;
+        BigDecimal held = capToTicketFunds(dispute, ticket);
         Long gymId = ticket.getGymProfile().getId();
 
         if (held.compareTo(BigDecimal.ZERO) <= 0) {
@@ -107,5 +109,30 @@ public class DisputeFinancialApplier {
         log.info("Dispute {} applied: resolution={}, refund={}, toGym={}, stillPending={}, ticket={}, session={}",
                 dispute.getId(), resolution, refund, toGym, stillPending, ticket.getId(),
                 dispute.getSession() != null ? dispute.getSession().getId() : null);
+    }
+
+    /**
+     * Số đóng băng không được vượt tiền thật còn lại của vé (đã trả − đã hoàn
+     * lẻ − phần vẫn nằm ở pending). Tranh chấp mở trước bản sửa
+     * {@code heldAmountOfTicket} lưu frozenAmount tính cả các khoản đã hoàn lẻ,
+     * nên áp nguyên số đó sẽ rút quá held và ví gym trả INSUFFICIENT_BALANCE.
+     * Chỉ hạ xuống, không bao giờ nâng lên.
+     */
+    private BigDecimal capToTicketFunds(Dispute dispute, Ticket ticket) {
+        BigDecimal frozen = dispute.getFrozenAmount() != null ? dispute.getFrozenAmount() : BigDecimal.ZERO;
+        BigDecimal ticketFunds = settlementService.heldAmountOfTicket(ticket);
+        if (ticketFunds == null || frozen.signum() <= 0) {
+            return frozen;
+        }
+        BigDecimal stillPending = ticket.getSettlementAmount() != null
+                ? ticket.getSettlementAmount() : BigDecimal.ZERO;
+        BigDecimal cap = ticketFunds.subtract(stillPending).max(BigDecimal.ZERO);
+        if (frozen.compareTo(cap) <= 0) {
+            return frozen;
+        }
+        log.warn("Dispute {} frozenAmount {} exceeds ticket {} remaining funds {} - capping",
+                dispute.getId(), frozen, ticket.getId(), cap);
+        dispute.setFrozenAmount(cap);
+        return cap;
     }
 }

@@ -39,6 +39,7 @@ class DisputeFinancialApplierTest {
     private static final Long GYM_ID = 1L;
 
     @Mock private WalletService walletService;
+    @Mock private SettlementService settlementService;
     @Mock private TicketRepository ticketRepository;
     @Mock private NotificationDispatcher notificationDispatcher;
     @InjectMocks private DisputeFinancialApplier applier;
@@ -56,6 +57,24 @@ class DisputeFinancialApplierTest {
 
     private Dispute dispute(Ticket t, BigDecimal frozen) {
         return Dispute.builder().id(1L).ticket(t).frozenAmount(frozen).build();
+    }
+
+    /**
+     * Tranh chấp mở trước bản sửa heldAmountOfTicket: frozenAmount tính cả phần
+     * đã hoàn lẻ. Áp nguyên số đó là rút quá held -> INSUFFICIENT_BALANCE.
+     */
+    @Test
+    void frozenAboveTicketFunds_isCappedToWhatIsReallyHeld() {
+        Ticket t = ticket(SettlementStatus.DISPUTED);
+        t.setSettlementAmount(BigDecimal.ZERO);
+        Dispute d = dispute(t, BigDecimal.valueOf(1_000_000));
+        org.mockito.Mockito.when(settlementService.heldAmountOfTicket(t)).thenReturn(BigDecimal.valueOf(850_000));
+
+        applier.apply(d, DisputeResolution.REFUND_FULL, null);
+
+        verify(walletService).refundToCustomerForTicket(eq(GYM_ID), any(), eq(TICKET_ID),
+                eq(BigDecimal.valueOf(850_000)));
+        assertThat(d.getFrozenAmount()).isEqualByComparingTo(BigDecimal.valueOf(850_000));
     }
 
     @Test
